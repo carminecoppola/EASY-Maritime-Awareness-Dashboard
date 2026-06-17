@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>EASY Maritime Awareness Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand-block">
+          <img class="brand-logo" src="{{ url_for('static', filename='img/easy-logo.svg') }}" alt="EASY">
+          <div>
+            <p class="eyebrow">Environmental Awareness by the Sea and beYond</p>
+            <h1>EASY Maritime Awareness</h1>
+            <p class="subline">Local dashboard on {{ hostname }} at {{ ip_address }}</p>
+          </div>
+        </div>
+        <div class="status-strip">
+          <div class="status-chip">
+            <span>IP Raspberry</span>
+            <strong id="ip-address">{{ ip_address }}</strong>
+          </div>
+          <div class="status-chip">
+            <span>System</span>
+            <strong id="system-state">Checking</strong>
+          </div>
+          <div class="status-chip">
+            <span>Timestamp</span>
+            <strong id="timestamp">--</strong>
+          </div>
+        </div>
+      </header>
+
+      <section class="status-rail">
+        <article class="rail-card">
+          <span class="rail-label">RGB LEFT</span>
+          <strong id="rgb_left_state_label">--</strong>
+          <p id="rgb_left_message">--</p>
+        </article>
+        <article class="rail-card">
+          <span class="rail-label">RGB RIGHT</span>
+          <strong id="rgb_right_state_label">--</strong>
+          <p id="rgb_right_message">--</p>
+        </article>
+        <article class="rail-card">
+          <span class="rail-label">THERMAL</span>
+          <strong id="thermal_state_label">--</strong>
+          <p id="thermal_message">--</p>
+        </article>
+      </section>
+
+      <section class="grid grid-system">
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="kicker">System Status</p>
+              <h2>Raspberry Health</h2>
+            </div>
+          </div>
+          <div class="metric-grid">
+            <div class="metric"><span>CPU</span><strong id="cpu-percent">--</strong></div>
+            <div class="metric"><span>Temp</span><strong id="cpu-temp">--</strong></div>
+            <div class="metric"><span>RAM</span><strong id="ram-percent">--</strong></div>
+            <div class="metric"><span>Disk</span><strong id="disk-percent">--</strong></div>
+            <div class="metric"><span>Uptime</span><strong id="uptime">--</strong></div>
+            <div class="metric"><span>Model</span><strong id="pi-model">--</strong></div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="kicker">Hardware</p>
+              <h2>Detected Devices</h2>
+            </div>
+          </div>
+          <div class="device-list" id="device-list"></div>
+        </article>
+      </section>
+
+      <section class="grid grid-rgb">
+        <article class="panel camera-panel" data-feed="rgb_left">
+          <div class="panel-head">
+            <div>
+              <p class="kicker">RGB_CAM_LEFT</p>
+              <h2>Arducam UC-517 Left Camera</h2>
+            </div>
+            <span class="badge" id="rgb_left_state">--</span>
+          </div>
+          <div class="state-line">
+            <span class="state-dot" id="rgb_left_dot"></span>
+            <strong id="rgb_left_state_copy">--</strong>
+            <span id="rgb_left_state_msg">--</span>
+          </div>
+          <div class="feed-viewport feed-left">
+            <img class="feed-image" data-feed-image="rgb_left" src="/video/rgb_left" alt="RGB left live preview">
+            <div class="feed-overlay" id="overlay-rgb_left">Waiting for frame...</div>
+          </div>
+          <div class="camera-meta">
+            <span>FPS <strong id="rgb_left_fps">--</strong></span>
+            <span>Last <strong id="rgb_left_last">--</strong></span>
+            <span>Error <strong id="rgb_left_error">--</strong></span>
+          </div>
+          <div class="button-row">
+            <button class="btn btn-primary" data-action="start" data-feed="rgb_left">Restart Stream</button>
+            <button class="btn btn-ghost" data-snapshot="rgb_left">Snapshot</button>
+          </div>
+        </article>
+
+        <article class="panel camera-panel" data-feed="rgb_right">
+          <div class="panel-head">
+            <div>
+              <p class="kicker">RGB_CAM_RIGHT</p>
+              <h2>Arducam UC-517 Right Camera</h2>
+            </div>
+            <span class="badge" id="rgb_right_state">--</span>
+          </div>
+          <div class="state-line">
+            <span class="state-dot" id="rgb_right_dot"></span>
+            <strong id="rgb_right_state_copy">--</strong>
+            <span id="rgb_right_state_msg">--</span>
+          </div>
+          <div class="feed-viewport feed-right">
+            <img class="feed-image" data-feed-image="rgb_right" src="/video/rgb_right" alt="RGB right live preview">
+            <div class="feed-overlay" id="overlay-rgb_right">Waiting for frame...</div>
+          </div>
+          <div class="camera-meta">
+            <span>FPS <strong id="rgb_right_fps">--</strong></span>
+            <span>Last <strong id="rgb_right_last">--</strong></span>
+            <span>Error <strong id="rgb_right_error">--</strong></span>
+          </div>
+          <div class="button-row">
+            <button class="btn btn-primary" data-action="start" data-feed="rgb_right">Restart Stream</button>
+            <button class="btn btn-ghost" data-snapshot="rgb_right">Snapshot</button>
+          </div>
+        </article>
+      </section>
+
+      <section class="grid grid-thermal">
+        <article class="panel camera-panel">
+          <div class="panel-head">
+            <div>
+              <p class="kicker">THERMAL_FLIR</p>
+              <h2>FLIR / Lepton Thermal Sensor</h2>
+            </div>
+            <span class="badge badge-muted" id="thermal_state">--</span>
+          </div>
+          <div class="state-line">
+            <span class="state-dot state-dot-muted" id="thermal_dot"></span>
+            <strong id="thermal_state_copy">--</strong>
+            <span id="thermal_state_msg">--</span>
+          </div>
+          <div class="feed-viewport thermal-viewport">
+            <img class="feed-image thermal-image" id="thermal-frame" src="/thermal/frame" alt="Thermal preview">
+            <div class="feed-overlay" id="overlay-thermal">Waiting for thermal frame...</div>
+          </div>
+          <div class="camera-meta">
+            <span>Min <strong id="thermal_min">--</strong></span>
+            <span>Avg <strong id="thermal_avg">--</strong></span>
+            <span>Max <strong id="thermal_max">--</strong></span>
+            <span>Anomaly <strong id="thermal_anomaly">--</strong></span>
+          </div>
+          <div class="button-row">
+            <button class="btn btn-ghost" id="thermal-snapshot">Snapshot</button>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="kicker">UC512_MULTIPLEXER</p>
+              <h2>Event Log</h2>
+            </div>
+          </div>
+          <div class="event-table-wrap">
+            <table class="event-table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Source</th>
+                  <th>Type</th>
+                  <th>Description</th>
+                  <th>Severity</th>
+                </tr>
+              </thead>
+              <tbody id="event-body"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+    </main>
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+  </body>
+</html>
