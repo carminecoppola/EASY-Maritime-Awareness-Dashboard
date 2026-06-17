@@ -330,6 +330,11 @@ h2 {
   font-size: 14px;
 }
 
+.feed-overlay-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .camera-meta {
   margin-top: 12px;
   padding: 12px 14px;

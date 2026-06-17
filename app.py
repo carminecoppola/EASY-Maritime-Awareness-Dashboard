@@ -491,6 +491,7 @@ class RgbMasterSource:
         self._error = ""
         self._status = "OFFLINE"
         self._last_start_attempt = 0.0
+        self._last_recovery_attempt = 0.0
         self.enabled_feeds: dict[str, bool] = {"rgb_left": True, "rgb_right": True}
         self.detected = self._camera_detected()
 
@@ -526,16 +527,30 @@ class RgbMasterSource:
             return "Camera detected, waiting for first frame"
         return "Camera detected and ready"
 
-    def start(self) -> bool:
+    def _terminate_process_locked(self) -> None:
+        proc = self.process
+        self.process = None
+        if proc and proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+
+    def start(self, force_restart: bool = False) -> bool:
         with self._lock:
             if self.process and self.process.poll() is None:
-                return True
+                if not force_restart:
+                    return True
+                self._terminate_process_locked()
             now = time.time()
-            if self._status == "ERROR" and (now - self._last_start_attempt) < 5.0:
+            if not force_restart and self._status == "ERROR" and (now - self._last_start_attempt) < 5.0:
                 return False
             self._last_start_attempt = now
             self._stop = False
             self._error = ""
+            self._frame = None
+            self._frame_ts = 0.0
             command = [
                 which("rpicam-vid") or which("libcamera-vid") or "libcamera-vid",
                 "--camera",
@@ -583,14 +598,7 @@ class RgbMasterSource:
     def stop(self) -> None:
         with self._lock:
             self._stop = True
-            proc = self.process
-            self.process = None
-            if proc and proc.poll() is None:
-                proc.terminate()
-                try:
-                    proc.wait(timeout=2)
-                except subprocess.TimeoutExpired:
-                    proc.kill()
+            self._terminate_process_locked()
             if self._status != "ERROR":
                 self._status = "OFFLINE"
 
@@ -661,7 +669,7 @@ class RgbMasterSource:
             "info",
         )
         if enabled:
-            self.start()
+            self.start(force_restart=True)
         elif not self.any_enabled():
             self.stop()
 
@@ -673,7 +681,22 @@ class RgbMasterSource:
             while self._frame_seq <= last_seq and time.time() < end and not self._stop:
                 remaining = end - time.time()
                 self._condition.wait(timeout=max(0.1, remaining))
-            return self._frame, self._frame_seq
+            frame = self._frame
+            seq = self._frame_seq
+
+        if frame is None and (time.time() - self._last_recovery_attempt) > 5.0:
+            self._last_recovery_attempt = time.time()
+            self.events.add("UC512_MULTIPLEXER", "STREAM_RECOVERY", "No RGB frame received; restarting camera process", "warning")
+            if self.start(force_restart=True):
+                end = time.time() + timeout
+                with self._condition:
+                    while self._frame_seq <= seq and time.time() < end and not self._stop:
+                        remaining = end - time.time()
+                        self._condition.wait(timeout=max(0.1, remaining))
+                    frame = self._frame
+                    seq = self._frame_seq
+
+        return frame, seq
 
     def latest_state(self) -> Dict[str, Any]:
         with self._condition:

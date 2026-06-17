@@ -75,6 +75,20 @@ function reloadThermalFrame() {
   }
 }
 
+function reloadRgbFeed(feed) {
+  const img = document.querySelector(`[data-feed-image="${feed}"]`);
+  if (img) {
+    img.src = `/video/${feed}?ts=${Date.now()}`;
+  }
+}
+
+function setFeedOverlay(feed, visible, message) {
+  const overlay = byId(`overlay-${feed}`);
+  if (!overlay) return;
+  overlay.textContent = message || "";
+  overlay.classList.toggle("feed-overlay-hidden", !visible);
+}
+
 function updateEventLog(events) {
   const body = byId("event-body");
   if (!body) return;
@@ -137,9 +151,18 @@ async function refreshDashboard() {
     setText("thermal_avg", thermal.avg_c != null ? `${thermal.avg_c} C` : "--");
     setText("thermal_max", thermal.max_c != null ? `${thermal.max_c} C` : "--");
     setText("thermal_anomaly", thermal.anomaly_active ? "YES" : "NO");
-    setText("overlay-rgb_left", rgbLeft.message || rgb.message || "Latest feed available");
-    setText("overlay-rgb_right", rgbRight.message || rgb.message || "Latest feed available");
-    setText("overlay-thermal", thermal.message || "Thermal stream active");
+    const hasRgbFrame = Boolean(rgb.has_frame);
+    setFeedOverlay(
+      "rgb_left",
+      !hasRgbFrame || rgbLeft.enabled === false,
+      rgbLeft.enabled === false ? "Stream paused" : rgbLeft.message || rgb.message || "Waiting for frame..."
+    );
+    setFeedOverlay(
+      "rgb_right",
+      !hasRgbFrame || rgbRight.enabled === false,
+      rgbRight.enabled === false ? "Stream paused" : rgbRight.message || rgb.message || "Waiting for frame..."
+    );
+    setFeedOverlay("thermal", false, thermal.message || "Thermal stream active");
 
     const deviceList = byId("device-list");
     if (deviceList) {
@@ -166,6 +189,9 @@ window.addEventListener("load", () => {
       const action = button.getAttribute("data-action");
       try {
         await streamControl(feed, action);
+        if (action === "start") {
+          reloadRgbFeed(feed);
+        }
         await refreshDashboard();
       } catch (error) {
         console.error(error);
@@ -189,10 +215,13 @@ window.addEventListener("load", () => {
 
   const rgbImages = document.querySelectorAll("[data-feed-image]");
   rgbImages.forEach((img) => {
+    img.addEventListener("load", () => {
+      const feed = img.getAttribute("data-feed-image");
+      setFeedOverlay(feed, false, "");
+    });
     img.addEventListener("error", () => {
       const feed = img.getAttribute("data-feed-image");
-      const overlay = byId(`overlay-${feed}`);
-      if (overlay) overlay.textContent = "Feed unavailable";
+      setFeedOverlay(feed, true, "Feed unavailable");
     });
   });
 
