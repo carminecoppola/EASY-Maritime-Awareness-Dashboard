@@ -11,6 +11,7 @@ import socket
 import subprocess
 import threading
 import time
+from datetime import datetime, timezone
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -55,7 +56,9 @@ for feed_name, feed_meta in SNAPSHOT_FEED_MAP.items():
     (SNAPSHOTS_DIR / feed_meta["folder"]).mkdir(parents=True, exist_ok=True)
 
 
-RESAMPLE_BICUBIC = getattr(getattr(Image, "Resampling", Image), "BICUBIC", Image.BICUBIC)
+_RESAMPLE = getattr(Image, "Resampling", Image)
+RESAMPLE_BICUBIC = getattr(_RESAMPLE, "BICUBIC", Image.BICUBIC)
+RESAMPLE_NEAREST = getattr(_RESAMPLE, "NEAREST", Image.NEAREST)
 
 
 logging.basicConfig(
@@ -155,6 +158,15 @@ def load_config() -> Dict[str, Any]:
 
 def utc_now_iso() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def rome_now_iso() -> str:
+    try:
+        from zoneinfo import ZoneInfo
+
+        return datetime.now(ZoneInfo("Europe/Rome")).isoformat(timespec="seconds")
+    except Exception:
+        return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
 
 
 def human_uptime(seconds: int) -> str:
@@ -588,6 +600,8 @@ class RgbMasterSource:
         self._status = "OFFLINE"
         self._last_start_attempt = 0.0
         self._last_recovery_attempt = 0.0
+        self._next_retry_ts = 0.0
+        self._retry_backoff = 30.0
         self.enabled_feeds: dict[str, bool] = {"rgb_left": True, "rgb_right": True}
         self.detected = self._camera_detected()
 
@@ -598,6 +612,11 @@ class RgbMasterSource:
     def _busy_reason(self) -> bool:
         lowered = self._error.lower()
         return any(token in lowered for token in ("busy", "timeout", "in use", "failed to acquire"))
+
+    def _mark_busy(self, message: str) -> None:
+        self._error = message
+        self._status = "BUSY"
+        self._next_retry_ts = time.time() + self._retry_backoff
 
     def _is_benign_stderr(self, line: str) -> bool:
         lowered = line.lower()
@@ -651,7 +670,7 @@ class RgbMasterSource:
                     return True
                 self._terminate_process_locked()
             now = time.time()
-            if not force_restart and self._status == "ERROR" and (now - self._last_start_attempt) < 5.0:
+            if not force_restart and self._status in {"ERROR", "BUSY"} and now < self._next_retry_ts:
                 return False
             self._last_start_attempt = now
             self._stop = False
@@ -690,6 +709,7 @@ class RgbMasterSource:
             except Exception as exc:
                 self._status = "ERROR"
                 self._error = f"Unable to start RGB stream: {exc}"
+                self._next_retry_ts = now + self._retry_backoff
                 self.events.add("RGB_CAM_LEFT", "STREAM_ERROR", self._error, "error")
                 self.events.add("RGB_CAM_RIGHT", "STREAM_ERROR", self._error, "error")
                 return False
@@ -744,9 +764,10 @@ class RgbMasterSource:
             if self._status != "ERROR":
                 self._status = "OFFLINE"
                 self._condition.notify_all()
-        if not self._stop:
-            self._error = "RGB source stopped unexpectedly."
-            self.events.add("UC512_MULTIPLEXER", "STREAM_STOP", self._error, "warning")
+            if not self._stop:
+                if self._status != "BUSY":
+                    self._error = "RGB source stopped unexpectedly."
+                    self.events.add("UC512_MULTIPLEXER", "STREAM_STOP", self._error, "warning")
 
     def _read_stderr(self) -> None:
         assert self.process and self.process.stderr
@@ -756,15 +777,24 @@ class RgbMasterSource:
             line = raw_line.decode("utf-8", errors="replace").strip()
             if not line:
                 continue
-            self._stderr_tail.append(line)
-            LOGGER.info("rgb-source: %s", line)
             if self._is_benign_stderr(line):
+                self._stderr_tail.append(line)
+                LOGGER.debug("rgb-source: %s", line)
                 continue
+            self._stderr_tail.append(line)
             lowered = line.lower()
             if "error" in lowered or "failed" in lowered or "timeout" in lowered:
-                self._error = line
-                self._status = "ERROR"
+                if "busy" in lowered or "failed to acquire" in lowered:
+                    LOGGER.warning("rgb-source busy: %s", line)
+                    self._mark_busy(line)
+                else:
+                    LOGGER.error("rgb-source error: %s", line)
+                    self._error = line
+                    self._status = "ERROR"
+                    self._next_retry_ts = time.time() + self._retry_backoff
                 self.events.add("UC512_MULTIPLEXER", "STREAM_ERROR", line, "error")
+            else:
+                LOGGER.info("rgb-source: %s", line)
 
     def any_enabled(self) -> bool:
         return any(self.enabled_feeds.values())
@@ -794,6 +824,8 @@ class RgbMasterSource:
             seq = self._frame_seq
 
         if frame is None and (time.time() - self._last_recovery_attempt) > 5.0:
+            if self._status == "BUSY":
+                return frame, seq
             self._last_recovery_attempt = time.time()
             self.events.add("UC512_MULTIPLEXER", "STREAM_RECOVERY", "No RGB frame received; restarting camera process", "warning")
             if self.start(force_restart=True):
@@ -948,13 +980,49 @@ class ThermalState:
         g = (np.clip(1.0 - np.abs(normalized - 0.55) * 1.6, 0.0, 1.0) * 255).astype(np.uint8)
         b = ((1.0 - normalized) * 220 + 15).astype(np.uint8)
         rgb = np.dstack([r, g, b])
-        image = Image.fromarray(rgb, mode="RGB").resize((640, 360), RESAMPLE_BICUBIC)
+        image = Image.fromarray(rgb, mode="RGB").resize((640, 360), RESAMPLE_NEAREST)
         draw = ImageDraw.Draw(image)
-        draw.rectangle((12, 12, 212, 46), fill=(255, 122, 122) if self._anomaly_active else (38, 208, 178))
-        draw.text((24, 21), "THERMAL_ANOMALY" if self._anomaly_active else "THERMAL_OK", fill=(8, 19, 30))
+        cell_w = 640 / 16.0
+        cell_h = 360 / 12.0
+        threshold = max(self.threshold_celsius, avg_t + max(self.delta_threshold, 2.5))
+        hot_mask = temp_map >= threshold
+        visited = set()
+        for y in range(12):
+            for x in range(16):
+                if not hot_mask[y, x] or (x, y) in visited:
+                    continue
+                stack = [(x, y)]
+                component = []
+                while stack:
+                    cx, cy = stack.pop()
+                    if (cx, cy) in visited:
+                        continue
+                    if cx < 0 or cy < 0 or cx >= 16 or cy >= 12 or not hot_mask[cy, cx]:
+                        continue
+                    visited.add((cx, cy))
+                    component.append((cx, cy))
+                    stack.extend([(cx - 1, cy), (cx + 1, cy), (cx, cy - 1), (cx, cy + 1)])
+                if not component:
+                    continue
+                xs = [c[0] for c in component]
+                ys = [c[1] for c in component]
+                left = int(max(0, min(xs) * cell_w))
+                top = int(max(0, min(ys) * cell_h))
+                right = int(min(639, (max(xs) + 1) * cell_w))
+                bottom = int(min(359, (max(ys) + 1) * cell_h))
+                color = (255, 60, 60) if self._anomaly_active else (255, 180, 70)
+                draw.rounded_rectangle((left + 2, top + 2, right - 2, bottom - 2), radius=12, outline=color, width=4)
+        for x in range(1, 16):
+            px = int(x * cell_w)
+            draw.line((px, 0, px, 360), fill=(255, 255, 255, 28), width=1)
+        for y in range(1, 12):
+            py = int(y * cell_h)
+            draw.line((0, py, 640, py), fill=(255, 255, 255, 28), width=1)
+        draw.rounded_rectangle((12, 12, 240, 48), radius=14, fill=(255, 122, 122) if self._anomaly_active else (38, 208, 178))
+        draw.text((24, 20), "ALLARME TERMICO" if self._anomaly_active else "TERMICO OK", fill=(8, 19, 30))
         footer = (
             f"min {min_t:.1f} C | avg {float(temp_map.mean()):.1f} C | max {max_t:.1f} C | "
-            f"threshold {self.threshold_celsius:.1f} C"
+            f"soglia {self.threshold_celsius:.1f} C"
         )
         draw.rectangle((12, 308, 628, 348), fill=(0, 0, 0))
         draw.text((24, 321), footer, fill=(244, 248, 251))

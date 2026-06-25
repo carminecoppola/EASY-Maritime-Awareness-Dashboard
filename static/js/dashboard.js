@@ -62,6 +62,39 @@ function formatSnapshotAge(createdTs) {
   return `${Math.floor(diff / 3600)}h ago`;
 }
 
+function formatRomeDateTime(value) {
+  if (!value) return "--";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "--";
+  return new Intl.DateTimeFormat("it-IT", {
+    timeZone: "Europe/Rome",
+    dateStyle: "short",
+    timeStyle: "medium",
+  }).format(date);
+}
+
+function friendlySource(value) {
+  const map = {
+    SYSTEM: "Sistema",
+    UC512_MULTIPLEXER: "Camera UC512",
+    RGB_CAM_LEFT: "RGB sinistra",
+    RGB_CAM_RIGHT: "RGB destra",
+    RGB_LEFT: "RGB sinistra",
+    RGB_RIGHT: "RGB destra",
+    THERMAL_FLIR: "Termica",
+  };
+  return map[String(value || "").toUpperCase()] || String(value || "--");
+}
+
+function friendlySeverity(value) {
+  const map = {
+    info: "Info",
+    warning: "Avviso",
+    error: "Errore",
+  };
+  return map[String(value || "info").toLowerCase()] || String(value || "Info");
+}
+
 function setBadge(id, text, severity) {
   const node = byId(id);
   if (!node) return;
@@ -116,10 +149,11 @@ async function snapshot(feed) {
     if (!response.ok || !payload.ok) {
       throw new Error(payload.error || "Snapshot failed");
     }
-    if (payload.url) {
-      window.open(payload.url, "_blank", "noreferrer");
-    }
     await refreshDashboard();
+    if (overlay) {
+      overlay.textContent = "Snapshot salvato";
+      window.setTimeout(() => setFeedOverlay(feed, false, ""), 1500);
+    }
   } catch (error) {
     console.error(error);
     if (overlay) {
@@ -189,10 +223,10 @@ function renderLogSummary(filteredEvents) {
     return acc;
   }, {});
   node.innerHTML = `
-    <span class="log-chip">Showing <strong>${filteredEvents.length}</strong></span>
+    <span class="log-chip">Visibili <strong>${filteredEvents.length}</strong></span>
     <span class="log-chip">Info <strong>${severityTotals.info || 0}</strong></span>
-    <span class="log-chip">Warn <strong>${severityTotals.warning || 0}</strong></span>
-    <span class="log-chip">Error <strong>${severityTotals.error || 0}</strong></span>
+    <span class="log-chip">Avvisi <strong>${severityTotals.warning || 0}</strong></span>
+    <span class="log-chip">Errori <strong>${severityTotals.error || 0}</strong></span>
   `;
 }
 
@@ -214,11 +248,11 @@ function renderEventLog() {
     const category = eventCategory(event);
     row.className = `event-row event-row-${category}`;
     row.innerHTML = `
-      <td>${escapeHtml(event.timestamp || "--")}</td>
-      <td><span class="event-source event-source-${category}">${escapeHtml(event.source || "--")}</span></td>
+      <td>${escapeHtml(formatRomeDateTime(event.timestamp))}</td>
+      <td><span class="event-source event-source-${category}">${escapeHtml(friendlySource(event.source))}</span></td>
       <td>${escapeHtml(event.type || "--")}</td>
       <td>${escapeHtml(event.description || "--")}</td>
-      <td class="event-severity event-severity-${String(event.severity || "info").toLowerCase()}">${escapeHtml(event.severity || "info")}</td>
+      <td class="event-severity event-severity-${String(event.severity || "info").toLowerCase()}">${escapeHtml(friendlySeverity(event.severity))}</td>
     `;
     body.appendChild(row);
   });
@@ -243,12 +277,12 @@ function renderSnapshotGallery() {
             <span class="snapshot-feed">${escapeHtml(feedLabel)}</span>
             <strong title="${escapeHtml(item.filename)}">${escapeHtml(item.filename)}</strong>
           </div>
-          <span class="snapshot-age">${escapeHtml(formatSnapshotAge(item.created_ts))}</span>
+          <span class="snapshot-age">${escapeHtml(formatRomeDateTime(item.created))}</span>
         </div>
-        <p class="snapshot-meta-line">${escapeHtml(formatBytes(item.size_bytes))} · ${escapeHtml(item.created || "--")}</p>
+        <p class="snapshot-meta-line">${escapeHtml(formatBytes(item.size_bytes))} · Roma ${escapeHtml(formatRomeDateTime(item.created))}</p>
         <div class="button-row snapshot-actions">
           <a class="btn btn-secondary btn-small" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">Open</a>
-          <a class="btn btn-ghost btn-small" href="${escapeHtml(item.download_url)}" target="_blank" rel="noreferrer">Download</a>
+          <a class="btn btn-ghost btn-small" href="${escapeHtml(item.download_url)}" download="${escapeHtml(item.filename)}">Download</a>
         </div>
       </div>
     `;
@@ -257,7 +291,7 @@ function renderSnapshotGallery() {
   setText("snapshot-count", `${dashboardState.snapshots.length}`);
   const latest = dashboardState.snapshots[0];
   setText("snapshot-latest-feed", latest ? (latest.feed_label || latest.feed || "--") : "--");
-  setText("snapshot-latest-time", latest ? (latest.created || "--") : "--");
+  setText("snapshot-latest-time", latest ? `Roma ${formatRomeDateTime(latest.created)}` : "--");
 }
 
 async function refreshDashboard() {

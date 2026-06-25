@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>EASY Snapshot Gallery</title>
+    <title>EASY Archivio Snapshot</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   </head>
   <body>
@@ -12,14 +12,14 @@
         <div class="brand-block">
           <img class="brand-logo" src="{{ url_for('static', filename='img/easy-logo.svg') }}" alt="EASY">
           <div>
-            <p class="eyebrow">Snapshot Archive</p>
-            <h1>Recent Captures</h1>
-            <p class="subline">Stored locally on {{ hostname }} at {{ ip_address }}</p>
+            <p class="eyebrow">Archivio snapshot</p>
+            <h1>Scatti recenti</h1>
+            <p class="subline">Salvati in locale su {{ hostname }} all'indirizzo {{ ip_address }}</p>
           </div>
         </div>
         <div class="status-strip">
           <div class="status-chip">
-            <span>Total snapshots</span>
+            <span>Totale snapshot</span>
             <strong>{{ total_count }}</strong>
           </div>
           <div class="status-chip">
@@ -28,7 +28,7 @@
           </div>
           <div class="status-chip">
             <span>Dashboard</span>
-            <strong><a class="status-link" href="/">Open home</a></strong>
+            <strong><a class="status-link" href="/">Apri dashboard</a></strong>
           </div>
         </div>
       </header>
@@ -37,10 +37,10 @@
         <article class="panel gallery-panel">
           <div class="panel-head">
             <div>
-              <p class="kicker">LOCAL STORAGE</p>
-              <h2>Latest files</h2>
+              <p class="kicker">STORAGE LOCALE</p>
+              <h2>Ultimi file</h2>
             </div>
-            <a class="panel-link" href="/">Back to dashboard</a>
+            <a class="panel-link" href="/">Torna alla dashboard</a>
           </div>
 
           <div class="gallery-meta-row">
@@ -70,8 +70,8 @@
                   </div>
                   <p class="snapshot-meta-line">{{ item.size_bytes }} bytes</p>
                   <div class="button-row snapshot-actions">
-                    <a class="btn btn-secondary btn-small" href="{{ item.url }}" target="_blank" rel="noreferrer">Open</a>
-                    <a class="btn btn-ghost btn-small" href="{{ item.download_url }}" target="_blank" rel="noreferrer">Download</a>
+                    <a class="btn btn-secondary btn-small" href="{{ item.url }}" target="_blank" rel="noreferrer">Apri</a>
+                    <a class="btn btn-ghost btn-small" href="{{ item.download_url }}" download="{{ item.filename }}">Scarica</a>
                   </div>
                 </div>
               </article>
