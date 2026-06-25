@@ -375,10 +375,11 @@ async function refreshDashboard() {
     setText("rgb_right_last", formatAgeIt(rgbRight.last_acquisition_ts || rgb.last_frame_ts));
     setText("rgb_left_error", rgbLeft.error || rgb.error || "--");
     setText("rgb_right_error", rgbRight.error || rgb.error || "--");
-    setText("thermal_min", thermal.min_c != null ? `${thermal.min_c} C` : "--");
-    setText("thermal_avg", thermal.avg_c != null ? `${thermal.avg_c} C` : "--");
-    setText("thermal_max", thermal.max_c != null ? `${thermal.max_c} C` : "--");
-    setText("thermal_anomaly", thermal.anomaly_active ? "SI" : "NO");
+    const thermalUnit = thermal.unit === "raw" ? "raw" : "C";
+    setText("thermal_min", thermal.min_c != null ? `${thermal.min_c} ${thermalUnit}` : (thermal.raw_min != null ? `${thermal.raw_min} raw` : "--"));
+    setText("thermal_avg", thermal.avg_c != null ? `${thermal.avg_c} ${thermalUnit}` : (thermal.raw_avg != null ? `${thermal.raw_avg} raw` : "--"));
+    setText("thermal_max", thermal.max_c != null ? `${thermal.max_c} ${thermalUnit}` : (thermal.raw_max != null ? `${thermal.raw_max} raw` : "--"));
+    setText("thermal_anomaly", thermal.hotspot_percent != null ? `${thermal.hotspot_percent}%` : (thermal.anomaly_active ? "SI" : "NO"));
     dashboardState.events = (eventsPayload && eventsPayload.events) || [];
     dashboardState.snapshots = (snapshotsPayload && snapshotsPayload.items) || [];
     updateSummaryCards(health, eventsPayload, dashboardState.snapshots);
