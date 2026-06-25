@@ -410,8 +410,6 @@ async function refreshDashboard() {
   } catch (error) {
     setText("system-state", "ERROR");
     setText("timestamp", "--");
-  } finally {
-    reloadThermalFrame();
   }
 }
 
@@ -486,4 +484,5 @@ window.addEventListener("load", () => {
 
   refreshDashboard();
   window.setInterval(refreshDashboard, 2500);
+  window.setInterval(reloadThermalFrame, 700);
 });
