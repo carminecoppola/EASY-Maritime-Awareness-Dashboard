@@ -23,7 +23,14 @@ Open:
 http://<Raspberry_IP>:5000
 ```
 
-When you are connected from the Mac through SSH tunneling, open:
+Rainbow must remain an SSH-only reverse tunnel. From the Mac, open a local
+forward through Rainbow:
+
+```bash
+ssh -N -L 5000:127.0.0.1:5000 -p 44222 pi@193.205.230.76
+```
+
+Then open on the Mac:
 
 ```text
 http://127.0.0.1:5000

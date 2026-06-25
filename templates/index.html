@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>EASY Maritime Awareness Dashboard</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ asset_version }}">
   </head>
   <body>
     <main class="shell">
@@ -23,11 +23,11 @@
             <strong id="ip-address">{{ ip_address }}</strong>
           </div>
           <div class="status-chip">
-            <span>System</span>
+            <span>Sistema</span>
             <strong id="system-state">Checking</strong>
           </div>
           <div class="status-chip">
-            <span>Timestamp</span>
+            <span>Ora Roma</span>
             <strong id="timestamp">--</strong>
           </div>
         </div>
@@ -35,12 +35,12 @@
 
       <section class="dashboard-summary">
         <article class="summary-card">
-          <span>Live RGB</span>
+          <span>Stream RGB</span>
           <strong id="summary-rgb">Checking</strong>
           <p id="summary-rgb-detail">Waiting for stream status</p>
         </article>
         <article class="summary-card">
-          <span>Thermal</span>
+          <span>Termica</span>
           <strong id="summary-thermal">Checking</strong>
           <p id="summary-thermal-detail">Waiting for frame</p>
         </article>
@@ -50,7 +50,7 @@
           <p id="summary-snapshots-detail">No files loaded yet</p>
         </article>
         <article class="summary-card">
-          <span>Events</span>
+          <span>Eventi</span>
           <strong id="summary-events">0</strong>
           <p id="summary-events-detail">Live activity feed</p>
         </article>
@@ -68,7 +68,7 @@
           <p id="rgb_right_message">--</p>
         </article>
         <article class="rail-card">
-          <span class="rail-label">THERMAL</span>
+          <span class="rail-label">TERMICA</span>
           <strong id="thermal_state_label">--</strong>
           <p id="thermal_message">--</p>
         </article>
@@ -78,8 +78,8 @@
         <article class="panel">
           <div class="panel-head">
             <div>
-              <p class="kicker">System Status</p>
-              <h2>Raspberry Health</h2>
+              <p class="kicker">SISTEMA</p>
+              <h2>Raspberry</h2>
             </div>
           </div>
           <div class="metric-grid">
@@ -95,8 +95,8 @@
         <article class="panel">
           <div class="panel-head">
             <div>
-              <p class="kicker">Hardware</p>
-              <h2>Detected Devices</h2>
+              <p class="kicker">HARDWARE</p>
+              <h2>Dispositivi</h2>
             </div>
           </div>
           <div class="device-list" id="device-list"></div>
@@ -107,8 +107,8 @@
         <article class="panel camera-panel" data-feed="rgb_left">
           <div class="panel-head">
             <div>
-              <p class="kicker">RGB_CAM_LEFT</p>
-              <h2>Arducam UC-517 Left Camera</h2>
+              <p class="kicker">RGB SINISTRA</p>
+              <h2>Camera sinistra</h2>
             </div>
             <span class="badge" id="rgb_left_state">--</span>
           </div>
@@ -127,7 +127,7 @@
             <span>Error <strong id="rgb_left_error">--</strong></span>
           </div>
           <div class="button-row">
-            <button class="btn btn-primary" data-action="start" data-feed="rgb_left">Riprendi Stream</button>
+            <button class="btn btn-primary" data-action="start" data-feed="rgb_left">Riprendi</button>
             <button class="btn btn-ghost" data-snapshot="rgb_left">Snapshot</button>
           </div>
         </article>
@@ -135,8 +135,8 @@
         <article class="panel camera-panel" data-feed="rgb_right">
           <div class="panel-head">
             <div>
-              <p class="kicker">RGB_CAM_RIGHT</p>
-              <h2>Arducam UC-517 Right Camera</h2>
+              <p class="kicker">RGB DESTRA</p>
+              <h2>Camera destra</h2>
             </div>
             <span class="badge" id="rgb_right_state">--</span>
           </div>
@@ -155,7 +155,7 @@
             <span>Error <strong id="rgb_right_error">--</strong></span>
           </div>
           <div class="button-row">
-            <button class="btn btn-primary" data-action="start" data-feed="rgb_right">Riprendi Stream</button>
+            <button class="btn btn-primary" data-action="start" data-feed="rgb_right">Riprendi</button>
             <button class="btn btn-ghost" data-snapshot="rgb_right">Snapshot</button>
           </div>
         </article>
@@ -165,8 +165,8 @@
         <article class="panel camera-panel">
           <div class="panel-head">
             <div>
-              <p class="kicker">THERMAL_FLIR</p>
-              <h2>FLIR / Lepton Thermal Sensor</h2>
+              <p class="kicker">TERMICA</p>
+              <h2>FLIR / Lepton</h2>
             </div>
             <span class="badge badge-muted" id="thermal_state">--</span>
           </div>
@@ -181,9 +181,9 @@
           </div>
           <div class="camera-meta">
             <span>Min <strong id="thermal_min">--</strong></span>
-            <span>Avg <strong id="thermal_avg">--</strong></span>
+            <span>Media <strong id="thermal_avg">--</strong></span>
             <span>Max <strong id="thermal_max">--</strong></span>
-            <span>Anomaly <strong id="thermal_anomaly">--</strong></span>
+            <span>Allarme <strong id="thermal_anomaly">--</strong></span>
           </div>
           <div class="button-row">
             <button class="btn btn-ghost" id="thermal-snapshot">Snapshot</button>
@@ -239,7 +239,7 @@
         <article class="panel gallery-panel">
           <div class="panel-head">
             <div>
-              <p class="kicker">SNAPSHOT_ARCHIVE</p>
+              <p class="kicker">ARCHIVIO</p>
               <h2>Archivio snapshot</h2>
             </div>
             <a class="panel-link" href="/snapshots">Apri archivio</a>
@@ -262,6 +262,6 @@
         </article>
       </section>
     </main>
-    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}?v={{ asset_version }}"></script>
   </body>
 </html>

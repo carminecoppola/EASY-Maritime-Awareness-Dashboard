@@ -974,6 +974,7 @@ class ThermalState:
     def _thermal_palette(self, temp_map: np.ndarray) -> Image.Image:
         min_t = float(temp_map.min())
         max_t = float(temp_map.max())
+        avg_t = float(temp_map.mean())
         span = max(0.1, max_t - min_t)
         normalized = np.clip((temp_map - min_t) / span, 0.0, 1.0)
         r = (normalized * 255).astype(np.uint8)
@@ -1011,14 +1012,25 @@ class ThermalState:
                 right = int(min(639, (max(xs) + 1) * cell_w))
                 bottom = int(min(359, (max(ys) + 1) * cell_h))
                 color = (255, 60, 60) if self._anomaly_active else (255, 180, 70)
-                draw.rounded_rectangle((left + 2, top + 2, right - 2, bottom - 2), radius=12, outline=color, width=4)
+                draw_rounded_box(
+                    draw,
+                    (left + 2, top + 2, right - 2, bottom - 2),
+                    radius=12,
+                    outline=color,
+                    width=4,
+                )
         for x in range(1, 16):
             px = int(x * cell_w)
-            draw.line((px, 0, px, 360), fill=(255, 255, 255, 28), width=1)
+            draw.line((px, 0, px, 360), fill=(235, 246, 255), width=1)
         for y in range(1, 12):
             py = int(y * cell_h)
-            draw.line((0, py, 640, py), fill=(255, 255, 255, 28), width=1)
-        draw.rounded_rectangle((12, 12, 240, 48), radius=14, fill=(255, 122, 122) if self._anomaly_active else (38, 208, 178))
+            draw.line((0, py, 640, py), fill=(235, 246, 255), width=1)
+        draw_rounded_box(
+            draw,
+            (12, 12, 240, 48),
+            radius=14,
+            fill=(255, 122, 122) if self._anomaly_active else (38, 208, 178),
+        )
         draw.text((24, 20), "ALLARME TERMICO" if self._anomaly_active else "TERMICO OK", fill=(8, 19, 30))
         footer = (
             f"min {min_t:.1f} C | avg {float(temp_map.mean()):.1f} C | max {max_t:.1f} C | "
@@ -1241,6 +1253,7 @@ def build_system_payload(probe: SystemProbe) -> Dict[str, Any]:
 def create_app() -> Flask:
     config = load_config()
     app = Flask(__name__)
+    asset_version = str(int(time.time()))
     events = EventStore(EVENTS_LOG, int(config["events"].get("max_events", 200)))
     snapshot_store = SnapshotStore(SNAPSHOTS_DIR)
     probe = SystemProbe()
@@ -1256,6 +1269,10 @@ def create_app() -> Flask:
         events.add("THERMAL_FLIR", "NOT_DETECTED", "Thermal sensor not detected; using mock mode", "warning")
 
     rgb.ensure_running()
+
+    @app.context_processor
+    def inject_asset_version() -> Dict[str, str]:
+        return {"asset_version": asset_version}
 
     def _rgb_keepalive() -> None:
         while True:
