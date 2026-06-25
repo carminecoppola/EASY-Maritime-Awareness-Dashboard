@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import random
+import shutil
 import socket
 import subprocess
 import threading
@@ -82,9 +83,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     },
     "thermal": {
         "enabled": True,
-        "mode": "mock",
+        "mode": "real",
         "threshold_celsius": 35.0,
         "delta_threshold": 8.0,
+        "device": "/dev/video0",
     },
     "events": {"max_events": 200},
 }
@@ -952,6 +954,7 @@ class ThermalState:
         self.events = events
         self.mode = str(config["thermal"].get("mode", "mock")).lower()
         self.enabled = bool(config["thermal"].get("enabled", True))
+        self.device = str(os.environ.get("EASY_THERMAL_DEVICE") or config["thermal"].get("device", "/dev/video0"))
         self.threshold_celsius = float(config["thermal"].get("threshold_celsius", 35.0))
         self.delta_threshold = float(config["thermal"].get("delta_threshold", 8.0))
         self.detected = False
@@ -964,6 +967,7 @@ class ThermalState:
         self._rng = np.random.default_rng()
         self._base_map = self._build_base_map()
         self._anomaly_active = False
+        self._capture_lock = threading.Lock()
 
     def _build_base_map(self) -> np.ndarray:
         x = np.linspace(0, 1, 16)
@@ -1054,6 +1058,97 @@ class ThermalState:
                     temp_map[y, x] += max(0.0, amp - dist * 1.6)
         return np.clip(temp_map, 18.0, 58.0)
 
+    def _capture_y16_matrix(self) -> np.ndarray:
+        ffmpeg = shutil.which("ffmpeg") or "ffmpeg"
+        command = [
+            ffmpeg,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "v4l2",
+            "-input_format",
+            "gray16le",
+            "-video_size",
+            "160x120",
+            "-i",
+            self.device,
+            "-frames:v",
+            "1",
+            "-f",
+            "rawvideo",
+            "pipe:1",
+        ]
+        with self._capture_lock:
+            result = subprocess.run(command, capture_output=True, timeout=3.0, check=False)
+        expected_bytes = 160 * 120 * 2
+        if result.returncode != 0:
+            stderr = result.stderr.decode("utf-8", errors="replace").strip()
+            raise RuntimeError(stderr or f"ffmpeg exited with code {result.returncode}")
+        if len(result.stdout) < expected_bytes:
+            raise RuntimeError(f"incomplete thermal frame: {len(result.stdout)} bytes")
+        raw = np.frombuffer(result.stdout[:expected_bytes], dtype="<u2").reshape((120, 160))
+        return raw.astype(np.float32)
+
+    def _real_thermal_palette(self, raw_map: np.ndarray) -> tuple[Image.Image, Dict[str, Any]]:
+        analysis_map = raw_map[6:-6, 6:-6]
+        low = float(np.percentile(analysis_map, 2))
+        high = float(np.percentile(analysis_map, 98))
+        if high <= low:
+            high = low + 1.0
+        normalized = np.clip((raw_map - low) / (high - low), 0.0, 1.0)
+        r = (np.clip((normalized - 0.18) * 1.42, 0.0, 1.0) * 255).astype(np.uint8)
+        g = (np.clip(1.0 - np.abs(normalized - 0.58) * 2.05, 0.0, 1.0) * 255).astype(np.uint8)
+        b = (np.clip(1.0 - normalized * 1.15, 0.0, 1.0) * 210).astype(np.uint8)
+        rgb = np.dstack([r, g, b])
+        image = Image.fromarray(rgb, mode="RGB").resize((640, 480), RESAMPLE_NEAREST)
+        draw = ImageDraw.Draw(image)
+
+        hot_threshold = float(np.percentile(analysis_map, 99.0))
+        hot_mask_inner = analysis_map >= hot_threshold
+        hot_mask = np.zeros_like(raw_map, dtype=bool)
+        hot_mask[6:-6, 6:-6] = hot_mask_inner
+        ys, xs = np.where(hot_mask)
+        hotspot_percent = round(float(hot_mask.mean() * 100.0), 2)
+        signal_spread = int(float(np.percentile(analysis_map, 99.0) - np.percentile(analysis_map, 5.0)))
+        anomaly_active = signal_spread >= 900 and hotspot_percent >= 0.6
+        if xs.size and ys.size:
+            left = int(xs.min() * 4)
+            top = int(ys.min() * 4)
+            right = int((xs.max() + 1) * 4)
+            bottom = int((ys.max() + 1) * 4)
+            draw_rounded_box(
+                draw,
+                (max(2, left), max(2, top), min(638, right), min(478, bottom)),
+                radius=10,
+                outline=(255, 74, 74) if anomaly_active else (255, 196, 84),
+                width=4,
+            )
+
+        draw_rounded_box(
+            draw,
+            (12, 12, 286, 52),
+            radius=14,
+            fill=(255, 122, 122) if anomaly_active else (38, 208, 178),
+        )
+        draw.text((24, 23), "ALLARME HOTSPOT" if anomaly_active else "TERMICA REALE", fill=(8, 19, 30))
+        footer = (
+            f"PureThermal {self.device} | segnale raw min {int(raw_map.min())} "
+            f"avg {int(raw_map.mean())} max {int(raw_map.max())}"
+        )
+        draw.rectangle((12, 428, 628, 468), fill=(0, 0, 0))
+        draw.text((24, 441), footer, fill=(244, 248, 251))
+        stats = {
+            "raw_min": int(raw_map.min()),
+            "raw_max": int(raw_map.max()),
+            "raw_avg": int(raw_map.mean()),
+            "hotspot_percent": hotspot_percent,
+            "signal_spread": signal_spread,
+            "anomaly_active": anomaly_active,
+            "unit": "raw",
+        }
+        return image, stats
+
     def frame(self) -> tuple[bytes, Dict[str, Any]]:
         self.frame_seq += 1
         if not self.enabled:
@@ -1095,6 +1190,65 @@ class ThermalState:
                 "avg_c": None,
             }
             return placeholder, self.last_stats
+
+        if self.mode == "real":
+            try:
+                raw_map = self._capture_y16_matrix()
+                image, real_stats = self._real_thermal_palette(raw_map)
+                self._anomaly_active = bool(real_stats["anomaly_active"])
+                self.last_frame_ts = time.time()
+                self.error = ""
+                self.status = "REAL"
+                self.last_stats = {
+                    "status": "REAL",
+                    "detected": True,
+                    "mode": self.mode,
+                    "fps": 9.0,
+                    "anomaly_active": real_stats["anomaly_active"],
+                    "threshold_celsius": self.threshold_celsius,
+                    "delta_threshold": self.delta_threshold,
+                    "min_c": None,
+                    "max_c": None,
+                    "avg_c": None,
+                    "raw_min": real_stats["raw_min"],
+                    "raw_max": real_stats["raw_max"],
+                    "raw_avg": real_stats["raw_avg"],
+                    "hotspot_percent": real_stats["hotspot_percent"],
+                    "signal_spread": real_stats["signal_spread"],
+                    "unit": "raw",
+                    "device": self.device,
+                }
+                if real_stats["anomaly_active"] and (time.time() - self.last_event_ts) > 8.0:
+                    self.last_event_ts = time.time()
+                    self.events.add(
+                        "THERMAL_FLIR",
+                        "THERMAL_HOTSPOT",
+                        f"Hotspot reale: {real_stats['hotspot_percent']:.2f}% frame, raw max {real_stats['raw_max']}",
+                        "warning",
+                        meta=real_stats,
+                    )
+                output = io.BytesIO()
+                image.save(output, format="JPEG", quality=92)
+                return output.getvalue(), self.last_stats
+            except Exception as exc:
+                self.error = f"PureThermal non leggibile su {self.device}: {exc}"
+                self.status = "ERROR"
+                LOGGER.warning("Thermal capture failed: %s", exc)
+                placeholder = make_placeholder_jpeg("THERMAL_FLIR ERROR", self.error, "#ff7a7a")
+                self.last_stats = {
+                    "status": "ERROR",
+                    "detected": self.detected,
+                    "mode": self.mode,
+                    "fps": 0.0,
+                    "anomaly_active": False,
+                    "threshold_celsius": self.threshold_celsius,
+                    "delta_threshold": self.delta_threshold,
+                    "min_c": None,
+                    "max_c": None,
+                    "avg_c": None,
+                    "device": self.device,
+                }
+                return placeholder, self.last_stats
 
         temp_map = self._simulate_matrix()
         min_c = float(temp_map.min())
@@ -1148,8 +1302,14 @@ class ThermalState:
             "avg_c": self.last_stats.get("avg_c"),
             "anomaly_active": self.last_stats.get("anomaly_active", False),
             "last_frame_ts": self.last_frame_ts,
-            "message": self.error if self.error else ("Mock thermal feed active" if self.mode == "mock" else "Real thermal path pending"),
-            "device": os.environ.get("EASY_THERMAL_DEVICE", "/dev/video2"),
+            "message": self.error if self.error else ("Mock thermal feed active" if self.mode == "mock" else f"PureThermal reale attivo su {self.device}"),
+            "raw_min": self.last_stats.get("raw_min"),
+            "raw_max": self.last_stats.get("raw_max"),
+            "raw_avg": self.last_stats.get("raw_avg"),
+            "hotspot_percent": self.last_stats.get("hotspot_percent"),
+            "signal_spread": self.last_stats.get("signal_spread"),
+            "unit": self.last_stats.get("unit", "celsius" if self.mode == "mock" else "raw"),
+            "device": self.device,
         }
 
 
@@ -1262,7 +1422,7 @@ def create_app() -> Flask:
 
     run_preflight_script()
     append_startup_notice(events, probe, config)
-    thermal.detected = "PureThermal" in probe.lsusb() or Path(config["thermal"].get("device", "/dev/video2")).exists()
+    thermal.detected = "PureThermal" in probe.lsusb() or Path(thermal.device).exists()
     if thermal.detected:
         events.add("THERMAL_FLIR", "DETECTED", "Thermal sensor or PureThermal device detected", "info")
     else:
@@ -1288,7 +1448,7 @@ def create_app() -> Flask:
             "index.html",
             ip_address=probe.ip_address(),
             hostname=probe.hostname(),
-            thermal_device=config["thermal"].get("device", "/dev/video2"),
+            thermal_device=thermal.device,
             thermal_mode=config["thermal"].get("mode", "mock"),
         )
 
