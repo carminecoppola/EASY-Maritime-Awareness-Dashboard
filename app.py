@@ -354,13 +354,22 @@ class EventStore:
             LOGGER.exception("Failed to load existing events log")
 
     def add(self, source: str, event_type: str, description: str, severity: str = "info", meta: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        meta = meta or {}
+        action_map = {
+            "STREAM_ERROR": "Controlla processo camera e riavvia lo stream se resta fermo.",
+            "SNAPSHOT_ERROR": "Ripeti lo snapshot; se ricapita controlla spazio disco e stato feed.",
+            "NOT_DETECTED": "Controlla cavo, alimentazione e device video.",
+            "THERMAL_HOTSPOT": "Verifica la scena termica e confronta con RGB.",
+        }
         event = {
+            "id": f"{int(time.time() * 1000)}-{len(self._events)}",
             "timestamp": utc_now_iso(),
             "source": source,
             "type": event_type,
             "description": description,
             "severity": severity,
-            "meta": meta or {},
+            "action": meta.get("action") or action_map.get(event_type, "Nessuna azione richiesta."),
+            "meta": meta,
         }
         with self._lock:
             self._events.append(event)
@@ -443,6 +452,26 @@ class SnapshotStore:
                     LOGGER.exception("Failed to inspect snapshot: %s", image_path)
         entries.sort(key=lambda item: item.get("created_ts", 0.0), reverse=True)
         return entries[:limit]
+
+    def summary(self) -> Dict[str, Any]:
+        recent = self.list_recent(999)
+        by_feed: Dict[str, Dict[str, Any]] = {}
+        for feed, feed_meta in SNAPSHOT_FEED_MAP.items():
+            items = [item for item in recent if item["feed"] == feed]
+            total_size = sum(int(item.get("size_bytes") or 0) for item in items)
+            by_feed[feed] = {
+                "label": feed_meta["label"],
+                "count": len(items),
+                "size_bytes": total_size,
+                "latest": items[0] if items else None,
+            }
+        return {
+            "count": len(recent),
+            "size_bytes": sum(int(item.get("size_bytes") or 0) for item in recent),
+            "by_feed": by_feed,
+            "latest": recent[0] if recent else None,
+            "root": str(self.root),
+        }
 
     def get_path(self, feed: str, filename: str) -> Path:
         feed_dir = self._feed_dir(feed)
@@ -1685,11 +1714,13 @@ def create_app() -> Flask:
     @app.route("/api/snapshots/recent")
     def api_snapshots_recent():
         limit = int(request.args.get("limit", 24))
+        summary = snapshot_store.summary()
         return jsonify(
             {
-                "count": len(snapshot_store.list_recent(999)),
+                "count": summary["count"],
                 "items": snapshot_store.list_recent(limit),
                 "feeds": SNAPSHOT_FEED_MAP,
+                "summary": summary,
             }
         )
 
@@ -1775,6 +1806,7 @@ def create_app() -> Flask:
         return Response(frame, mimetype="image/jpeg", headers={"X-EASY-THERMAL-STATUS": stats.get("status", "unknown")})
 
     @app.route("/thermal/snapshot", methods=["GET", "POST"])
+    @app.route("/snapshot/thermal", methods=["GET", "POST"])
     def thermal_snapshot():
         frame, stats = thermal.snapshot()
         meta = dict(stats)

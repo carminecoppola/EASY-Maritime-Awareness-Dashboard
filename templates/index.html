@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ asset_version }}">
   </head>
   <body>
+    <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
     <main class="shell">
       <header class="topbar">
         <div class="brand-block">
@@ -226,6 +227,7 @@
                   <th>Origine</th>
                   <th>Evento</th>
                   <th>Dettaglio</th>
+                  <th>Azione</th>
                   <th>Livello</th>
                 </tr>
               </thead>
@@ -250,8 +252,8 @@
               <strong id="snapshot-count">0</strong>
             </div>
             <div class="gallery-meta">
-              <span>Ultimo feed</span>
-              <strong id="snapshot-latest-feed">--</strong>
+              <span>Spazio usato</span>
+              <strong id="snapshot-total-size">--</strong>
             </div>
             <div class="gallery-meta">
               <span>Aggiornato</span>

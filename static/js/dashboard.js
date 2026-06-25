@@ -5,12 +5,32 @@ function byId(id) {
 const dashboardState = {
   events: [],
   snapshots: [],
+  snapshotSummary: null,
   filters: {
     severity: "all",
     source: "all",
     query: "",
   },
 };
+
+function showToast(title, message, tone = "info", actionUrl = "") {
+  const stack = byId("toast-stack");
+  if (!stack) return;
+  const toast = document.createElement("div");
+  toast.className = `toast toast-${tone}`;
+  toast.innerHTML = `
+    <div>
+      <strong>${escapeHtml(title)}</strong>
+      <p>${escapeHtml(message)}</p>
+    </div>
+    ${actionUrl ? `<a href="${escapeHtml(actionUrl)}" target="_blank" rel="noreferrer">Apri</a>` : ""}
+  `;
+  stack.appendChild(toast);
+  window.setTimeout(() => {
+    toast.classList.add("toast-hide");
+    window.setTimeout(() => toast.remove(), 250);
+  }, 4200);
+}
 
 function formatAge(epochSeconds) {
   if (!epochSeconds) {
@@ -124,6 +144,7 @@ function friendlyEventType(value) {
     SNAPSHOT_SAVED: "Snapshot salvato",
     SNAPSHOT_ERROR: "Errore snapshot",
     THERMAL_ANOMALY: "Allarme termico",
+    THERMAL_HOTSPOT: "Hotspot termico",
     DETECTED: "Rilevato",
     NOT_DETECTED: "Non rilevato",
   };
@@ -168,9 +189,14 @@ async function streamControl(feed, action) {
 }
 
 async function snapshot(feed) {
+  const labels = {
+    rgb_left: "RGB sinistra",
+    rgb_right: "RGB destra",
+    thermal: "Termica",
+  };
   const overlay = byId(`overlay-${feed}`);
   if (overlay) {
-    overlay.textContent = "Saving snapshot...";
+    overlay.textContent = "Salvataggio snapshot...";
     overlay.classList.remove("feed-overlay-hidden");
   }
   try {
@@ -185,12 +211,14 @@ async function snapshot(feed) {
       throw new Error(payload.error || "Snapshot failed");
     }
     await refreshDashboard();
+    showToast("Snapshot salvato", `${labels[feed] || feed}: ${payload.filename}`, "success", payload.url);
     if (overlay) {
       overlay.textContent = "Snapshot salvato";
       window.setTimeout(() => setFeedOverlay(feed, false, ""), 1500);
     }
   } catch (error) {
     console.error(error);
+    showToast("Errore snapshot", `${labels[feed] || feed}: ${error.message || "errore sconosciuto"}`, "error");
     if (overlay) {
       overlay.textContent = error.message || "Snapshot failed";
     }
@@ -287,6 +315,7 @@ function renderEventLog() {
       <td><span class="event-source event-source-${category}">${escapeHtml(friendlySource(event.source))}</span></td>
       <td>${escapeHtml(friendlyEventType(event.type))}</td>
       <td>${escapeHtml(cleanLogText(event.description))}</td>
+      <td class="event-action">${escapeHtml(cleanLogText(event.action || "Nessuna azione richiesta."))}</td>
       <td class="event-severity event-severity-${String(event.severity || "info").toLowerCase()}">${escapeHtml(friendlySeverity(event.severity))}</td>
     `;
     body.appendChild(row);
@@ -318,17 +347,19 @@ function renderSnapshotGallery() {
           <span class="snapshot-age">${escapeHtml(formatRomeDateTime(item.created))}</span>
         </div>
         <p class="snapshot-meta-line">${escapeHtml(formatBytes(item.size_bytes))} · Roma ${escapeHtml(formatRomeDateTime(item.created))}</p>
+        <p class="snapshot-path" title="${escapeHtml(item.path || "")}">${escapeHtml(item.path || "")}</p>
         <div class="button-row snapshot-actions">
-          <a class="btn btn-secondary btn-small" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">Open</a>
-          <a class="btn btn-ghost btn-small" href="${escapeHtml(item.download_url)}" download="${escapeHtml(item.filename)}">Download</a>
+          <a class="btn btn-secondary btn-small" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">Apri</a>
+          <a class="btn btn-ghost btn-small" href="${escapeHtml(item.download_url)}" download="${escapeHtml(item.filename)}">Scarica</a>
         </div>
       </div>
     `;
     grid.appendChild(card);
   });
-  setText("snapshot-count", `${dashboardState.snapshots.length}`);
-  const latest = dashboardState.snapshots[0];
-  setText("snapshot-latest-feed", latest ? (latest.feed_label || latest.feed || "--") : "--");
+  const summary = dashboardState.snapshotSummary || {};
+  setText("snapshot-count", `${summary.count ?? dashboardState.snapshots.length}`);
+  setText("snapshot-total-size", formatBytes(summary.size_bytes || 0));
+  const latest = summary.latest || dashboardState.snapshots[0];
   setText("snapshot-latest-time", latest ? `Roma ${formatRomeDateTime(latest.created)}` : "--");
 }
 
@@ -382,6 +413,7 @@ async function refreshDashboard() {
     setText("thermal_anomaly", thermal.hotspot_percent != null ? `${thermal.hotspot_percent}%` : (thermal.anomaly_active ? "SI" : "NO"));
     dashboardState.events = (eventsPayload && eventsPayload.events) || [];
     dashboardState.snapshots = (snapshotsPayload && snapshotsPayload.items) || [];
+    dashboardState.snapshotSummary = (snapshotsPayload && snapshotsPayload.summary) || null;
     updateSummaryCards(health, eventsPayload, dashboardState.snapshots);
     const hasRgbFrame = Boolean(rgb.has_frame);
     setFeedOverlay(
