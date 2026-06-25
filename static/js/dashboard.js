@@ -24,6 +24,16 @@ function formatAge(epochSeconds) {
   return `${minutes}m ${seconds}s ago`;
 }
 
+function formatAgeIt(epochSeconds) {
+  if (!epochSeconds) return "--";
+  const age = Math.max(0, Math.round(Date.now() / 1000 - epochSeconds));
+  if (age < 1) return "ora";
+  if (age < 60) return `${age}s fa`;
+  const minutes = Math.floor(age / 60);
+  if (minutes < 60) return `${minutes}m fa`;
+  return `${Math.floor(minutes / 60)}h fa`;
+}
+
 function formatUptime(seconds) {
   if (seconds == null) return "--";
   const s = Math.floor(seconds);
@@ -93,6 +103,31 @@ function friendlySeverity(value) {
     error: "Errore",
   };
   return map[String(value || "info").toLowerCase()] || String(value || "Info");
+}
+
+function cleanLogText(value) {
+  return String(value || "--")
+    .replace(/\x1b\[[0-9;]*m/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function friendlyEventType(value) {
+  const map = {
+    STARTUP: "Avvio",
+    CONFIG: "Configurazione",
+    STREAM_START: "Stream avviato",
+    STREAM_STOP: "Stream fermo",
+    STREAM_ERROR: "Errore stream",
+    STREAM_RECOVERY: "Recupero stream",
+    STREAM_AUTOSTART: "Auto avvio",
+    SNAPSHOT_SAVED: "Snapshot salvato",
+    SNAPSHOT_ERROR: "Errore snapshot",
+    THERMAL_ANOMALY: "Allarme termico",
+    DETECTED: "Rilevato",
+    NOT_DETECTED: "Non rilevato",
+  };
+  return map[String(value || "").toUpperCase()] || String(value || "--");
 }
 
 function setBadge(id, text, severity) {
@@ -197,21 +232,21 @@ function updateSummaryCards(health, eventsPayload, snapshots) {
   const rgb = health?.rgb || {};
   const thermal = health?.thermal || {};
   setText("summary-rgb", rgb.status || rgb.camera_state || "UNKNOWN");
-  setText("summary-rgb-detail", rgb.message || "Live RGB stream");
+  setText("summary-rgb-detail", rgb.message || "Stream RGB");
   setText("summary-thermal", thermal.status || thermal.mode || "UNKNOWN");
-  setText("summary-thermal-detail", thermal.message || "Thermal feed");
+  setText("summary-thermal-detail", thermal.message || "Termica");
   setText("summary-snapshots", `${snapshots.length}`);
   if (snapshots[0]) {
-    setText("summary-snapshots-detail", `${snapshots[0].feed_label || snapshots[0].feed} · ${formatSnapshotAge(snapshots[0].created_ts)}`);
+    setText("summary-snapshots-detail", `${snapshots[0].feed_label || snapshots[0].feed} · ${formatAgeIt(snapshots[0].created_ts)}`);
   } else {
-    setText("summary-snapshots-detail", "No snapshots yet");
+    setText("summary-snapshots-detail", "Nessuno snapshot");
   }
   const eventCount = eventsPayload?.count ?? dashboardState.events.length;
   setText("summary-events", `${eventCount}`);
   const severity = eventsPayload?.summary?.severity || {};
   const warningCount = severity.warning || 0;
   const errorCount = severity.error || 0;
-  setText("summary-events-detail", `${warningCount} warnings, ${errorCount} errors`);
+  setText("summary-events-detail", `${warningCount} avvisi, ${errorCount} errori`);
 }
 
 function renderLogSummary(filteredEvents) {
@@ -250,8 +285,8 @@ function renderEventLog() {
     row.innerHTML = `
       <td>${escapeHtml(formatRomeDateTime(event.timestamp))}</td>
       <td><span class="event-source event-source-${category}">${escapeHtml(friendlySource(event.source))}</span></td>
-      <td>${escapeHtml(event.type || "--")}</td>
-      <td>${escapeHtml(event.description || "--")}</td>
+      <td>${escapeHtml(friendlyEventType(event.type))}</td>
+      <td>${escapeHtml(cleanLogText(event.description))}</td>
       <td class="event-severity event-severity-${String(event.severity || "info").toLowerCase()}">${escapeHtml(friendlySeverity(event.severity))}</td>
     `;
     body.appendChild(row);
@@ -263,6 +298,9 @@ function renderSnapshotGallery() {
   const grid = byId("snapshot-grid");
   if (!grid) return;
   grid.innerHTML = "";
+  if (!dashboardState.snapshots.length) {
+    grid.innerHTML = `<div class="empty-state">Nessuno snapshot salvato.</div>`;
+  }
   dashboardState.snapshots.forEach((item) => {
     const card = document.createElement("article");
     card.className = "snapshot-card";
@@ -315,7 +353,7 @@ async function refreshDashboard() {
     const uc512 = cameras.uc512_multiplexer || {};
     const thermalCam = cameras.thermal_camera || {};
 
-    setText("timestamp", health.timestamp || "--");
+    setText("timestamp", formatRomeDateTime(health.timestamp));
     setText("system-state", health.ok ? "READY" : "DEGRADED");
     setText("cpu-percent", `${system.cpu_percent ?? "--"}%`);
     setText("cpu-temp", system.cpu_temperature_c != null ? `${system.cpu_temperature_c} C` : "--");
@@ -333,14 +371,14 @@ async function refreshDashboard() {
     setBadge("thermal_state", thermal.status || "--", thermal.status === "NOT_DETECTED" || thermal.status === "DISABLED" ? "error" : "muted");
     setText("rgb_left_fps", rgbLeft.fps != null ? `${Number(rgbLeft.fps).toFixed(1)} fps` : "--");
     setText("rgb_right_fps", rgbRight.fps != null ? `${Number(rgbRight.fps).toFixed(1)} fps` : "--");
-    setText("rgb_left_last", formatAge(rgbLeft.last_acquisition_ts || rgb.last_frame_ts));
-    setText("rgb_right_last", formatAge(rgbRight.last_acquisition_ts || rgb.last_frame_ts));
+    setText("rgb_left_last", formatAgeIt(rgbLeft.last_acquisition_ts || rgb.last_frame_ts));
+    setText("rgb_right_last", formatAgeIt(rgbRight.last_acquisition_ts || rgb.last_frame_ts));
     setText("rgb_left_error", rgbLeft.error || rgb.error || "--");
     setText("rgb_right_error", rgbRight.error || rgb.error || "--");
     setText("thermal_min", thermal.min_c != null ? `${thermal.min_c} C` : "--");
     setText("thermal_avg", thermal.avg_c != null ? `${thermal.avg_c} C` : "--");
     setText("thermal_max", thermal.max_c != null ? `${thermal.max_c} C` : "--");
-    setText("thermal_anomaly", thermal.anomaly_active ? "YES" : "NO");
+    setText("thermal_anomaly", thermal.anomaly_active ? "SI" : "NO");
     dashboardState.events = (eventsPayload && eventsPayload.events) || [];
     dashboardState.snapshots = (snapshotsPayload && snapshotsPayload.items) || [];
     updateSummaryCards(health, eventsPayload, dashboardState.snapshots);
