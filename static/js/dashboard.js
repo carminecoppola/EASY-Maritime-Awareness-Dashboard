@@ -2,6 +2,16 @@ function byId(id) {
   return document.getElementById(id);
 }
 
+const dashboardState = {
+  events: [],
+  snapshots: [],
+  filters: {
+    severity: "all",
+    source: "all",
+    query: "",
+  },
+};
+
 function formatAge(epochSeconds) {
   if (!epochSeconds) {
     return "--";
@@ -26,6 +36,30 @@ function formatUptime(seconds) {
 function setText(id, value) {
   const node = byId(id);
   if (node) node.textContent = value;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function formatBytes(bytes) {
+  const value = Number(bytes || 0);
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function formatSnapshotAge(createdTs) {
+  if (!createdTs) return "--";
+  const diff = Math.max(0, Math.round(Date.now() / 1000 - createdTs));
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  return `${Math.floor(diff / 3600)}h ago`;
 }
 
 function setBadge(id, text, severity) {
@@ -60,12 +94,38 @@ function updateCameraState(prefix, state, message) {
   }
 }
 
-function streamControl(feed, action) {
-  return fetch(`/video/${feed}/${action}`, { method: "POST" }).then((res) => res.json());
+async function streamControl(feed, action) {
+  const response = await fetch(`/video/${feed}/${action}`, { method: "POST" });
+  return response.json();
 }
 
-function snapshot(feed) {
-  window.location.href = `/snapshot/${feed}`;
+async function snapshot(feed) {
+  const overlay = byId(`overlay-${feed}`);
+  if (overlay) {
+    overlay.textContent = "Saving snapshot...";
+    overlay.classList.remove("feed-overlay-hidden");
+  }
+  try {
+    const response = await fetch(`/snapshot/${feed}`, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+      },
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) {
+      throw new Error(payload.error || "Snapshot failed");
+    }
+    if (payload.url) {
+      window.open(payload.url, "_blank", "noreferrer");
+    }
+    await refreshDashboard();
+  } catch (error) {
+    console.error(error);
+    if (overlay) {
+      overlay.textContent = error.message || "Snapshot failed";
+    }
+  }
 }
 
 function reloadThermalFrame() {
@@ -89,31 +149,127 @@ function setFeedOverlay(feed, visible, message) {
   overlay.classList.toggle("feed-overlay-hidden", !visible);
 }
 
-function updateEventLog(events) {
+function eventCategory(event) {
+  const source = String(event?.source || "").toUpperCase();
+  const type = String(event?.type || "").toUpperCase();
+  if (type.includes("SNAPSHOT")) return "snapshot";
+  if (source.includes("THERMAL")) return "thermal";
+  if (source.includes("RGB_CAM") || source.includes("UC512")) return "camera";
+  if (source === "SYSTEM") return "system";
+  return "other";
+}
+
+function updateSummaryCards(health, eventsPayload, snapshots) {
+  const rgb = health?.rgb || {};
+  const thermal = health?.thermal || {};
+  setText("summary-rgb", rgb.status || rgb.camera_state || "UNKNOWN");
+  setText("summary-rgb-detail", rgb.message || "Live RGB stream");
+  setText("summary-thermal", thermal.status || thermal.mode || "UNKNOWN");
+  setText("summary-thermal-detail", thermal.message || "Thermal feed");
+  setText("summary-snapshots", `${snapshots.length}`);
+  if (snapshots[0]) {
+    setText("summary-snapshots-detail", `${snapshots[0].feed_label || snapshots[0].feed} · ${formatSnapshotAge(snapshots[0].created_ts)}`);
+  } else {
+    setText("summary-snapshots-detail", "No snapshots yet");
+  }
+  const eventCount = eventsPayload?.count ?? dashboardState.events.length;
+  setText("summary-events", `${eventCount}`);
+  const severity = eventsPayload?.summary?.severity || {};
+  const warningCount = severity.warning || 0;
+  const errorCount = severity.error || 0;
+  setText("summary-events-detail", `${warningCount} warnings, ${errorCount} errors`);
+}
+
+function renderLogSummary(filteredEvents) {
+  const node = byId("log-summary");
+  if (!node) return;
+  const severityTotals = filteredEvents.reduce((acc, event) => {
+    const sev = String(event.severity || "info").toLowerCase();
+    acc[sev] = (acc[sev] || 0) + 1;
+    return acc;
+  }, {});
+  node.innerHTML = `
+    <span class="log-chip">Showing <strong>${filteredEvents.length}</strong></span>
+    <span class="log-chip">Info <strong>${severityTotals.info || 0}</strong></span>
+    <span class="log-chip">Warn <strong>${severityTotals.warning || 0}</strong></span>
+    <span class="log-chip">Error <strong>${severityTotals.error || 0}</strong></span>
+  `;
+}
+
+function renderEventLog() {
   const body = byId("event-body");
   if (!body) return;
+  const filtered = dashboardState.events.filter((event) => {
+    const severity = String(event.severity || "info").toLowerCase();
+    const category = eventCategory(event);
+    const query = `${event.timestamp || ""} ${event.source || ""} ${event.type || ""} ${event.description || ""}`.toLowerCase();
+    const matchesSeverity = dashboardState.filters.severity === "all" || dashboardState.filters.severity === severity;
+    const matchesSource = dashboardState.filters.source === "all" || dashboardState.filters.source === category;
+    const matchesQuery = !dashboardState.filters.query || query.includes(dashboardState.filters.query);
+    return matchesSeverity && matchesSource && matchesQuery;
+  });
   body.innerHTML = "";
-  events.forEach((event) => {
+  filtered.forEach((event) => {
     const row = document.createElement("tr");
+    const category = eventCategory(event);
+    row.className = `event-row event-row-${category}`;
     row.innerHTML = `
-      <td>${event.timestamp || "--"}</td>
-      <td>${event.source || "--"}</td>
-      <td>${event.type || "--"}</td>
-      <td>${event.description || "--"}</td>
-      <td class="event-severity-${String(event.severity || "info").toLowerCase()}">${event.severity || "info"}</td>
+      <td>${escapeHtml(event.timestamp || "--")}</td>
+      <td><span class="event-source event-source-${category}">${escapeHtml(event.source || "--")}</span></td>
+      <td>${escapeHtml(event.type || "--")}</td>
+      <td>${escapeHtml(event.description || "--")}</td>
+      <td class="event-severity event-severity-${String(event.severity || "info").toLowerCase()}">${escapeHtml(event.severity || "info")}</td>
     `;
     body.appendChild(row);
   });
+  renderLogSummary(filtered);
+}
+
+function renderSnapshotGallery() {
+  const grid = byId("snapshot-grid");
+  if (!grid) return;
+  grid.innerHTML = "";
+  dashboardState.snapshots.forEach((item) => {
+    const card = document.createElement("article");
+    card.className = "snapshot-card";
+    const feedLabel = item.feed_label || item.feed || "--";
+    card.innerHTML = `
+      <a class="snapshot-image-link" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">
+        <img class="snapshot-image" src="${escapeHtml(item.url)}" alt="${escapeHtml(feedLabel)} snapshot">
+      </a>
+      <div class="snapshot-card-body">
+        <div class="snapshot-card-head">
+          <div>
+            <span class="snapshot-feed">${escapeHtml(feedLabel)}</span>
+            <strong title="${escapeHtml(item.filename)}">${escapeHtml(item.filename)}</strong>
+          </div>
+          <span class="snapshot-age">${escapeHtml(formatSnapshotAge(item.created_ts))}</span>
+        </div>
+        <p class="snapshot-meta-line">${escapeHtml(formatBytes(item.size_bytes))} · ${escapeHtml(item.created || "--")}</p>
+        <div class="button-row snapshot-actions">
+          <a class="btn btn-secondary btn-small" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">Open</a>
+          <a class="btn btn-ghost btn-small" href="${escapeHtml(item.download_url)}" target="_blank" rel="noreferrer">Download</a>
+        </div>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+  setText("snapshot-count", `${dashboardState.snapshots.length}`);
+  const latest = dashboardState.snapshots[0];
+  setText("snapshot-latest-feed", latest ? (latest.feed_label || latest.feed || "--") : "--");
+  setText("snapshot-latest-time", latest ? (latest.created || "--") : "--");
 }
 
 async function refreshDashboard() {
   try {
-    const [healthRes, eventsRes] = await Promise.all([
+    const [healthRes, eventsRes, snapshotsRes] = await Promise.all([
       fetch("/health", { cache: "no-store" }),
       fetch("/events?limit=20", { cache: "no-store" }),
+      fetch("/api/snapshots/recent?limit=12", { cache: "no-store" }),
     ]);
     const health = await healthRes.json();
     const eventsPayload = await eventsRes.json();
+    const snapshotsPayload = await snapshotsRes.json();
 
     const system = health.system || {};
     const cameras = health.cameras || {};
@@ -151,6 +307,9 @@ async function refreshDashboard() {
     setText("thermal_avg", thermal.avg_c != null ? `${thermal.avg_c} C` : "--");
     setText("thermal_max", thermal.max_c != null ? `${thermal.max_c} C` : "--");
     setText("thermal_anomaly", thermal.anomaly_active ? "YES" : "NO");
+    dashboardState.events = (eventsPayload && eventsPayload.events) || [];
+    dashboardState.snapshots = (snapshotsPayload && snapshotsPayload.items) || [];
+    updateSummaryCards(health, eventsPayload, dashboardState.snapshots);
     const hasRgbFrame = Boolean(rgb.has_frame);
     setFeedOverlay(
       "rgb_left",
@@ -173,7 +332,8 @@ async function refreshDashboard() {
       ].join("");
     }
 
-    updateEventLog((eventsPayload && eventsPayload.events) || []);
+    renderSnapshotGallery();
+    renderEventLog();
   } catch (error) {
     setText("system-state", "ERROR");
     setText("timestamp", "--");
@@ -183,6 +343,32 @@ async function refreshDashboard() {
 }
 
 window.addEventListener("load", () => {
+  const searchInput = byId("log-search");
+  if (searchInput) {
+    searchInput.addEventListener("input", (event) => {
+      dashboardState.filters.query = String(event.target.value || "").trim().toLowerCase();
+      renderEventLog();
+    });
+  }
+
+  document.querySelectorAll("[data-severity-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      dashboardState.filters.severity = button.getAttribute("data-severity-filter") || "all";
+      document.querySelectorAll("[data-severity-filter]").forEach((item) => item.classList.remove("is-active"));
+      button.classList.add("is-active");
+      renderEventLog();
+    });
+  });
+
+  document.querySelectorAll("[data-source-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      dashboardState.filters.source = button.getAttribute("data-source-filter") || "all";
+      document.querySelectorAll("[data-source-filter]").forEach((item) => item.classList.remove("is-active"));
+      button.classList.add("is-active");
+      renderEventLog();
+    });
+  });
+
   document.querySelectorAll("[data-action]").forEach((button) => {
     button.addEventListener("click", async () => {
       const feed = button.getAttribute("data-feed");
@@ -200,16 +386,16 @@ window.addEventListener("load", () => {
   });
 
   document.querySelectorAll("[data-snapshot]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", async () => {
       const feed = button.getAttribute("data-snapshot");
-      snapshot(feed);
+      await snapshot(feed);
     });
   });
 
   const thermalButton = byId("thermal-snapshot");
   if (thermalButton) {
-    thermalButton.addEventListener("click", () => {
-      window.location.href = "/thermal/snapshot";
+    thermalButton.addEventListener("click", async () => {
+      await snapshot("thermal");
     });
   }
 
