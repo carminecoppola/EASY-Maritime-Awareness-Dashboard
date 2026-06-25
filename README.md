@@ -24,10 +24,10 @@ http://<Raspberry_IP>:5000
 ```
 
 Rainbow must remain an SSH-only reverse tunnel. From the Mac, open a local
-forward through Rainbow:
+forward through Rainbow with ProxyJump:
 
 ```bash
-ssh -N -L 5000:127.0.0.1:5000 -p 44222 pi@193.205.230.76
+ssh -N -L 5000:127.0.0.1:5000 -J ccoppola@193.205.230.76 -p 44222 pi@127.0.0.1
 ```
 
 Then open on the Mac:
