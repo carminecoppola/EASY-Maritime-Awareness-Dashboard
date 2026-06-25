@@ -27,15 +27,32 @@ DATA_DIR = PROJECT_ROOT / "data"
 LOG_DIR = DATA_DIR / "logs"
 REPORT_DIR = DATA_DIR / "reports"
 CAPTURES_DIR = DATA_DIR / "captures"
+SNAPSHOTS_DIR = DATA_DIR / "snapshots"
 RGB_LEFT_DIR = CAPTURES_DIR / "rgb_left"
 RGB_RIGHT_DIR = CAPTURES_DIR / "rgb_right"
 THERMAL_DIR = CAPTURES_DIR / "thermal"
+SNAPSHOT_FEED_MAP = {
+    "rgb_left": {"label": "RGB Left", "source": "RGB_CAM_LEFT", "folder": "rgb_left"},
+    "rgb_right": {"label": "RGB Right", "source": "RGB_CAM_RIGHT", "folder": "rgb_right"},
+    "thermal": {"label": "Thermal", "source": "THERMAL_FLIR", "folder": "thermal"},
+}
 PRELIGHT_REPORT = REPORT_DIR / "preflight_report.txt"
 EVENTS_LOG = LOG_DIR / "events.jsonl"
 CONFIG_PATH = PROJECT_ROOT / "config.yaml"
 
-for directory in (DATA_DIR, LOG_DIR, REPORT_DIR, CAPTURES_DIR, RGB_LEFT_DIR, RGB_RIGHT_DIR, THERMAL_DIR):
+for directory in (
+    DATA_DIR,
+    LOG_DIR,
+    REPORT_DIR,
+    CAPTURES_DIR,
+    SNAPSHOTS_DIR,
+    RGB_LEFT_DIR,
+    RGB_RIGHT_DIR,
+    THERMAL_DIR,
+):
     directory.mkdir(parents=True, exist_ok=True)
+for feed_name, feed_meta in SNAPSHOT_FEED_MAP.items():
+    (SNAPSHOTS_DIR / feed_meta["folder"]).mkdir(parents=True, exist_ok=True)
 
 
 RESAMPLE_BICUBIC = getattr(getattr(Image, "Resampling", Image), "BICUBIC", Image.BICUBIC)
@@ -340,6 +357,85 @@ class EventStore:
     def list(self, limit: int = 50) -> list[Dict[str, Any]]:
         with self._lock:
             return list(self._events)[-limit:]
+
+
+class SnapshotStore:
+    def __init__(self, root: Path) -> None:
+        self.root = root
+        self._lock = threading.Lock()
+        self.root.mkdir(parents=True, exist_ok=True)
+        for feed_name, feed_meta in SNAPSHOT_FEED_MAP.items():
+            (self.root / feed_meta["folder"]).mkdir(parents=True, exist_ok=True)
+
+    def _feed_meta(self, feed: str) -> Dict[str, str]:
+        if feed not in SNAPSHOT_FEED_MAP:
+            raise KeyError(feed)
+        return SNAPSHOT_FEED_MAP[feed]
+
+    def _feed_dir(self, feed: str) -> Path:
+        return self.root / self._feed_meta(feed)["folder"]
+
+    def _snapshot_payload(self, path: Path, feed: str, meta: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        stat = path.stat()
+        feed_meta = self._feed_meta(feed)
+        payload_meta = meta or {}
+        payload = {
+            "feed": feed,
+            "feed_label": feed_meta["label"],
+            "source": feed_meta["source"],
+            "filename": path.name,
+            "path": str(path),
+            "url": f"/snapshots/{feed}/{path.name}",
+            "download_url": f"/snapshots/{feed}/{path.name}?download=1",
+            "created_ts": stat.st_mtime,
+            "created": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(stat.st_mtime)),
+            "size_bytes": stat.st_size,
+            "meta": payload_meta,
+        }
+        sidecar = path.with_suffix(".json")
+        if sidecar.exists():
+            try:
+                payload["meta"] = json.loads(sidecar.read_text())
+            except Exception:
+                LOGGER.exception("Failed to read snapshot metadata sidecar: %s", sidecar)
+        return payload
+
+    def save(self, feed: str, frame: bytes, *, meta: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        feed_dir = self._feed_dir(feed)
+        stamp = time.strftime("%Y%m%d_%H%M%S")
+        suffix_ms = int((time.time() % 1) * 1000)
+        filename = f"{stamp}_{suffix_ms:03d}_{feed}.jpg"
+        path = feed_dir / filename
+        sidecar = path.with_suffix(".json")
+        payload_meta = meta or {}
+        payload_meta.setdefault("saved_at", utc_now_iso())
+        payload_meta.setdefault("feed", feed)
+        payload_meta.setdefault("feed_label", self._feed_meta(feed)["label"])
+        with self._lock:
+            path.write_bytes(frame)
+            sidecar.write_text(json.dumps(payload_meta, ensure_ascii=False, indent=2))
+        return self._snapshot_payload(path, feed, payload_meta)
+
+    def list_recent(self, limit: int = 24) -> list[Dict[str, Any]]:
+        entries: list[Dict[str, Any]] = []
+        for feed, feed_meta in SNAPSHOT_FEED_MAP.items():
+            feed_dir = self.root / feed_meta["folder"]
+            if not feed_dir.exists():
+                continue
+            for image_path in feed_dir.glob("*.jpg"):
+                try:
+                    entries.append(self._snapshot_payload(image_path, feed))
+                except Exception:
+                    LOGGER.exception("Failed to inspect snapshot: %s", image_path)
+        entries.sort(key=lambda item: item.get("created_ts", 0.0), reverse=True)
+        return entries[:limit]
+
+    def get_path(self, feed: str, filename: str) -> Path:
+        feed_dir = self._feed_dir(feed)
+        candidate = (feed_dir / filename).resolve()
+        if feed_dir.resolve() not in candidate.parents and candidate != feed_dir.resolve():
+            raise ValueError("Invalid snapshot path")
+        return candidate
 
 
 class SystemProbe:
@@ -1078,6 +1174,7 @@ def create_app() -> Flask:
     config = load_config()
     app = Flask(__name__)
     events = EventStore(EVENTS_LOG, int(config["events"].get("max_events", 200)))
+    snapshot_store = SnapshotStore(SNAPSHOTS_DIR)
     probe = SystemProbe()
     thermal = ThermalState(config, events)
     rgb = RgbMasterSource(config, events, probe)
@@ -1146,7 +1243,24 @@ def create_app() -> Flask:
     @app.route("/events")
     def events_endpoint():
         limit = int(request.args.get("limit", 50))
-        return jsonify({"events": events.list(limit), "count": len(events.list(9999))})
+        all_events = events.list(9999)
+        severity_counts: Dict[str, int] = {}
+        source_counts: Dict[str, int] = {}
+        for event in all_events:
+            severity = str(event.get("severity", "info")).lower()
+            severity_counts[severity] = severity_counts.get(severity, 0) + 1
+            source = str(event.get("source", "unknown"))
+            source_counts[source] = source_counts.get(source, 0) + 1
+        return jsonify(
+            {
+                "events": events.list(limit),
+                "count": len(all_events),
+                "summary": {
+                    "severity": severity_counts,
+                    "sources": source_counts,
+                },
+            }
+        )
 
     @app.route("/video/rgb_left")
     def video_rgb_left():
@@ -1176,33 +1290,137 @@ def create_app() -> Flask:
         rgb.set_enabled("rgb_right", False)
         return jsonify({"ok": True, "feed": "rgb_right", "enabled": False, "state": rgb.latest_state()})
 
-    def _snapshot_response(snapshot_bytes: bytes, filename: str, mimetype: str = "image/jpeg"):
-        return send_file(
-            io.BytesIO(snapshot_bytes),
-            mimetype=mimetype,
-            as_attachment=True,
-            download_name=filename,
+    def _snapshot_error(feed: str, filename: str, error_message: str, snapshot_info: Dict[str, Any], status_code: int = 503):
+        return (
+            jsonify(
+                {
+                    "ok": False,
+                    "feed": feed,
+                    "filename": filename,
+                    "url": snapshot_info["url"],
+                    "download_url": snapshot_info["download_url"],
+                    "error": error_message,
+                    "snapshot": snapshot_info,
+                }
+            ),
+            status_code,
         )
 
-    @app.route("/snapshot/rgb_left")
-    def snapshot_rgb_left():
-        frame, ok = rgb.capture_snapshot("left")
-        filename = f"rgb_left_{time.strftime('%Y%m%d_%H%M%S')}.jpg"
-        (RGB_LEFT_DIR / filename).write_bytes(frame)
-        events.add("RGB_CAM_LEFT", "SNAPSHOT_SAVED", f"Saved {filename}", "info")
-        if not ok:
-            return jsonify({"ok": False, "error": "RGB left offline", "filename": filename}), 503
-        return _snapshot_response(frame, filename)
+    def _snapshot_success(feed: str, snapshot_info: Dict[str, Any], status_code: int = 200):
+        return (
+            jsonify(
+                {
+                    "ok": True,
+                    "feed": feed,
+                    "filename": snapshot_info["filename"],
+                    "url": snapshot_info["url"],
+                    "download_url": snapshot_info["download_url"],
+                    "snapshot": snapshot_info,
+                }
+            ),
+            status_code,
+        )
 
-    @app.route("/snapshot/rgb_right")
-    def snapshot_rgb_right():
-        frame, ok = rgb.capture_snapshot("right")
-        filename = f"rgb_right_{time.strftime('%Y%m%d_%H%M%S')}.jpg"
-        (RGB_RIGHT_DIR / filename).write_bytes(frame)
-        events.add("RGB_CAM_RIGHT", "SNAPSHOT_SAVED", f"Saved {filename}", "info")
+    def _capture_snapshot(feed: str, capture_fn, meta: Dict[str, Any]):
+        try:
+            frame, ok = capture_fn()
+            meta = dict(meta)
+            meta["capture_ok"] = ok
+            snapshot_info = snapshot_store.save(feed, frame, meta=meta)
+            return frame, ok, snapshot_info, meta
+        except Exception as exc:
+            LOGGER.exception("Failed to save snapshot for %s", feed)
+            events.add(
+                meta.get("source", feed.upper()),
+                "SNAPSHOT_ERROR",
+                f"Snapshot failed for {feed}: {exc}",
+                "error",
+                meta=meta,
+            )
+            return None, False, None, meta
+
+    @app.route("/api/snapshots/recent")
+    def api_snapshots_recent():
+        limit = int(request.args.get("limit", 24))
+        return jsonify(
+            {
+                "count": len(snapshot_store.list_recent(999)),
+                "items": snapshot_store.list_recent(limit),
+                "feeds": SNAPSHOT_FEED_MAP,
+            }
+        )
+
+    @app.route("/snapshots")
+    def snapshots_gallery():
+        recent_items = snapshot_store.list_recent(30)
+        latest_by_feed: Dict[str, Dict[str, Any]] = {}
+        for item in recent_items:
+            latest_by_feed.setdefault(item["feed"], item)
+        return render_template(
+            "snapshots.html",
+            ip_address=probe.ip_address(),
+            hostname=probe.hostname(),
+            recent_items=recent_items,
+            latest_by_feed=latest_by_feed,
+            total_count=len(snapshot_store.list_recent(999)),
+            feeds=SNAPSHOT_FEED_MAP,
+        )
+
+    @app.route("/snapshots/<feed>/<path:filename>")
+    def serve_snapshot(feed: str, filename: str):
+        if feed not in SNAPSHOT_FEED_MAP:
+            return jsonify({"ok": False, "error": "Unknown snapshot feed"}), 404
+        try:
+            path = snapshot_store.get_path(feed, filename)
+        except Exception:
+            return jsonify({"ok": False, "error": "Invalid snapshot path"}), 404
+        if not path.exists():
+            return jsonify({"ok": False, "error": "Snapshot not found"}), 404
+        return send_file(
+            path,
+            mimetype="image/jpeg",
+            as_attachment=request.args.get("download") == "1",
+            download_name=path.name,
+            conditional=True,
+        )
+
+    @app.route("/snapshot/rgb_left", methods=["GET", "POST"])
+    def snapshot_rgb_left():
+        meta = {
+            "feed": "rgb_left",
+            "source": "RGB_CAM_LEFT",
+            "snapshot_type": "rgb",
+            "camera_state": rgb.camera_state(),
+            "camera_message": rgb.camera_message(),
+            "width": rgb.width,
+            "height": rgb.height,
+        }
+        frame, ok, snapshot_info, meta = _capture_snapshot("rgb_left", lambda: rgb.capture_snapshot("left"), meta)
+        if snapshot_info is None:
+            return _snapshot_error("rgb_left", "rgb_left_snapshot.jpg", meta.get("camera_message", "Snapshot failed"), {"url": "#", "download_url": "#"}, 503)
+        events.add("RGB_CAM_LEFT", "SNAPSHOT_SAVED", f"Saved {snapshot_info['filename']}", "info", meta=meta)
         if not ok:
-            return jsonify({"ok": False, "error": "RGB right offline", "filename": filename}), 503
-        return _snapshot_response(frame, filename)
+            return _snapshot_error("rgb_left", snapshot_info["filename"], "RGB left offline", snapshot_info, 503)
+        return _snapshot_success("rgb_left", snapshot_info)
+
+    @app.route("/snapshot/rgb_right", methods=["GET", "POST"])
+    def snapshot_rgb_right():
+        meta = {
+            "feed": "rgb_right",
+            "source": "RGB_CAM_RIGHT",
+            "snapshot_type": "rgb",
+            "camera_state": rgb.camera_state(),
+            "camera_message": rgb.camera_message(),
+            "width": rgb.width,
+            "height": rgb.height,
+        }
+        frame, ok, snapshot_info, meta = _capture_snapshot("rgb_right", lambda: rgb.capture_snapshot("right"), meta)
+        if snapshot_info is None:
+            return _snapshot_error("rgb_right", "rgb_right_snapshot.jpg", meta.get("camera_message", "Snapshot failed"), {"url": "#", "download_url": "#"}, 503)
+        events.add("RGB_CAM_RIGHT", "SNAPSHOT_SAVED", f"Saved {snapshot_info['filename']}", "info", meta=meta)
+        if not ok:
+            return _snapshot_error("rgb_right", snapshot_info["filename"], "RGB right offline", snapshot_info, 503)
+        return _snapshot_success("rgb_right", snapshot_info)
 
     @app.route("/thermal/status")
     def thermal_status():
@@ -1213,13 +1431,21 @@ def create_app() -> Flask:
         frame, stats = thermal.frame()
         return Response(frame, mimetype="image/jpeg", headers={"X-EASY-THERMAL-STATUS": stats.get("status", "unknown")})
 
-    @app.route("/thermal/snapshot")
+    @app.route("/thermal/snapshot", methods=["GET", "POST"])
     def thermal_snapshot():
         frame, stats = thermal.snapshot()
-        filename = f"thermal_{time.strftime('%Y%m%d_%H%M%S')}.jpg"
-        (THERMAL_DIR / filename).write_bytes(frame)
-        events.add("THERMAL_FLIR", "SNAPSHOT_SAVED", f"Saved {filename}", "info", meta=stats)
-        return _snapshot_response(frame, filename)
+        meta = dict(stats)
+        meta.update({"feed": "thermal", "snapshot_type": "thermal"})
+        try:
+            snapshot_info = snapshot_store.save("thermal", frame, meta=meta)
+        except Exception as exc:
+            LOGGER.exception("Failed to save thermal snapshot")
+            events.add("THERMAL_FLIR", "SNAPSHOT_ERROR", f"Snapshot failed: {exc}", "error", meta=meta)
+            return _snapshot_error("thermal", "thermal_snapshot.jpg", "Unable to save thermal snapshot", {"url": "#", "download_url": "#"}, 503)
+        events.add("THERMAL_FLIR", "SNAPSHOT_SAVED", f"Saved {snapshot_info['filename']}", "info", meta=meta)
+        if snapshot_info["meta"].get("status") in {"NOT_DETECTED", "DISABLED"}:
+            return _snapshot_error("thermal", snapshot_info["filename"], "Thermal feed unavailable", snapshot_info, 503)
+        return _snapshot_success("thermal", snapshot_info)
 
     @app.route("/api/stream-state", methods=["GET"])
     def stream_state():

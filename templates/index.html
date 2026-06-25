@@ -33,6 +33,29 @@
         </div>
       </header>
 
+      <section class="dashboard-summary">
+        <article class="summary-card">
+          <span>Live RGB</span>
+          <strong id="summary-rgb">Checking</strong>
+          <p id="summary-rgb-detail">Waiting for stream status</p>
+        </article>
+        <article class="summary-card">
+          <span>Thermal</span>
+          <strong id="summary-thermal">Checking</strong>
+          <p id="summary-thermal-detail">Waiting for frame</p>
+        </article>
+        <article class="summary-card">
+          <span>Snapshots</span>
+          <strong id="summary-snapshots">0</strong>
+          <p id="summary-snapshots-detail">No files loaded yet</p>
+        </article>
+        <article class="summary-card">
+          <span>Events</span>
+          <strong id="summary-events">0</strong>
+          <p id="summary-events-detail">Live activity feed</p>
+        </article>
+      </section>
+
       <section class="status-rail">
         <article class="rail-card">
           <span class="rail-label">RGB LEFT</span>
@@ -166,14 +189,64 @@
             <button class="btn btn-ghost" id="thermal-snapshot">Snapshot</button>
           </div>
         </article>
+      </section>
 
-        <article class="panel">
+      <section class="grid grid-gallery">
+        <article class="panel gallery-panel">
+          <div class="panel-head">
+            <div>
+              <p class="kicker">SNAPSHOT_ARCHIVE</p>
+              <h2>Recent Snapshots</h2>
+            </div>
+            <a class="panel-link" href="/snapshots">Open Gallery</a>
+          </div>
+          <div class="gallery-meta-row">
+            <div class="gallery-meta">
+              <span>Total</span>
+              <strong id="snapshot-count">0</strong>
+            </div>
+            <div class="gallery-meta">
+              <span>Latest</span>
+              <strong id="snapshot-latest-feed">--</strong>
+            </div>
+            <div class="gallery-meta">
+              <span>Updated</span>
+              <strong id="snapshot-latest-time">--</strong>
+            </div>
+          </div>
+          <div class="snapshot-grid" id="snapshot-grid"></div>
+        </article>
+      </section>
+
+      <section class="grid grid-thermal">
+        <article class="panel log-panel">
           <div class="panel-head">
             <div>
               <p class="kicker">UC512_MULTIPLEXER</p>
               <h2>Event Log</h2>
             </div>
+            <a class="panel-link" href="/api/snapshots/recent?limit=24" target="_blank" rel="noreferrer">JSON</a>
           </div>
+          <div class="log-toolbar">
+            <label class="log-search">
+              <span>Search</span>
+              <input type="search" id="log-search" placeholder="Filter events">
+            </label>
+            <div class="segmented" id="log-source-filter">
+              <button type="button" class="segmented-button is-active" data-source-filter="all">All</button>
+              <button type="button" class="segmented-button" data-source-filter="system">System</button>
+              <button type="button" class="segmented-button" data-source-filter="camera">Camera</button>
+              <button type="button" class="segmented-button" data-source-filter="snapshot">Snapshot</button>
+              <button type="button" class="segmented-button" data-source-filter="thermal">Thermal</button>
+            </div>
+            <div class="segmented" id="log-severity-filter">
+              <button type="button" class="segmented-button is-active" data-severity-filter="all">All</button>
+              <button type="button" class="segmented-button" data-severity-filter="info">Info</button>
+              <button type="button" class="segmented-button" data-severity-filter="warning">Warn</button>
+              <button type="button" class="segmented-button" data-severity-filter="error">Error</button>
+            </div>
+          </div>
+          <div class="log-summary" id="log-summary"></div>
           <div class="event-table-wrap">
             <table class="event-table">
               <thead>

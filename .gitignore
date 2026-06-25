@@ -16,6 +16,14 @@ data/captures/rgb_right/*
 !data/captures/rgb_right/.gitkeep
 data/captures/thermal/*
 !data/captures/thermal/.gitkeep
+data/snapshots/*
+!data/snapshots/.gitkeep
+data/snapshots/rgb_left/*
+!data/snapshots/rgb_left/.gitkeep
+data/snapshots/rgb_right/*
+!data/snapshots/rgb_right/.gitkeep
+data/snapshots/thermal/*
+!data/snapshots/thermal/.gitkeep
 
 logs/*
 captures/*
