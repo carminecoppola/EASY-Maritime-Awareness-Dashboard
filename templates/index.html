@@ -189,6 +189,50 @@
             <button class="btn btn-ghost" id="thermal-snapshot">Snapshot</button>
           </div>
         </article>
+        <article class="panel log-panel">
+          <div class="panel-head">
+            <div>
+              <p class="kicker">LOG</p>
+              <h2>Eventi recenti</h2>
+            </div>
+            <a class="panel-link" href="/api/snapshots/recent?limit=24" target="_blank" rel="noreferrer">Dati grezzi</a>
+          </div>
+          <div class="log-toolbar">
+            <label class="log-search">
+              <span>Cerca</span>
+              <input type="search" id="log-search" placeholder="Filtro eventi">
+            </label>
+            <div class="segmented" id="log-source-filter">
+              <button type="button" class="segmented-button is-active" data-source-filter="all">Tutti</button>
+              <button type="button" class="segmented-button" data-source-filter="system">Sistema</button>
+              <button type="button" class="segmented-button" data-source-filter="camera">Camera</button>
+              <button type="button" class="segmented-button" data-source-filter="snapshot">Snapshot</button>
+              <button type="button" class="segmented-button" data-source-filter="thermal">Termica</button>
+            </div>
+            <div class="segmented" id="log-severity-filter">
+              <button type="button" class="segmented-button is-active" data-severity-filter="all">Tutti</button>
+              <button type="button" class="segmented-button" data-severity-filter="info">Info</button>
+              <button type="button" class="segmented-button" data-severity-filter="warning">Avvisi</button>
+              <button type="button" class="segmented-button" data-severity-filter="error">Errori</button>
+            </div>
+            <p class="log-legend">Info = attività normale, Avvisi = qualcosa da guardare, Errori = intervento necessario.</p>
+          </div>
+          <div class="log-summary" id="log-summary"></div>
+          <div class="event-table-wrap">
+            <table class="event-table">
+              <thead>
+                <tr>
+                  <th>Ora Roma</th>
+                  <th>Origine</th>
+                  <th>Evento</th>
+                  <th>Dettaglio</th>
+                  <th>Livello</th>
+                </tr>
+              </thead>
+              <tbody id="event-body"></tbody>
+            </table>
+          </div>
+        </article>
       </section>
 
       <section class="grid grid-gallery">
@@ -196,71 +240,25 @@
           <div class="panel-head">
             <div>
               <p class="kicker">SNAPSHOT_ARCHIVE</p>
-              <h2>Recent Snapshots</h2>
+              <h2>Archivio snapshot</h2>
             </div>
-            <a class="panel-link" href="/snapshots">Open Gallery</a>
+            <a class="panel-link" href="/snapshots">Apri archivio</a>
           </div>
           <div class="gallery-meta-row">
             <div class="gallery-meta">
-              <span>Total</span>
+              <span>Totale</span>
               <strong id="snapshot-count">0</strong>
             </div>
             <div class="gallery-meta">
-              <span>Latest</span>
+              <span>Ultimo feed</span>
               <strong id="snapshot-latest-feed">--</strong>
             </div>
             <div class="gallery-meta">
-              <span>Updated</span>
+              <span>Aggiornato</span>
               <strong id="snapshot-latest-time">--</strong>
             </div>
           </div>
           <div class="snapshot-grid" id="snapshot-grid"></div>
-        </article>
-      </section>
-
-      <section class="grid grid-thermal">
-        <article class="panel log-panel">
-          <div class="panel-head">
-            <div>
-              <p class="kicker">UC512_MULTIPLEXER</p>
-              <h2>Event Log</h2>
-            </div>
-            <a class="panel-link" href="/api/snapshots/recent?limit=24" target="_blank" rel="noreferrer">JSON</a>
-          </div>
-          <div class="log-toolbar">
-            <label class="log-search">
-              <span>Search</span>
-              <input type="search" id="log-search" placeholder="Filter events">
-            </label>
-            <div class="segmented" id="log-source-filter">
-              <button type="button" class="segmented-button is-active" data-source-filter="all">All</button>
-              <button type="button" class="segmented-button" data-source-filter="system">System</button>
-              <button type="button" class="segmented-button" data-source-filter="camera">Camera</button>
-              <button type="button" class="segmented-button" data-source-filter="snapshot">Snapshot</button>
-              <button type="button" class="segmented-button" data-source-filter="thermal">Thermal</button>
-            </div>
-            <div class="segmented" id="log-severity-filter">
-              <button type="button" class="segmented-button is-active" data-severity-filter="all">All</button>
-              <button type="button" class="segmented-button" data-severity-filter="info">Info</button>
-              <button type="button" class="segmented-button" data-severity-filter="warning">Warn</button>
-              <button type="button" class="segmented-button" data-severity-filter="error">Error</button>
-            </div>
-          </div>
-          <div class="log-summary" id="log-summary"></div>
-          <div class="event-table-wrap">
-            <table class="event-table">
-              <thead>
-                <tr>
-                  <th>Timestamp</th>
-                  <th>Source</th>
-                  <th>Type</th>
-                  <th>Description</th>
-                  <th>Severity</th>
-                </tr>
-              </thead>
-              <tbody id="event-body"></tbody>
-            </table>
-          </div>
         </article>
       </section>
     </main>
