@@ -27,6 +27,58 @@ body {
   font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
 }
 
+.toast-stack {
+  position: fixed;
+  right: 18px;
+  top: 18px;
+  z-index: 50;
+  display: grid;
+  gap: 10px;
+  width: min(360px, calc(100vw - 36px));
+}
+
+.toast {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid rgba(141, 183, 208, 0.28);
+  border-radius: 8px;
+  background: rgba(9, 17, 26, 0.96);
+  box-shadow: var(--shadow);
+}
+
+.toast strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.toast p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.toast a {
+  color: var(--accent);
+  text-decoration: none;
+  align-self: center;
+}
+
+.toast-success {
+  border-color: rgba(38, 208, 178, 0.48);
+}
+
+.toast-error {
+  border-color: rgba(255, 122, 122, 0.58);
+}
+
+.toast-hide {
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
 .shell {
   width: min(1680px, calc(100% - 28px));
   margin: 0 auto;
@@ -581,6 +633,15 @@ h2 {
   margin-bottom: 12px;
 }
 
+.snapshot-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(155, 178, 194, 0.78);
+  font-size: 12px;
+  margin: -4px 0 12px;
+}
+
 .snapshot-actions {
   margin-top: 0;
 }
@@ -717,6 +778,12 @@ h2 {
 
 .event-table td:nth-child(4) {
   min-width: 260px;
+  line-height: 1.35;
+}
+
+.event-action {
+  min-width: 210px;
+  color: var(--muted);
   line-height: 1.35;
 }
 
