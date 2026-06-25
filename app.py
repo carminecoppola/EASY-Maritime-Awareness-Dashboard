@@ -503,6 +503,17 @@ class RgbMasterSource:
         lowered = self._error.lower()
         return any(token in lowered for token in ("busy", "timeout", "in use", "failed to acquire"))
 
+    def _is_benign_stderr(self, line: str) -> bool:
+        lowered = line.lower()
+        return any(
+            token in lowered
+            for token in (
+                "embedded data buffer parsing failed",
+                "zero sequence expected for first frame",
+                "still capture image received",
+            )
+        )
+
     def camera_state(self) -> str:
         if not self.detected:
             return "OFFLINE"
@@ -651,6 +662,8 @@ class RgbMasterSource:
                 continue
             self._stderr_tail.append(line)
             LOGGER.info("rgb-source: %s", line)
+            if self._is_benign_stderr(line):
+                continue
             lowered = line.lower()
             if "error" in lowered or "failed" in lowered or "timeout" in lowered:
                 self._error = line
@@ -704,8 +717,11 @@ class RgbMasterSource:
             fps = 0.0
             if self._frame_seq > 1 and self._frame_ts:
                 fps = float(self.fps_target)
+            status = self._status
+            if self._frame is not None and self.process and self.process.poll() is None:
+                status = "ONLINE"
             return {
-                "status": self._status,
+                "status": status,
                 "camera_state": self.camera_state(),
                 "error": self._error,
                 "message": self.camera_message(),
