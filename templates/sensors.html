@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+
+{% block header_meta %}
+  <div class="header-chip">
+    <span>Live streams</span>
+    <strong id="sensors-header-streams">Loading</strong>
+  </div>
+  <div class="header-chip">
+    <span>Snapshots</span>
+    <strong id="sensors-header-snapshots">Loading</strong>
+  </div>
+  <div class="header-chip">
+    <span>Recording</span>
+    <strong id="sensors-header-recording">Not connected</strong>
+  </div>
+  <div class="header-chip">
+    <span>Errors</span>
+    <strong id="sensors-header-errors">0</strong>
+  </div>
+{% endblock %}
+
+{% block content %}
+  <section class="status-strip acquisition-strip">
+    <article class="summary-card">
+      <span>RGB LEFT</span>
+      <strong id="acq-rgb-left-state">Loading camera state</strong>
+      <p id="acq-rgb-left-meta">Waiting for camera frames. Check that the stream is running.</p>
+    </article>
+    <article class="summary-card">
+      <span>RGB RIGHT</span>
+      <strong id="acq-rgb-right-state">Loading camera state</strong>
+      <p id="acq-rgb-right-meta">Waiting for camera frames. Check that the stream is running.</p>
+    </article>
+    <article class="summary-card">
+      <span>THERMAL</span>
+      <strong id="acq-thermal-state">Loading thermal state</strong>
+      <p id="acq-thermal-meta">Thermal status is being loaded</p>
+    </article>
+    <article class="summary-card">
+      <span>Recording</span>
+      <strong id="acq-recording-state">Not connected</strong>
+      <p id="acq-recording-meta">Recording controls are available from Acquisition</p>
+    </article>
+  </section>
+
+  <section class="panel acquisition-controls">
+    <div class="panel-head">
+      <div>
+        <p class="kicker">ACQUISITION</p>
+        <h2>Stream control and capture workflow</h2>
+      </div>
+      <span class="badge badge-muted" id="acq-control-state">Ready</span>
+    </div>
+    <div class="control-grid">
+      <div class="control-group">
+        <span>Snapshots</span>
+        <div class="button-row">
+          <button class="btn btn-primary btn-small" data-snapshot="rgb_left">RGB LEFT</button>
+          <button class="btn btn-primary btn-small" data-snapshot="rgb_right">RGB RIGHT</button>
+          <button class="btn btn-primary btn-small" data-snapshot="thermal">THERMAL</button>
+        </div>
+      </div>
+      <div class="control-group">
+        <span>Recording</span>
+        <div class="button-row">
+          <button class="btn btn-secondary btn-small" data-placeholder-control="record-start">Start recording</button>
+          <button class="btn btn-secondary btn-small" data-placeholder-control="record-stop">Stop recording</button>
+          <button class="btn btn-ghost btn-small" data-placeholder-control="record-clip">Mark clip</button>
+        </div>
+      </div>
+      <div class="control-group">
+        <span>Pipeline</span>
+        <div class="button-row">
+          <button class="btn btn-ghost btn-small" data-placeholder-control="fusion">Fusion preview</button>
+          <button class="btn btn-ghost btn-small" data-placeholder-control="inference">AI analysis</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid acquisition-grid">
+    <article class="panel camera-panel" data-feed="rgb_left">
+      <div class="panel-head">
+        <div>
+          <p class="kicker">RGB LEFT</p>
+          <h2>Camera sinistra</h2>
+        </div>
+        <span class="badge badge-muted" id="rgb_left_state">Loading camera state</span>
+      </div>
+      <div class="feed-viewport feed-left">
+        <img class="feed-image" data-feed-image="rgb_left" src="/video/rgb_left" alt="RGB left live preview">
+        <div class="feed-chrome">
+          <div class="feed-chrome-top">
+            <span class="feed-live badge badge-muted" id="rgb_left_state_copy">Waiting</span>
+            <span class="feed-fps" id="rgb_left_fps">0.0 fps</span>
+          </div>
+          <div class="feed-chrome-bottom">
+            <span class="feed-name">RGB LEFT</span>
+            <span class="feed-time" id="rgb_left_last">No frame yet</span>
+          </div>
+        </div>
+        <div class="feed-overlay" id="overlay-rgb_left">Waiting for camera frames. Check that the stream is running.</div>
+      </div>
+      <div class="feed-footer advanced-only">
+        <span class="feed-footer-note" id="rgb_left_state_msg">Waiting for camera frames. Check that the stream is running.</span>
+        <span class="feed-footer-error" id="rgb_left_error">No error reported</span>
+      </div>
+      <div class="button-row">
+        <button class="btn btn-primary btn-small" data-action="start" data-feed="rgb_left">Start</button>
+        <button class="btn btn-secondary btn-small" data-action="stop" data-feed="rgb_left">Stop</button>
+        <button class="btn btn-ghost btn-small" data-snapshot="rgb_left">Snapshot</button>
+      </div>
+    </article>
+
+    <article class="panel camera-panel thermal-acquisition-panel">
+      <div class="panel-head">
+        <div>
+          <p class="kicker">THERMAL</p>
+          <h2>FLIR / Lepton</h2>
+        </div>
+        <span class="badge badge-muted" id="thermal_state">Loading thermal state</span>
+      </div>
+      <div class="thermal-metrics-grid">
+        <article class="mini-card">
+          <span>Min</span>
+          <strong id="thermal_min">Not available</strong>
+        </article>
+        <article class="mini-card">
+          <span>Avg</span>
+          <strong id="thermal_avg">Not available</strong>
+        </article>
+        <article class="mini-card">
+          <span>Max</span>
+          <strong id="thermal_max">Not available</strong>
+        </article>
+        <article class="mini-card alarm-card">
+          <span>Alarm</span>
+          <strong id="thermal_anomaly">Clear</strong>
+        </article>
+      </div>
+      <div class="thermal-sparkline" id="thermal-sparkline" hidden></div>
+      <div class="thermal-viewport thermal-viewport-large">
+        <img class="feed-image thermal-image" id="thermal-frame" src="/thermal/frame" alt="Thermal preview">
+        <div class="feed-chrome">
+          <div class="feed-chrome-top">
+            <span class="feed-live badge badge-muted" id="thermal_state_copy">Loading thermal state</span>
+            <span class="feed-fps" id="thermal_state_msg">Thermal status is being loaded</span>
+          </div>
+          <div class="feed-chrome-bottom">
+            <span class="feed-name">THERMAL</span>
+            <span class="feed-time">{{ thermal_mode|upper }}</span>
+          </div>
+        </div>
+        <div class="feed-overlay" id="overlay-thermal">Thermal stream is warming up</div>
+      </div>
+      <div class="thermal-command-block">
+        <button class="btn btn-secondary btn-small" id="thermal-snapshot">Snapshot</button>
+        <details class="thermal-command-details">
+          <summary>PureThermal details</summary>
+          <div class="thermal-command-body">
+            <p>Device: <strong>{{ thermal_device }}</strong></p>
+            <p>Mode: <strong>{{ thermal_mode }}</strong></p>
+            <p>The thermal acquisition page keeps the live heatmap visible while the acquisition and pipeline tooling is expanded later.</p>
+          </div>
+        </details>
+      </div>
+    </article>
+
+    <article class="panel camera-panel" data-feed="rgb_right">
+      <div class="panel-head">
+        <div>
+          <p class="kicker">RGB RIGHT</p>
+          <h2>Camera destra</h2>
+        </div>
+        <span class="badge badge-muted" id="rgb_right_state">Loading camera state</span>
+      </div>
+      <div class="feed-viewport feed-right">
+        <img class="feed-image" data-feed-image="rgb_right" src="/video/rgb_right" alt="RGB right live preview">
+        <div class="feed-chrome">
+          <div class="feed-chrome-top">
+            <span class="feed-live badge badge-muted" id="rgb_right_state_copy">Waiting</span>
+            <span class="feed-fps" id="rgb_right_fps">0.0 fps</span>
+          </div>
+          <div class="feed-chrome-bottom">
+            <span class="feed-name">RGB RIGHT</span>
+            <span class="feed-time" id="rgb_right_last">No frame yet</span>
+          </div>
+        </div>
+        <div class="feed-overlay" id="overlay-rgb_right">Waiting for camera frames. Check that the stream is running.</div>
+      </div>
+      <div class="feed-footer advanced-only">
+        <span class="feed-footer-note" id="rgb_right_state_msg">Waiting for camera frames. Check that the stream is running.</span>
+        <span class="feed-footer-error" id="rgb_right_error">No error reported</span>
+      </div>
+      <div class="button-row">
+        <button class="btn btn-primary btn-small" data-action="start" data-feed="rgb_right">Start</button>
+        <button class="btn btn-secondary btn-small" data-action="stop" data-feed="rgb_right">Stop</button>
+        <button class="btn btn-ghost btn-small" data-snapshot="rgb_right">Snapshot</button>
+      </div>
+    </article>
+
+    <article class="panel acquisition-health-panel">
+      <div class="panel-head">
+        <div>
+          <p class="kicker">HEALTH</p>
+          <h2>Stream diagnostics</h2>
+        </div>
+      </div>
+      <div class="health-summary advanced-only" id="acquisition-health"></div>
+      <div class="placeholder-list advanced-only" id="acq-error-list"></div>
+    </article>
+  </section>
+{% endblock %}

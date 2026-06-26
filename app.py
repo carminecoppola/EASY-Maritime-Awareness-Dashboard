@@ -92,6 +92,15 @@ DEFAULT_CONFIG: Dict[str, Any] = {
 }
 
 
+NAV_ITEMS = [
+    {"key": "mission", "label": "Mission Console", "href": "/"},
+    {"key": "sensors", "label": "Sensors / Acquisition", "href": "/sensors"},
+    {"key": "thermal", "label": "Thermal & Events", "href": "/thermal-events"},
+    {"key": "system", "label": "System / Diagnostics", "href": "/system-diagnostics"},
+    {"key": "snapshots", "label": "Snapshots", "href": "/snapshots"},
+]
+
+
 def _coerce_scalar(raw: str) -> Any:
     value = raw.strip()
     lower = value.lower()
@@ -1515,6 +1524,84 @@ def build_camera_inventory(rgb: RgbMasterSource, thermal: ThermalState) -> Dict[
     }
 
 
+def build_operations_payload(camera_inventory: Dict[str, Any], rgb_state: Dict[str, Any], thermal_state: Dict[str, Any]) -> Dict[str, Any]:
+    rgb_cameras = camera_inventory.get("rgb_cameras", [])
+    detected_sensors = int(bool(rgb_state.get("detected"))) + int(bool(thermal_state.get("detected") or thermal_state.get("mode") == "mock"))
+    online_sensors = int(bool(rgb_state.get("has_frame"))) + int(bool(thermal_state.get("status") in {"MOCK", "REAL", "STARTING"}))
+    attention_level = "LOW"
+    attention_reason = "No active detections pipeline connected."
+    attention_tone = "muted"
+    if thermal_state.get("anomaly_active"):
+        attention_level = "ELEVATED"
+        attention_reason = "Thermal hotspot flagged by the FLIR pipeline."
+        attention_tone = "warn"
+    if rgb_state.get("status") in {"ERROR", "BUSY"}:
+        attention_level = "WATCH"
+        attention_reason = rgb_state.get("error") or "RGB acquisition needs attention."
+        attention_tone = "error" if rgb_state.get("status") == "ERROR" else "warn"
+
+    recording_supported = which("ffmpeg") is not None
+    pipeline = {
+        "fusion": {
+            "state": "Preview not connected",
+            "supported": False,
+            "message": "Multimodal fusion preview. RGB + Thermal fusion will appear here.",
+        },
+        "inference": {
+            "state": "Not connected",
+            "supported": False,
+            "message": "AI analysis not connected yet.",
+        },
+        "recording": {
+            "state": "Ready" if recording_supported else "Not available",
+            "supported": recording_supported,
+            "message": "Recording controls are available from Acquisition.",
+        },
+        "snapshot": {
+            "state": "Ready",
+            "supported": True,
+            "message": "Snapshot capture is already functional.",
+        },
+    }
+    sensor_health = {
+        "online_count": online_sensors,
+        "detected_count": detected_sensors,
+        "total_count": 3,
+        "rgb_left": {
+            "state": rgb_cameras[0]["state"] if rgb_cameras else rgb_state.get("camera_state", "--"),
+            "enabled": rgb_cameras[0]["enabled"] if rgb_cameras else True,
+        },
+        "rgb_right": {
+            "state": rgb_cameras[1]["state"] if len(rgb_cameras) > 1 else rgb_state.get("camera_state", "--"),
+            "enabled": rgb_cameras[1]["enabled"] if len(rgb_cameras) > 1 else True,
+        },
+        "thermal": {
+            "state": thermal_state.get("status", "--"),
+            "mode": thermal_state.get("mode", "--"),
+            "detected": thermal_state.get("detected", False),
+        },
+    }
+    detections = [
+        {
+            "label": "No detections yet",
+            "confidence": None,
+            "source": "placeholder",
+            "state": "idle",
+            "message": "The AI detection pipeline is not connected.",
+        }
+    ]
+    return {
+        "attention": {
+            "level": attention_level,
+            "tone": attention_tone,
+            "reason": attention_reason,
+        },
+        "detections": detections,
+        "sensor_health": sensor_health,
+        "pipeline": pipeline,
+    }
+
+
 def build_system_payload(probe: SystemProbe) -> Dict[str, Any]:
     cpu_percent = psutil.cpu_percent(interval=0.1)
     memory = probe.memory()
@@ -1535,10 +1622,39 @@ def build_system_payload(probe: SystemProbe) -> Dict[str, Any]:
     }
 
 
+def dashboard_context(
+    page_key: str,
+    page_title: str,
+    page_subtitle: str,
+    *,
+    template_name: str = "index.html",
+    hostname: str,
+    ip_address: str,
+    asset_version: str,
+    thermal_device: str,
+    thermal_mode: str,
+    **extra: Any,
+) -> str:
+    return render_template(
+        template_name,
+        page_key=page_key,
+        page_title=page_title,
+        page_subtitle=page_subtitle,
+        nav_items=NAV_ITEMS,
+        ip_address=ip_address,
+        hostname=hostname,
+        asset_version=asset_version,
+        thermal_device=thermal_device,
+        thermal_mode=thermal_mode,
+        **extra,
+    )
+
+
 def create_app() -> Flask:
     config = load_config()
     app = Flask(__name__)
-    asset_version = str(int(time.time()))
+    def asset_version() -> str:
+        return str(int(time.time()))
     events = EventStore(EVENTS_LOG, int(config["events"].get("max_events", 200)))
     snapshot_store = SnapshotStore(SNAPSHOTS_DIR)
     probe = SystemProbe()
@@ -1558,7 +1674,7 @@ def create_app() -> Flask:
 
     @app.context_processor
     def inject_asset_version() -> Dict[str, str]:
-        return {"asset_version": asset_version}
+        return {"asset_version": asset_version()}
 
     def _rgb_keepalive() -> None:
         while True:
@@ -1570,10 +1686,60 @@ def create_app() -> Flask:
 
     @app.route("/")
     def index() -> str:
-        return render_template(
-            "index.html",
-            ip_address=probe.ip_address(),
+        return dashboard_context(
+            "mission",
+            "EASY Maritime Awareness",
+            "Mission Console",
+            template_name="index.html",
             hostname=probe.hostname(),
+            ip_address=probe.ip_address(),
+            asset_version=asset_version(),
+            thermal_device=thermal.device,
+            thermal_mode=config["thermal"].get("mode", "mock"),
+        )
+
+    @app.route("/mission")
+    def mission_page() -> str:
+        return index()
+
+    @app.route("/sensors")
+    def sensors_page() -> str:
+        return dashboard_context(
+            "sensors",
+            "Sensors / Acquisition",
+            "Live streams, snapshots, and capture controls",
+            template_name="sensors.html",
+            hostname=probe.hostname(),
+            ip_address=probe.ip_address(),
+            asset_version=asset_version(),
+            thermal_device=thermal.device,
+            thermal_mode=config["thermal"].get("mode", "mock"),
+        )
+
+    @app.route("/thermal-events")
+    def thermal_events_page() -> str:
+        return dashboard_context(
+            "thermal",
+            "Thermal & Events",
+            "Heatmap monitoring and recent event tracking",
+            template_name="thermal_events.html",
+            hostname=probe.hostname(),
+            ip_address=probe.ip_address(),
+            asset_version=asset_version(),
+            thermal_device=thermal.device,
+            thermal_mode=config["thermal"].get("mode", "mock"),
+        )
+
+    @app.route("/system-diagnostics")
+    def system_diagnostics_page() -> str:
+        return dashboard_context(
+            "system",
+            "System / Diagnostics",
+            "Hardware, services, and pipeline status",
+            template_name="system_diagnostics.html",
+            hostname=probe.hostname(),
+            ip_address=probe.ip_address(),
+            asset_version=asset_version(),
             thermal_device=thermal.device,
             thermal_mode=config["thermal"].get("mode", "mock"),
         )
@@ -1584,6 +1750,7 @@ def create_app() -> Flask:
         system_payload = build_system_payload(probe)
         rgb_state = rgb.latest_state()
         thermal_state = thermal.status_payload()
+        operations_payload = build_operations_payload(camera_inventory, rgb_state, thermal_state)
         ok = rgb_state["camera_state"] in {"DETECTED", "BUSY"} and thermal_state["status"] in {
             "MOCK",
             "REAL",
@@ -1600,6 +1767,7 @@ def create_app() -> Flask:
                 "cameras": camera_inventory,
                 "rgb": rgb_state,
                 "thermal": thermal_state,
+                "operations": operations_payload,
                 "events_count": len(events.list(9999)),
             }
         )
@@ -1730,10 +1898,16 @@ def create_app() -> Flask:
         latest_by_feed: Dict[str, Dict[str, Any]] = {}
         for item in recent_items:
             latest_by_feed.setdefault(item["feed"], item)
-        return render_template(
-            "snapshots.html",
-            ip_address=probe.ip_address(),
+        return dashboard_context(
+            "snapshots",
+            "Snapshot Archive",
+            "Local image archive and storage inventory",
+            template_name="snapshots.html",
             hostname=probe.hostname(),
+            ip_address=probe.ip_address(),
+            asset_version=asset_version(),
+            thermal_device=thermal.device,
+            thermal_mode=config["thermal"].get("mode", "mock"),
             recent_items=recent_items,
             latest_by_feed=latest_by_feed,
             total_count=len(snapshot_store.list_recent(999)),
@@ -1750,12 +1924,15 @@ def create_app() -> Flask:
             return jsonify({"ok": False, "error": "Invalid snapshot path"}), 404
         if not path.exists():
             return jsonify({"ok": False, "error": "Snapshot not found"}), 404
+        download_requested = request.args.get("download") == "1"
+        send_file_kwargs = {
+            "mimetype": "image/jpeg",
+            "as_attachment": download_requested,
+            "conditional": True,
+        }
         return send_file(
             path,
-            mimetype="image/jpeg",
-            as_attachment=request.args.get("download") == "1",
-            download_name=path.name,
-            conditional=True,
+            **send_file_kwargs,
         )
 
     @app.route("/snapshot/rgb_left", methods=["GET", "POST"])

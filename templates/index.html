@@ -1,269 +1,252 @@
-<!doctype html>
-<html lang="it">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>EASY Maritime Awareness Dashboard</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ asset_version }}">
-  </head>
-  <body>
-    <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
-    <main class="shell">
-      <header class="topbar">
-        <div class="brand-block">
-          <img class="brand-logo" src="{{ url_for('static', filename='img/easy-logo.svg') }}" alt="EASY">
-          <div>
-            <p class="eyebrow">Environmental Awareness by the Sea and beYond</p>
-            <h1>EASY Maritime Awareness</h1>
-            <p class="subline">Local dashboard on {{ hostname }} at {{ ip_address }}</p>
-          </div>
-        </div>
-        <div class="status-strip">
-          <div class="status-chip">
-            <span>IP Raspberry</span>
-            <strong id="ip-address">{{ ip_address }}</strong>
-          </div>
-          <div class="status-chip">
-            <span>Sistema</span>
-            <strong id="system-state">Checking</strong>
-          </div>
-          <div class="status-chip">
-            <span>Ora Roma</span>
-            <strong id="timestamp">--</strong>
-          </div>
-        </div>
-      </header>
+{% extends "base.html" %}
 
-      <section class="dashboard-summary">
-        <article class="summary-card">
-          <span>Stream RGB</span>
-          <strong id="summary-rgb">Checking</strong>
-          <p id="summary-rgb-detail">Waiting for stream status</p>
+{% block header_meta %}
+  <div class="header-chip">
+    <span>Hostname</span>
+    <strong>{{ hostname }}</strong>
+  </div>
+  <div class="header-chip">
+    <span>Raspberry IP</span>
+    <strong>{{ ip_address }}</strong>
+  </div>
+  <div class="header-chip">
+    <span>System State</span>
+    <strong id="mission-header-system">System status is being loaded</strong>
+  </div>
+  <div class="header-chip">
+    <span>Rome Time</span>
+    <strong id="mission-header-time">Loading</strong>
+  </div>
+{% endblock %}
+
+{% block content %}
+  <section class="mission-console">
+    <article class="panel mission-status-header">
+      <div class="mission-status-copy">
+        <p class="kicker">MISSION CONSOLE</p>
+        <h2 id="mission-state-title">System status is being loaded</h2>
+        <p id="mission-state-copy">The dashboard is starting up and collecting live sensor state.</p>
+      </div>
+      <div class="mission-status-actions">
+        <a class="btn btn-primary btn-small" href="/sensors">Open acquisition</a>
+        <a class="btn btn-secondary btn-small" href="/thermal-events">Open thermal monitor</a>
+        <a class="btn btn-ghost btn-small" href="/system-diagnostics">Open diagnostics</a>
+      </div>
+      <div class="mission-status-metrics metric-grid">
+        <article class="metric">
+          <span>Sensors online</span>
+          <strong id="summary-sensors-online">Loading</strong>
+          <p id="summary-sensors-detail">System status is being loaded</p>
         </article>
-        <article class="summary-card">
-          <span>Termica</span>
-          <strong id="summary-thermal">Checking</strong>
-          <p id="summary-thermal-detail">Waiting for frame</p>
+        <article class="metric">
+          <span>THERMAL</span>
+          <strong id="summary-thermal">Loading</strong>
+          <p id="summary-thermal-detail">Thermal status is being loaded</p>
         </article>
-        <article class="summary-card">
+        <article class="metric">
           <span>Snapshots</span>
           <strong id="summary-snapshots">0</strong>
-          <p id="summary-snapshots-detail">No files loaded yet</p>
+          <p id="summary-snapshots-detail">No snapshots captured in this session</p>
         </article>
-        <article class="summary-card">
-          <span>Eventi</span>
+        <article class="metric">
+          <span>Events</span>
           <strong id="summary-events">0</strong>
-          <p id="summary-events-detail">Live activity feed</p>
+          <p id="summary-events-detail">No events recorded in this session</p>
         </article>
-      </section>
+      </div>
+    </article>
 
-      <section class="status-rail">
-        <article class="rail-card">
-          <span class="rail-label">RGB LEFT</span>
-          <strong id="rgb_left_state_label">--</strong>
-          <p id="rgb_left_message">--</p>
-        </article>
-        <article class="rail-card">
-          <span class="rail-label">RGB RIGHT</span>
-          <strong id="rgb_right_state_label">--</strong>
-          <p id="rgb_right_message">--</p>
-        </article>
-        <article class="rail-card">
-          <span class="rail-label">TERMICA</span>
-          <strong id="thermal_state_label">--</strong>
-          <p id="thermal_message">--</p>
-        </article>
-      </section>
+    <section class="mission-stage">
+      <article class="panel mission-feed-card" data-feed="rgb_left">
+        <div class="panel-head">
+          <div>
+            <p class="kicker">RGB LEFT</p>
+            <h2>Camera sinistra</h2>
+          </div>
+          <span class="badge badge-muted" id="rgb_left_state">Loading</span>
+        </div>
+        <div class="feed-viewport feed-left">
+          <img class="feed-image" data-feed-image="rgb_left" src="/video/rgb_left" alt="RGB left live preview">
+          <div class="feed-chrome">
+            <div class="feed-chrome-top">
+              <span class="feed-live badge badge-muted" id="rgb_left_state_copy">Waiting</span>
+              <span class="feed-fps" id="rgb_left_fps">0.0 fps</span>
+            </div>
+            <div class="feed-chrome-bottom">
+              <span class="feed-name">RGB LEFT</span>
+              <span class="feed-time" id="rgb_left_last">No frame yet</span>
+            </div>
+          </div>
+          <div class="feed-overlay" id="overlay-rgb_left">Waiting for camera frames. Check that the stream is running.</div>
+        </div>
+        <div class="feed-footer advanced-only">
+          <span class="feed-footer-note" id="rgb_left_state_msg">Waiting for camera frames. Check that the stream is running.</span>
+          <span class="feed-footer-error" id="rgb_left_error">No error reported</span>
+        </div>
+        <div class="button-row">
+          <button class="btn btn-secondary btn-small" data-snapshot="rgb_left">Snapshot</button>
+          <button class="btn btn-ghost btn-small" data-action="start" data-feed="rgb_left">Reconnect</button>
+        </div>
+      </article>
 
-      <section class="grid grid-system">
-        <article class="panel">
-          <div class="panel-head">
-            <div>
-              <p class="kicker">SISTEMA</p>
-              <h2>Raspberry</h2>
+      <article class="panel mission-thermal-card">
+        <div class="panel-head">
+          <div>
+            <p class="kicker">THERMAL</p>
+            <h2>FLIR / Lepton</h2>
+          </div>
+          <span class="badge badge-muted" id="thermal_state">Loading thermal state</span>
+        </div>
+        <div class="thermal-metrics-grid">
+          <article class="mini-card">
+            <span>Min</span>
+            <strong id="thermal_min">Not available</strong>
+          </article>
+          <article class="mini-card">
+            <span>Avg</span>
+            <strong id="thermal_avg">Not available</strong>
+          </article>
+          <article class="mini-card">
+            <span>Max</span>
+            <strong id="thermal_max">Not available</strong>
+          </article>
+          <article class="mini-card alarm-card">
+            <span>Alarm</span>
+            <strong id="thermal_anomaly">Clear</strong>
+          </article>
+        </div>
+        <div class="thermal-sparkline" id="thermal-sparkline" hidden></div>
+        <div class="feed-viewport thermal-viewport thermal-viewport-large">
+          <img class="feed-image thermal-image" id="thermal-frame" src="/thermal/frame" alt="Thermal heatmap">
+          <div class="feed-chrome">
+            <div class="feed-chrome-top">
+              <span class="feed-live badge badge-muted" id="thermal_state_copy">Loading thermal state</span>
+              <span class="feed-fps" id="thermal_state_msg">Thermal status is being loaded</span>
+            </div>
+            <div class="feed-chrome-bottom">
+              <span class="feed-name">THERMAL</span>
+              <span class="feed-time">{{ thermal_mode|upper }}</span>
             </div>
           </div>
-          <div class="metric-grid">
-            <div class="metric"><span>CPU</span><strong id="cpu-percent">--</strong></div>
-            <div class="metric"><span>Temp</span><strong id="cpu-temp">--</strong></div>
-            <div class="metric"><span>RAM</span><strong id="ram-percent">--</strong></div>
-            <div class="metric"><span>Disk</span><strong id="disk-percent">--</strong></div>
-            <div class="metric"><span>Uptime</span><strong id="uptime">--</strong></div>
-            <div class="metric"><span>Model</span><strong id="pi-model">--</strong></div>
-          </div>
-        </article>
+          <div class="feed-overlay" id="overlay-thermal">Thermal stream is warming up</div>
+        </div>
+        <div class="thermal-command-block">
+          <button class="btn btn-secondary btn-small" id="thermal-snapshot">Snapshot</button>
+          <details class="thermal-command-details">
+            <summary>PureThermal details</summary>
+            <div class="thermal-command-body">
+              <p>Device: <strong>{{ thermal_device }}</strong></p>
+              <p>Mode: <strong>{{ thermal_mode }}</strong></p>
+              <p>Thermal analysis preview stays visible here while real fusion and inference are integrated.</p>
+            </div>
+          </details>
+        </div>
+      </article>
 
-        <article class="panel">
-          <div class="panel-head">
-            <div>
-              <p class="kicker">HARDWARE</p>
-              <h2>Dispositivi</h2>
+      <article class="panel mission-feed-card" data-feed="rgb_right">
+        <div class="panel-head">
+          <div>
+            <p class="kicker">RGB RIGHT</p>
+            <h2>Camera destra</h2>
+          </div>
+          <span class="badge badge-muted" id="rgb_right_state">Loading</span>
+        </div>
+        <div class="feed-viewport feed-right">
+          <img class="feed-image" data-feed-image="rgb_right" src="/video/rgb_right" alt="RGB right live preview">
+          <div class="feed-chrome">
+            <div class="feed-chrome-top">
+              <span class="feed-live badge badge-muted" id="rgb_right_state_copy">Waiting</span>
+              <span class="feed-fps" id="rgb_right_fps">0.0 fps</span>
+            </div>
+            <div class="feed-chrome-bottom">
+              <span class="feed-name">RGB RIGHT</span>
+              <span class="feed-time" id="rgb_right_last">No frame yet</span>
             </div>
           </div>
-          <div class="device-list" id="device-list"></div>
-        </article>
-      </section>
+          <div class="feed-overlay" id="overlay-rgb_right">Waiting for camera frames. Check that the stream is running.</div>
+        </div>
+        <div class="feed-footer advanced-only">
+          <span class="feed-footer-note" id="rgb_right_state_msg">Waiting for camera frames. Check that the stream is running.</span>
+          <span class="feed-footer-error" id="rgb_right_error">No error reported</span>
+        </div>
+        <div class="button-row">
+          <button class="btn btn-secondary btn-small" data-snapshot="rgb_right">Snapshot</button>
+          <button class="btn btn-ghost btn-small" data-action="start" data-feed="rgb_right">Reconnect</button>
+        </div>
+      </article>
+    </section>
 
-      <section class="grid grid-rgb">
-        <article class="panel camera-panel" data-feed="rgb_left">
-          <div class="panel-head">
-            <div>
-              <p class="kicker">RGB SINISTRA</p>
-              <h2>Camera sinistra</h2>
-            </div>
-            <span class="badge" id="rgb_left_state">--</span>
-          </div>
-          <div class="state-line">
-            <span class="state-dot" id="rgb_left_dot"></span>
-            <strong id="rgb_left_state_copy">--</strong>
-            <span id="rgb_left_state_msg">--</span>
-          </div>
-          <div class="feed-viewport feed-left">
-            <img class="feed-image" data-feed-image="rgb_left" src="/video/rgb_left" alt="RGB left live preview">
-            <div class="feed-overlay" id="overlay-rgb_left">Waiting for frame...</div>
-          </div>
-          <div class="camera-meta">
-            <span>FPS <strong id="rgb_left_fps">--</strong></span>
-            <span>Last <strong id="rgb_left_last">--</strong></span>
-            <span>Error <strong id="rgb_left_error">--</strong></span>
-          </div>
-          <div class="button-row">
-            <button class="btn btn-primary" data-action="start" data-feed="rgb_left">Riprendi</button>
-            <button class="btn btn-ghost" data-snapshot="rgb_left">Snapshot</button>
-          </div>
-        </article>
+    <section class="mission-footer">
+      <article class="metric">
+        <span>Recording</span>
+        <strong id="summary-recording">Not connected</strong>
+        <p id="summary-recording-detail">Recording controls are available from Acquisition</p>
+      </article>
+      <article class="metric">
+        <span>Fusion</span>
+        <strong id="fused-state">Preview not connected</strong>
+        <p id="fused-fusion-state">Multimodal fusion preview. RGB + Thermal fusion will appear here.</p>
+      </article>
+      <article class="metric">
+        <span>Inference</span>
+        <strong id="summary-inference">AI analysis not connected yet</strong>
+        <p id="summary-inference-detail">AI analysis not connected yet</p>
+      </article>
+      <article class="metric">
+        <span>Global snapshot</span>
+        <strong>Ready</strong>
+        <p>Use any feed button or the acquisition page to save a frame.</p>
+      </article>
+    </section>
 
-        <article class="panel camera-panel" data-feed="rgb_right">
-          <div class="panel-head">
-            <div>
-              <p class="kicker">RGB DESTRA</p>
-              <h2>Camera destra</h2>
-            </div>
-            <span class="badge" id="rgb_right_state">--</span>
+    <section class="mission-insights advanced-only">
+      <article class="panel insight-card">
+        <div class="panel-head">
+          <div>
+            <p class="kicker">ATTENTION</p>
+            <h2>Threat level</h2>
           </div>
-          <div class="state-line">
-            <span class="state-dot" id="rgb_right_dot"></span>
-            <strong id="rgb_right_state_copy">--</strong>
-            <span id="rgb_right_state_msg">--</span>
-          </div>
-          <div class="feed-viewport feed-right">
-            <img class="feed-image" data-feed-image="rgb_right" src="/video/rgb_right" alt="RGB right live preview">
-            <div class="feed-overlay" id="overlay-rgb_right">Waiting for frame...</div>
-          </div>
-          <div class="camera-meta">
-            <span>FPS <strong id="rgb_right_fps">--</strong></span>
-            <span>Last <strong id="rgb_right_last">--</strong></span>
-            <span>Error <strong id="rgb_right_error">--</strong></span>
-          </div>
-          <div class="button-row">
-            <button class="btn btn-primary" data-action="start" data-feed="rgb_right">Riprendi</button>
-            <button class="btn btn-ghost" data-snapshot="rgb_right">Snapshot</button>
-          </div>
-        </article>
-      </section>
+        </div>
+        <div class="threat-block">
+          <strong id="attention-level">LOW</strong>
+          <p id="attention-reason">System status is being loaded</p>
+        </div>
+      </article>
 
-      <section class="grid grid-thermal">
-        <article class="panel camera-panel">
-          <div class="panel-head">
-            <div>
-              <p class="kicker">TERMICA</p>
-              <h2>FLIR / Lepton</h2>
-            </div>
-            <span class="badge badge-muted" id="thermal_state">--</span>
+      <article class="panel insight-card">
+        <div class="panel-head">
+          <div>
+            <p class="kicker">DETECTIONS</p>
+            <h2>Current detections</h2>
           </div>
-          <div class="state-line">
-            <span class="state-dot state-dot-muted" id="thermal_dot"></span>
-            <strong id="thermal_state_copy">--</strong>
-            <span id="thermal_state_msg">--</span>
+        </div>
+        <div class="placeholder-list" id="current-detections">
+          <div class="placeholder-item">
+            <strong>No detections yet</strong>
+            <p>The AI detection pipeline is not connected.</p>
           </div>
-          <div class="feed-viewport thermal-viewport">
-            <img class="feed-image thermal-image" id="thermal-frame" src="/thermal/frame" alt="Thermal preview">
-            <div class="feed-overlay" id="overlay-thermal">Waiting for thermal frame...</div>
-          </div>
-          <div class="camera-meta">
-            <span>Segnale min <strong id="thermal_min">--</strong></span>
-            <span>Segnale medio <strong id="thermal_avg">--</strong></span>
-            <span>Segnale max <strong id="thermal_max">--</strong></span>
-            <span>Hotspot <strong id="thermal_anomaly">--</strong></span>
-          </div>
-          <div class="button-row">
-            <button class="btn btn-ghost" id="thermal-snapshot">Snapshot</button>
-          </div>
-        </article>
-        <article class="panel log-panel">
-          <div class="panel-head">
-            <div>
-              <p class="kicker">LOG</p>
-              <h2>Eventi recenti</h2>
-            </div>
-            <a class="panel-link" href="/api/snapshots/recent?limit=24" target="_blank" rel="noreferrer">Dati grezzi</a>
-          </div>
-          <div class="log-toolbar">
-            <label class="log-search">
-              <span>Cerca</span>
-              <input type="search" id="log-search" placeholder="Filtro eventi">
-            </label>
-            <div class="segmented" id="log-source-filter">
-              <button type="button" class="segmented-button is-active" data-source-filter="all">Tutti</button>
-              <button type="button" class="segmented-button" data-source-filter="system">Sistema</button>
-              <button type="button" class="segmented-button" data-source-filter="camera">Camera</button>
-              <button type="button" class="segmented-button" data-source-filter="snapshot">Snapshot</button>
-              <button type="button" class="segmented-button" data-source-filter="thermal">Termica</button>
-            </div>
-            <div class="segmented" id="log-severity-filter">
-              <button type="button" class="segmented-button is-active" data-severity-filter="all">Tutti</button>
-              <button type="button" class="segmented-button" data-severity-filter="info">Info</button>
-              <button type="button" class="segmented-button" data-severity-filter="warning">Avvisi</button>
-              <button type="button" class="segmented-button" data-severity-filter="error">Errori</button>
-            </div>
-            <p class="log-legend">Info = attività normale, Avvisi = qualcosa da guardare, Errori = intervento necessario.</p>
-          </div>
-          <div class="log-summary" id="log-summary"></div>
-          <div class="event-table-wrap">
-            <table class="event-table">
-              <thead>
-                <tr>
-                  <th>Ora Roma</th>
-                  <th>Origine</th>
-                  <th>Evento</th>
-                  <th>Dettaglio</th>
-                  <th>Azione</th>
-                  <th>Livello</th>
-                </tr>
-              </thead>
-              <tbody id="event-body"></tbody>
-            </table>
-          </div>
-        </article>
-      </section>
+        </div>
+      </article>
 
-      <section class="grid grid-gallery">
-        <article class="panel gallery-panel">
-          <div class="panel-head">
-            <div>
-              <p class="kicker">ARCHIVIO</p>
-              <h2>Archivio snapshot</h2>
-            </div>
-            <a class="panel-link" href="/snapshots">Apri archivio</a>
+      <article class="panel insight-card">
+        <div class="panel-head">
+          <div>
+            <p class="kicker">SENSOR HEALTH</p>
+            <h2>Online state</h2>
           </div>
-          <div class="gallery-meta-row">
-            <div class="gallery-meta">
-              <span>Totale</span>
-              <strong id="snapshot-count">0</strong>
-            </div>
-            <div class="gallery-meta">
-              <span>Spazio usato</span>
-              <strong id="snapshot-total-size">--</strong>
-            </div>
-            <div class="gallery-meta">
-              <span>Aggiornato</span>
-              <strong id="snapshot-latest-time">--</strong>
-            </div>
+        </div>
+        <div class="health-summary" id="mission-sensor-health"></div>
+      </article>
+
+      <article class="panel insight-card">
+        <div class="panel-head">
+          <div>
+            <p class="kicker">PIPELINE HEALTH</p>
+            <h2>Operational blocks</h2>
           </div>
-          <div class="snapshot-grid" id="snapshot-grid"></div>
-        </article>
-      </section>
-    </main>
-    <script src="{{ url_for('static', filename='js/dashboard.js') }}?v={{ asset_version }}"></script>
-  </body>
-</html>
+        </div>
+        <div class="health-summary" id="mission-pipeline-health"></div>
+      </article>
+    </section>
+  </section>
+{% endblock %}

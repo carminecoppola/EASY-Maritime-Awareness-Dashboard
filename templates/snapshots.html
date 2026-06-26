@@ -1,88 +1,81 @@
-<!doctype html>
-<html lang="it">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>EASY Archivio Snapshot</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ asset_version }}">
-  </head>
-  <body>
-    <main class="shell">
-      <header class="topbar">
-        <div class="brand-block">
-          <img class="brand-logo" src="{{ url_for('static', filename='img/easy-logo.svg') }}" alt="EASY">
-          <div>
-            <p class="eyebrow">Archivio snapshot</p>
-            <h1>Scatti recenti</h1>
-            <p class="subline">Salvati in locale su {{ hostname }} all'indirizzo {{ ip_address }}</p>
-          </div>
-        </div>
-        <div class="status-strip">
-          <div class="status-chip">
-            <span>Totale snapshot</span>
-            <strong>{{ total_count }}</strong>
-          </div>
-          <div class="status-chip">
-            <span>Feeds</span>
-            <strong>{{ feeds|length }}</strong>
-          </div>
-          <div class="status-chip">
-            <span>Dashboard</span>
-            <strong><a class="status-link" href="/">Apri dashboard</a></strong>
-          </div>
-        </div>
-      </header>
+{% extends "base.html" %}
 
-      <section class="grid grid-gallery">
-        <article class="panel gallery-panel">
-          <div class="panel-head">
-            <div>
-              <p class="kicker">STORAGE LOCALE</p>
-              <h2>Ultimi file</h2>
-            </div>
-            <a class="panel-link" href="/">Torna alla dashboard</a>
-          </div>
+{% block header_meta %}
+  <div class="header-chip">
+    <span>Snapshots</span>
+    <strong id="snapshots-header-count">{{ total_count }}</strong>
+  </div>
+  <div class="header-chip">
+    <span>Feeds</span>
+    <strong>{{ feeds|length }}</strong>
+  </div>
+  <div class="header-chip">
+    <span>Latest</span>
+    <strong id="snapshots-header-latest">Loading</strong>
+  </div>
+  <div class="header-chip">
+    <span>Storage</span>
+    <strong id="snapshots-header-size">Loading</strong>
+  </div>
+{% endblock %}
 
-          <div class="gallery-meta-row">
-            {% for feed_name, feed in feeds.items() %}
-              {% set latest = latest_by_feed.get(feed_name) %}
-              <div class="gallery-meta">
-                <span>{{ feed.label }}</span>
-                <strong>{{ latest.filename if latest else "--" }}</strong>
-                <p class="snapshot-meta-line">{{ latest.created if latest else "Nessun file" }}</p>
+{% block content %}
+  <section class="grid grid-gallery">
+    <article class="panel gallery-panel">
+      <div class="panel-head">
+        <div>
+          <p class="kicker">STORAGE LOCALE</p>
+          <h2>Ultimi file</h2>
+        </div>
+        <a class="panel-link" href="/">Back to mission</a>
+      </div>
+
+      <div class="gallery-meta-row">
+        {% for feed_name, feed in feeds.items() %}
+          {% set latest = latest_by_feed.get(feed_name) %}
+          <div class="gallery-meta gallery-meta-{{ feed_name }}">
+            <span>{{ feed.label }}</span>
+            <strong>{{ latest.filename if latest else "No snapshots yet" }}</strong>
+            <p class="snapshot-meta-line">{{ latest.created if latest else "Preview not available" }}</p>
+          </div>
+        {% endfor %}
+      </div>
+
+      <div class="snapshot-grid" id="snapshot-grid">
+        {% if not recent_items %}
+          <div class="empty-state">No snapshots captured in this session.</div>
+        {% endif %}
+        {% for item in recent_items %}
+          <article class="snapshot-card snapshot-card-{{ item.feed }}">
+            <div class="snapshot-media">
+              <a class="snapshot-image-link" href="{{ item.url }}" target="_blank" rel="noreferrer">
+                <img class="snapshot-image" src="{{ item.url }}" alt="{{ item.feed_label }} snapshot" loading="lazy">
+              </a>
+              <div class="snapshot-overlay">
+                <span class="snapshot-feed">{{ item.feed_label }}</span>
+                <span class="snapshot-age">{{ item.created }}</span>
               </div>
-            {% endfor %}
-          </div>
-
-          <div class="snapshot-grid">
-            {% if not recent_items %}
-              <div class="empty-state">Nessuno snapshot salvato. Usa i pulsanti Snapshot nella dashboard.</div>
-            {% endif %}
-            {% for item in recent_items %}
-              <article class="snapshot-card">
-                <a class="snapshot-image-link" href="{{ item.url }}" target="_blank" rel="noreferrer">
-                  <img class="snapshot-image" src="{{ item.url }}" alt="{{ item.feed_label }} snapshot">
-                </a>
-                <div class="snapshot-card-body">
-                  <div class="snapshot-card-head">
-                    <div>
-                      <span class="snapshot-feed">{{ item.feed_label }}</span>
-                      <strong>{{ item.filename }}</strong>
-                    </div>
-                    <span class="snapshot-age">{{ item.created }}</span>
-                  </div>
-                  <p class="snapshot-meta-line">{{ item.size_bytes }} bytes · locale Raspberry</p>
-                  <p class="snapshot-path" title="{{ item.path }}">{{ item.path }}</p>
-                  <div class="button-row snapshot-actions">
-                    <a class="btn btn-secondary btn-small" href="{{ item.url }}" target="_blank" rel="noreferrer">Apri</a>
-                    <a class="btn btn-ghost btn-small" href="{{ item.download_url }}" download="{{ item.filename }}">Scarica</a>
-                  </div>
+              <div class="snapshot-fallback" hidden>
+                <strong>Preview not available</strong>
+                <p>The file exists, but the browser could not display the thumbnail.</p>
+              </div>
+            </div>
+            <div class="snapshot-card-body">
+              <div class="snapshot-card-head">
+                <div>
+                  <strong>{{ item.filename }}</strong>
                 </div>
-              </article>
-            {% endfor %}
-          </div>
-        </article>
-      </section>
-    </main>
-  </body>
-</html>
+              </div>
+              <p class="snapshot-meta-line">{{ item.size_bytes }} bytes · locale Raspberry</p>
+              <p class="snapshot-path" title="{{ item.path }}">{{ item.path }}</p>
+              <div class="button-row snapshot-actions">
+                <a class="btn btn-secondary btn-small" href="{{ item.url }}" target="_blank" rel="noreferrer">Apri</a>
+                <a class="btn btn-ghost btn-small" href="{{ item.download_url }}" download="{{ item.filename }}">Scarica</a>
+              </div>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    </article>
+  </section>
+{% endblock %}

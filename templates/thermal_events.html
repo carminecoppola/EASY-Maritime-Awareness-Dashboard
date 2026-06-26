@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block header_meta %}
+  <div class="header-chip">
+    <span>Thermal state</span>
+    <strong id="thermal-page-state">Loading thermal state</strong>
+  </div>
+  <div class="header-chip">
+    <span>Min / Avg / Max</span>
+    <strong id="thermal-page-metrics">Not available</strong>
+  </div>
+  <div class="header-chip">
+    <span>Alarm</span>
+    <strong id="thermal-page-alarm">Clear</strong>
+  </div>
+  <div class="header-chip">
+    <span>Events</span>
+    <strong id="thermal-page-events">0</strong>
+  </div>
+{% endblock %}
+
+{% block content %}
+  <section class="thermal-layout">
+    <article class="panel thermal-monitor-panel">
+      <div class="panel-head">
+        <div>
+          <p class="kicker">THERMAL MONITOR</p>
+          <h2>Heatmap and alarm overview</h2>
+        </div>
+        <span class="badge badge-muted" id="thermal_state">Loading thermal state</span>
+      </div>
+      <div class="state-line">
+        <span class="state-dot state-dot-muted" id="thermal_dot"></span>
+        <strong id="thermal_state_copy">Loading thermal state</strong>
+        <span id="thermal_state_msg">Thermal status is being loaded</span>
+      </div>
+      <div class="thermal-metrics-grid">
+        <article class="mini-card">
+          <span>Min</span>
+          <strong id="thermal_min">Not available</strong>
+        </article>
+        <article class="mini-card">
+          <span>Avg</span>
+          <strong id="thermal_avg">Not available</strong>
+        </article>
+        <article class="mini-card">
+          <span>Max</span>
+          <strong id="thermal_max">Not available</strong>
+        </article>
+        <article class="mini-card alarm-card">
+          <span>Alarm</span>
+          <strong id="thermal_anomaly">Clear</strong>
+          <p id="thermal-alarm-reason">Thermal status is being loaded</p>
+        </article>
+      </div>
+      <div class="thermal-sparkline" id="thermal-sparkline" hidden></div>
+      <div class="thermal-viewport thermal-viewport-large">
+        <img class="feed-image thermal-image" id="thermal-frame" src="/thermal/frame" alt="Thermal heatmap">
+        <div class="feed-chrome">
+          <div class="feed-chrome-top">
+            <span class="feed-live badge badge-muted" id="thermal_state_copy">Loading thermal state</span>
+            <span class="feed-fps" id="thermal_state_msg">Thermal status is being loaded</span>
+          </div>
+          <div class="feed-chrome-bottom">
+            <span class="feed-name">THERMAL</span>
+            <span class="feed-time">{{ thermal_mode|upper }}</span>
+          </div>
+        </div>
+        <div class="feed-overlay" id="overlay-thermal">Thermal stream is warming up</div>
+      </div>
+      <div class="thermal-command-block">
+        <button class="btn btn-secondary btn-small" id="thermal-snapshot">Snapshot</button>
+        <details class="thermal-command-details">
+          <summary>PureThermal details</summary>
+          <div class="thermal-command-body">
+            <p>Device: <strong>{{ thermal_device }}</strong></p>
+            <p>Mode: <strong>{{ thermal_mode }}</strong></p>
+            <p>Thermal monitoring stays visible here while fusion and inference are connected later.</p>
+          </div>
+        </details>
+      </div>
+    </article>
+
+    <article class="panel events-panel">
+      <div class="panel-head">
+        <div>
+          <p class="kicker">EVENTS</p>
+          <h2>Recent activity</h2>
+        </div>
+        <a class="panel-link" href="/api/snapshots/recent?limit=24" target="_blank" rel="noreferrer">Raw data</a>
+      </div>
+      <div class="log-toolbar advanced-only">
+        <label class="log-search">
+          <span>Search</span>
+          <input type="search" id="log-search" placeholder="Filter events">
+        </label>
+        <div class="segmented" id="log-source-filter">
+          <button type="button" class="segmented-button is-active" data-source-filter="all">All</button>
+          <button type="button" class="segmented-button" data-source-filter="system">System</button>
+          <button type="button" class="segmented-button" data-source-filter="camera">Camera</button>
+          <button type="button" class="segmented-button" data-source-filter="snapshot">Snapshot</button>
+          <button type="button" class="segmented-button" data-source-filter="thermal">Thermal</button>
+        </div>
+        <div class="segmented" id="log-severity-filter">
+          <button type="button" class="segmented-button is-active" data-severity-filter="all">All</button>
+          <button type="button" class="segmented-button" data-severity-filter="info">Info</button>
+          <button type="button" class="segmented-button" data-severity-filter="warning">Warnings</button>
+          <button type="button" class="segmented-button" data-severity-filter="error">Errors</button>
+        </div>
+      </div>
+      <div class="log-summary" id="log-summary"></div>
+      <div class="empty-state thermal-empty-state" id="events-empty-state">No events recorded in this session.</div>
+      <div class="event-table-wrap">
+        <table class="event-table">
+          <thead>
+            <tr>
+              <th>Ora</th>
+              <th>Origine</th>
+              <th>Evento</th>
+              <th>Livello</th>
+            </tr>
+          </thead>
+          <tbody id="event-body"></tbody>
+        </table>
+      </div>
+      <div class="event-popover" id="event-popover" hidden></div>
+    </article>
+  </section>
+{% endblock %}
