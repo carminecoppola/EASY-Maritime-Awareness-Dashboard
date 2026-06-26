@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ page_title }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ asset_version }}">
+  </head>
+  <body class="dashboard-shell view-simple" data-page="{{ page_key }}">
+    <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand-block">
+          <img class="brand-logo" src="{{ url_for('static', filename='img/easy-logo.svg') }}" alt="EASY">
+          <div>
+            <p class="eyebrow">Environmental Awareness by the Sea and beYond</p>
+            <h1>{{ page_title }}</h1>
+            <p class="subline">{{ page_subtitle }}</p>
+          </div>
+        </div>
+        <div class="header-meta">
+          {% block header_meta %}{% endblock %}
+        </div>
+        <nav class="topnav" aria-label="Dashboard navigation">
+          {% for item in nav_items %}
+            <a
+              class="topnav-link{% if item.key == page_key %} is-active{% endif %}"
+              href="{{ item.href }}"
+              data-nav-key="{{ item.key }}"
+            >
+              <span class="nav-status-dot" aria-hidden="true"></span>
+              <span class="nav-label">{{ item.label }}</span>
+              <span class="nav-alert-badge" hidden></span>
+            </a>
+          {% endfor %}
+        </nav>
+        <div class="view-toggle" role="group" aria-label="View mode">
+          <button type="button" class="view-toggle-button is-active" data-view-mode="simple">Simple View</button>
+          <button type="button" class="view-toggle-button" data-view-mode="advanced">Advanced View</button>
+        </div>
+      </header>
+
+      {% block content %}{% endblock %}
+    </main>
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}?v={{ asset_version }}"></script>
+  </body>
+</html>
