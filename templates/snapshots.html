@@ -1,81 +1,59 @@
 {% extends "base.html" %}
 
-{% block header_meta %}
-  <div class="header-chip">
-    <span>Snapshots</span>
-    <strong id="snapshots-header-count">{{ total_count }}</strong>
-  </div>
-  <div class="header-chip">
-    <span>Feeds</span>
-    <strong>{{ feeds|length }}</strong>
-  </div>
-  <div class="header-chip">
-    <span>Latest</span>
-    <strong id="snapshots-header-latest">Loading</strong>
-  </div>
-  <div class="header-chip">
-    <span>Storage</span>
-    <strong id="snapshots-header-size">Loading</strong>
-  </div>
-{% endblock %}
+{% block header_meta %}{% endblock %}
 
 {% block content %}
-  <section class="grid grid-gallery">
-    <article class="panel gallery-panel">
-      <div class="panel-head">
-        <div>
-          <p class="kicker">STORAGE LOCALE</p>
-          <h2>Ultimi file</h2>
-        </div>
-        <a class="panel-link" href="/">Back to mission</a>
-      </div>
+  <section class="log-page">
+    <section class="log-count-bar" aria-label="Filtri rapidi log">
+      <button type="button" class="log-count-chip" data-log-severity="all">
+        <span>Tutti</span><strong id="log-count-all">0</strong>
+      </button>
+      <button type="button" class="log-count-chip is-active" data-log-severity="error">
+        <span>Errori</span><strong id="log-count-error">0</strong>
+      </button>
+      <button type="button" class="log-count-chip" data-log-severity="info">
+        <span>Info</span><strong id="log-count-info">0</strong>
+      </button>
+      <button type="button" class="log-count-chip" data-log-severity="detection">
+        <span>Rilevazioni</span><strong id="log-count-detection">0</strong>
+      </button>
+      <button type="button" class="log-count-chip" data-log-severity="warning">
+        <span>Warning</span><strong id="log-count-warning">0</strong>
+      </button>
+      <button class="btn btn-ghost btn-small btn-icon log-export-button" id="log-export-csv" type="button">
+        <svg class="icon-svg" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M8 2.5v7"></path>
+          <path d="m5.2 7.8 2.8 2.8 2.8-2.8"></path>
+          <path d="M3 13.5h10"></path>
+        </svg>
+        <span>Esporta CSV</span>
+      </button>
+    </section>
 
-      <div class="gallery-meta-row">
-        {% for feed_name, feed in feeds.items() %}
-          {% set latest = latest_by_feed.get(feed_name) %}
-          <div class="gallery-meta gallery-meta-{{ feed_name }}">
-            <span>{{ feed.label }}</span>
-            <strong>{{ latest.filename if latest else "No snapshots yet" }}</strong>
-            <p class="snapshot-meta-line">{{ latest.created if latest else "Preview not available" }}</p>
-          </div>
-        {% endfor %}
-      </div>
+    <section class="log-toolbar panel">
+      <label class="log-search">
+        <span>Ricerca</span>
+        <input type="search" id="log-search" placeholder="Filtra per sorgente, messaggio...">
+      </label>
+      <label class="log-select">
+        <span>Sorgente</span>
+        <select id="log-source-select">
+          <option value="all">Tutte</option>
+          <option value="thermal">THERMAL</option>
+          <option value="rgb_left">RGB LEFT</option>
+          <option value="rgb_right">RGB RIGHT</option>
+          <option value="system">SISTEMA</option>
+          <option value="uc512">UC512</option>
+        </select>
+      </label>
+    </section>
 
-      <div class="snapshot-grid" id="snapshot-grid">
-        {% if not recent_items %}
-          <div class="empty-state">No snapshots captured in this session.</div>
-        {% endif %}
-        {% for item in recent_items %}
-          <article class="snapshot-card snapshot-card-{{ item.feed }}">
-            <div class="snapshot-media">
-              <a class="snapshot-image-link" href="{{ item.url }}" target="_blank" rel="noreferrer">
-                <img class="snapshot-image" src="{{ item.url }}" alt="{{ item.feed_label }} snapshot" loading="lazy">
-              </a>
-              <div class="snapshot-overlay">
-                <span class="snapshot-feed">{{ item.feed_label }}</span>
-                <span class="snapshot-age">{{ item.created }}</span>
-              </div>
-              <div class="snapshot-fallback" hidden>
-                <strong>Preview not available</strong>
-                <p>The file exists, but the browser could not display the thumbnail.</p>
-              </div>
-            </div>
-            <div class="snapshot-card-body">
-              <div class="snapshot-card-head">
-                <div>
-                  <strong>{{ item.filename }}</strong>
-                </div>
-              </div>
-              <p class="snapshot-meta-line">{{ item.size_bytes }} bytes · locale Raspberry</p>
-              <p class="snapshot-path" title="{{ item.path }}">{{ item.path }}</p>
-              <div class="button-row snapshot-actions">
-                <a class="btn btn-secondary btn-small" href="{{ item.url }}" target="_blank" rel="noreferrer">Apri</a>
-                <a class="btn btn-ghost btn-small" href="{{ item.download_url }}" download="{{ item.filename }}">Scarica</a>
-              </div>
-            </div>
-          </article>
-        {% endfor %}
+    <section class="log-list-panel panel">
+      <div class="log-list" id="log-list"></div>
+      <div class="log-empty-state" id="log-empty-state" hidden>
+        Nessun evento corrisponde ai filtri attivi.
       </div>
-    </article>
+      <button class="btn btn-secondary btn-small log-load-more" id="log-load-more" type="button">Carica altri 100</button>
+    </section>
   </section>
 {% endblock %}

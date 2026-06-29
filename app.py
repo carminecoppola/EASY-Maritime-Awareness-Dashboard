@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
 import psutil
-from flask import Flask, Response, jsonify, render_template, request, send_file
+from flask import Flask, Response, jsonify, redirect, render_template, request, send_file
 from PIL import Image, ImageDraw
 import numpy as np
 
@@ -93,11 +93,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
 
 
 NAV_ITEMS = [
-    {"key": "mission", "label": "Mission Console", "href": "/"},
-    {"key": "sensors", "label": "Sensors / Acquisition", "href": "/sensors"},
-    {"key": "thermal", "label": "Thermal & Events", "href": "/thermal-events"},
-    {"key": "system", "label": "System / Diagnostics", "href": "/system-diagnostics"},
-    {"key": "snapshots", "label": "Snapshots", "href": "/snapshots"},
+    {"key": "live", "label": "Live", "href": "/"},
+    {"key": "detections", "label": "Rilevazioni", "href": "/thermal-events"},
+    {"key": "log", "label": "Log", "href": "/snapshots"},
+    {"key": "system", "label": "Sistema", "href": "/system-diagnostics"},
 ]
 
 
@@ -1525,9 +1524,43 @@ def build_camera_inventory(rgb: RgbMasterSource, thermal: ThermalState) -> Dict[
 
 
 def build_operations_payload(camera_inventory: Dict[str, Any], rgb_state: Dict[str, Any], thermal_state: Dict[str, Any]) -> Dict[str, Any]:
+    def _stream_status(state: Any, last_ts: Any, *, detected: bool, mode: str = "") -> str:
+        state_value = str(state or "").upper()
+        mode_value = str(mode or "").lower()
+        if mode_value == "mock":
+            return "ONLINE"
+        if state_value in {"ERROR", "FAILED", "DISABLED", "OFFLINE"}:
+            return "OFFLINE"
+        if state_value == "NOT_DETECTED":
+            return "NOT_DETECTED"
+        if detected and last_ts:
+            try:
+                if time.time() - float(last_ts) <= 5.0:
+                    return "ONLINE"
+            except Exception:
+                pass
+            return "OFFLINE"
+        return "NOT_DETECTED" if not detected else "OFFLINE"
+
     rgb_cameras = camera_inventory.get("rgb_cameras", [])
+    rgb_left_status = _stream_status(
+        rgb_cameras[0]["state"] if rgb_cameras else rgb_state.get("camera_state", "--"),
+        rgb_cameras[0].get("last_acquisition_ts") if rgb_cameras else rgb_state.get("last_frame_ts"),
+        detected=bool(rgb_cameras[0].get("enabled", True) if rgb_cameras else rgb_state.get("detected")),
+    )
+    rgb_right_status = _stream_status(
+        rgb_cameras[1]["state"] if len(rgb_cameras) > 1 else rgb_state.get("camera_state", "--"),
+        rgb_cameras[1].get("last_acquisition_ts") if len(rgb_cameras) > 1 else rgb_state.get("last_frame_ts"),
+        detected=bool(rgb_cameras[1].get("enabled", True) if len(rgb_cameras) > 1 else rgb_state.get("detected")),
+    )
+    thermal_status = _stream_status(
+        thermal_state.get("status", "--"),
+        thermal_state.get("last_frame_ts"),
+        detected=bool(thermal_state.get("detected")),
+        mode=str(thermal_state.get("mode", "")).lower(),
+    )
     detected_sensors = int(bool(rgb_state.get("detected"))) + int(bool(thermal_state.get("detected") or thermal_state.get("mode") == "mock"))
-    online_sensors = int(bool(rgb_state.get("has_frame"))) + int(bool(thermal_state.get("status") in {"MOCK", "REAL", "STARTING"}))
+    online_sensors = int(rgb_left_status == "ONLINE") + int(rgb_right_status == "ONLINE") + int(thermal_status == "ONLINE")
     attention_level = "LOW"
     attention_reason = "No active detections pipeline connected."
     attention_tone = "muted"
@@ -1568,15 +1601,15 @@ def build_operations_payload(camera_inventory: Dict[str, Any], rgb_state: Dict[s
         "detected_count": detected_sensors,
         "total_count": 3,
         "rgb_left": {
-            "state": rgb_cameras[0]["state"] if rgb_cameras else rgb_state.get("camera_state", "--"),
+            "state": rgb_left_status,
             "enabled": rgb_cameras[0]["enabled"] if rgb_cameras else True,
         },
         "rgb_right": {
-            "state": rgb_cameras[1]["state"] if len(rgb_cameras) > 1 else rgb_state.get("camera_state", "--"),
+            "state": rgb_right_status,
             "enabled": rgb_cameras[1]["enabled"] if len(rgb_cameras) > 1 else True,
         },
         "thermal": {
-            "state": thermal_state.get("status", "--"),
+            "state": thermal_status,
             "mode": thermal_state.get("mode", "--"),
             "detected": thermal_state.get("detected", False),
         },
@@ -1687,9 +1720,9 @@ def create_app() -> Flask:
     @app.route("/")
     def index() -> str:
         return dashboard_context(
-            "mission",
-            "EASY Maritime Awareness",
-            "Mission Console",
+            "live",
+            "Monitor",
+            "Streaming live",
             template_name="index.html",
             hostname=probe.hostname(),
             ip_address=probe.ip_address(),
@@ -1700,28 +1733,18 @@ def create_app() -> Flask:
 
     @app.route("/mission")
     def mission_page() -> str:
-        return index()
+        return redirect("/")
 
     @app.route("/sensors")
     def sensors_page() -> str:
-        return dashboard_context(
-            "sensors",
-            "Sensors / Acquisition",
-            "Live streams, snapshots, and capture controls",
-            template_name="sensors.html",
-            hostname=probe.hostname(),
-            ip_address=probe.ip_address(),
-            asset_version=asset_version(),
-            thermal_device=thermal.device,
-            thermal_mode=config["thermal"].get("mode", "mock"),
-        )
+        return redirect("/")
 
     @app.route("/thermal-events")
     def thermal_events_page() -> str:
         return dashboard_context(
-            "thermal",
-            "Thermal & Events",
-            "Heatmap monitoring and recent event tracking",
+            "detections",
+            "Rilevazioni",
+            "Oggetti rilevati in sessione",
             template_name="thermal_events.html",
             hostname=probe.hostname(),
             ip_address=probe.ip_address(),
@@ -1734,8 +1757,8 @@ def create_app() -> Flask:
     def system_diagnostics_page() -> str:
         return dashboard_context(
             "system",
-            "System / Diagnostics",
-            "Hardware, services, and pipeline status",
+            "Sistema",
+            "Stato hardware e dispositivi",
             template_name="system_diagnostics.html",
             hostname=probe.hostname(),
             ip_address=probe.ip_address(),
@@ -1894,24 +1917,16 @@ def create_app() -> Flask:
 
     @app.route("/snapshots")
     def snapshots_gallery():
-        recent_items = snapshot_store.list_recent(30)
-        latest_by_feed: Dict[str, Dict[str, Any]] = {}
-        for item in recent_items:
-            latest_by_feed.setdefault(item["feed"], item)
         return dashboard_context(
-            "snapshots",
-            "Snapshot Archive",
-            "Local image archive and storage inventory",
+            "log",
+            "Log di sistema",
+            "Errori e attività di sistema",
             template_name="snapshots.html",
             hostname=probe.hostname(),
             ip_address=probe.ip_address(),
             asset_version=asset_version(),
             thermal_device=thermal.device,
             thermal_mode=config["thermal"].get("mode", "mock"),
-            recent_items=recent_items,
-            latest_by_feed=latest_by_feed,
-            total_count=len(snapshot_store.list_recent(999)),
-            feeds=SNAPSHOT_FEED_MAP,
         )
 
     @app.route("/snapshots/<feed>/<path:filename>")

@@ -1,251 +1,96 @@
 {% extends "base.html" %}
 
-{% block header_meta %}
-  <div class="header-chip">
-    <span>Hostname</span>
-    <strong>{{ hostname }}</strong>
-  </div>
-  <div class="header-chip">
-    <span>Raspberry IP</span>
-    <strong>{{ ip_address }}</strong>
-  </div>
-  <div class="header-chip">
-    <span>System State</span>
-    <strong id="mission-header-system">System status is being loaded</strong>
-  </div>
-  <div class="header-chip">
-    <span>Rome Time</span>
-    <strong id="mission-header-time">Loading</strong>
-  </div>
-{% endblock %}
-
 {% block content %}
-  <section class="mission-console">
-    <article class="panel mission-status-header">
-      <div class="mission-status-copy">
-        <p class="kicker">MISSION CONSOLE</p>
-        <h2 id="mission-state-title">System status is being loaded</h2>
-        <p id="mission-state-copy">The dashboard is starting up and collecting live sensor state.</p>
+  <section class="live-page">
+    <div class="live-statusbar" role="status" aria-label="Stato live">
+      <div class="live-statusbar-group">
+        <div class="live-status-pill" id="status-pill-rgb-left">
+          <span class="live-status-dot" id="rgb_left_dot" aria-hidden="true"></span>
+          <span class="live-status-label">RGB-L:</span>
+          <strong id="rgb_left_status">LIVE 10fps</strong>
+        </div>
+        <div class="live-status-pill" id="status-pill-thermal">
+          <span class="live-status-dot" id="thermal_dot" aria-hidden="true"></span>
+          <span class="live-status-label">Thermal:</span>
+          <strong id="thermal_status">REALE</strong>
+        </div>
+        <div class="live-status-pill" id="status-pill-rgb-right">
+          <span class="live-status-dot" id="rgb_right_dot" aria-hidden="true"></span>
+          <span class="live-status-label">RGB-R:</span>
+          <strong id="rgb_right_status">LIVE 10fps</strong>
+        </div>
       </div>
-      <div class="mission-status-actions">
-        <a class="btn btn-primary btn-small" href="/sensors">Open acquisition</a>
-        <a class="btn btn-secondary btn-small" href="/thermal-events">Open thermal monitor</a>
-        <a class="btn btn-ghost btn-small" href="/system-diagnostics">Open diagnostics</a>
+      <div class="live-statusbar-actions">
+        <button class="btn btn-secondary btn-small" id="live-snapshot-button" type="button">Snapshot</button>
+        <button class="btn btn-primary btn-small" id="live-record-button" type="button">Registra</button>
       </div>
-      <div class="mission-status-metrics metric-grid">
-        <article class="metric">
-          <span>Sensors online</span>
-          <strong id="summary-sensors-online">Loading</strong>
-          <p id="summary-sensors-detail">System status is being loaded</p>
-        </article>
-        <article class="metric">
-          <span>THERMAL</span>
-          <strong id="summary-thermal">Loading</strong>
-          <p id="summary-thermal-detail">Thermal status is being loaded</p>
-        </article>
-        <article class="metric">
-          <span>Snapshots</span>
-          <strong id="summary-snapshots">0</strong>
-          <p id="summary-snapshots-detail">No snapshots captured in this session</p>
-        </article>
-        <article class="metric">
-          <span>Events</span>
-          <strong id="summary-events">0</strong>
-          <p id="summary-events-detail">No events recorded in this session</p>
-        </article>
-      </div>
-    </article>
+    </div>
 
-    <section class="mission-stage">
-      <article class="panel mission-feed-card" data-feed="rgb_left">
-        <div class="panel-head">
-          <div>
-            <p class="kicker">RGB LEFT</p>
-            <h2>Camera sinistra</h2>
-          </div>
+    <section class="live-grid">
+      <article class="panel live-feed-card" data-feed="rgb_left">
+        <div class="live-feed-head">
+          <span class="live-feed-name">RGB LEFT</span>
           <span class="badge badge-muted" id="rgb_left_state">Loading</span>
         </div>
-        <div class="feed-viewport feed-left">
-          <img class="feed-image" data-feed-image="rgb_left" src="/video/rgb_left" alt="RGB left live preview">
-          <div class="feed-chrome">
-            <div class="feed-chrome-top">
-              <span class="feed-live badge badge-muted" id="rgb_left_state_copy">Waiting</span>
-              <span class="feed-fps" id="rgb_left_fps">0.0 fps</span>
-            </div>
-            <div class="feed-chrome-bottom">
-              <span class="feed-name">RGB LEFT</span>
-              <span class="feed-time" id="rgb_left_last">No frame yet</span>
-            </div>
+        <div class="live-feed-body">
+          <img class="feed-image live-feed-image" data-feed-image="rgb_left" src="/video/rgb_left" alt="RGB left live preview">
+          <div class="live-offline-card" id="rgb_left_offline" hidden>
+            <svg class="live-offline-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7.5h2.8l1.6-2h3.2l1.6 2H18a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9.5a2 2 0 0 1 2-2Z"></path>
+              <path d="M8 12.5a4 4 0 0 1 6.2-3.3"></path>
+              <path d="M13.8 14.8a4 4 0 0 1-5.6 0"></path>
+            </svg>
+            <strong id="rgb_left_device_name">Arducam UC-517 LEFT</strong>
           </div>
-          <div class="feed-overlay" id="overlay-rgb_left">Waiting for camera frames. Check that the stream is running.</div>
         </div>
-        <div class="feed-footer advanced-only">
-          <span class="feed-footer-note" id="rgb_left_state_msg">Waiting for camera frames. Check that the stream is running.</span>
-          <span class="feed-footer-error" id="rgb_left_error">No error reported</span>
-        </div>
-        <div class="button-row">
-          <button class="btn btn-secondary btn-small" data-snapshot="rgb_left">Snapshot</button>
-          <button class="btn btn-ghost btn-small" data-action="start" data-feed="rgb_left">Reconnect</button>
+        <div class="live-feed-foot">
+          <span class="live-feed-fps" id="rgb_left_fps">--</span>
+          <span class="live-feed-time" id="rgb_left_last">--</span>
         </div>
       </article>
 
-      <article class="panel mission-thermal-card">
-        <div class="panel-head">
-          <div>
-            <p class="kicker">THERMAL</p>
-            <h2>FLIR / Lepton</h2>
+      <article class="panel live-feed-card live-feed-card-thermal" data-feed="thermal">
+        <div class="live-feed-head">
+          <span class="live-feed-name">THERMAL</span>
+          <span class="badge badge-muted" id="thermal_state">Loading</span>
+        </div>
+        <div class="live-feed-body">
+          <img class="feed-image live-feed-image thermal-image" id="thermal-frame" src="/thermal/frame" alt="Thermal preview">
+          <div class="live-offline-card" id="thermal_offline" hidden>
+            <svg class="live-offline-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M10 4.5a2 2 0 0 1 4 0v7.1a4.5 4.5 0 1 1-4 0Z"></path>
+              <path d="M12 9.8v4.7"></path>
+              <path d="M12 14.5c-1.3 0-2.4 1-2.4 2.3s1.1 2.2 2.4 2.2 2.4-1 2.4-2.2S13.3 14.5 12 14.5Z"></path>
+            </svg>
+            <strong id="thermal_device_name">FLIR Lepton</strong>
           </div>
-          <span class="badge badge-muted" id="thermal_state">Loading thermal state</span>
         </div>
-        <div class="thermal-metrics-grid">
-          <article class="mini-card">
-            <span>Min</span>
-            <strong id="thermal_min">Not available</strong>
-          </article>
-          <article class="mini-card">
-            <span>Avg</span>
-            <strong id="thermal_avg">Not available</strong>
-          </article>
-          <article class="mini-card">
-            <span>Max</span>
-            <strong id="thermal_max">Not available</strong>
-          </article>
-          <article class="mini-card alarm-card">
-            <span>Alarm</span>
-            <strong id="thermal_anomaly">Clear</strong>
-          </article>
-        </div>
-        <div class="thermal-sparkline" id="thermal-sparkline" hidden></div>
-        <div class="feed-viewport thermal-viewport thermal-viewport-large">
-          <img class="feed-image thermal-image" id="thermal-frame" src="/thermal/frame" alt="Thermal heatmap">
-          <div class="feed-chrome">
-            <div class="feed-chrome-top">
-              <span class="feed-live badge badge-muted" id="thermal_state_copy">Loading thermal state</span>
-              <span class="feed-fps" id="thermal_state_msg">Thermal status is being loaded</span>
-            </div>
-            <div class="feed-chrome-bottom">
-              <span class="feed-name">THERMAL</span>
-              <span class="feed-time">{{ thermal_mode|upper }}</span>
-            </div>
-          </div>
-          <div class="feed-overlay" id="overlay-thermal">Thermal stream is warming up</div>
-        </div>
-        <div class="thermal-command-block">
-          <button class="btn btn-secondary btn-small" id="thermal-snapshot">Snapshot</button>
-          <details class="thermal-command-details">
-            <summary>PureThermal details</summary>
-            <div class="thermal-command-body">
-              <p>Device: <strong>{{ thermal_device }}</strong></p>
-              <p>Mode: <strong>{{ thermal_mode }}</strong></p>
-              <p>Thermal analysis preview stays visible here while real fusion and inference are integrated.</p>
-            </div>
-          </details>
+        <div class="live-feed-foot">
+          <span class="live-feed-fps" id="thermal_fps">--</span>
+          <span class="live-feed-time" id="thermal_last">--</span>
         </div>
       </article>
 
-      <article class="panel mission-feed-card" data-feed="rgb_right">
-        <div class="panel-head">
-          <div>
-            <p class="kicker">RGB RIGHT</p>
-            <h2>Camera destra</h2>
-          </div>
+      <article class="panel live-feed-card" data-feed="rgb_right">
+        <div class="live-feed-head">
+          <span class="live-feed-name">RGB RIGHT</span>
           <span class="badge badge-muted" id="rgb_right_state">Loading</span>
         </div>
-        <div class="feed-viewport feed-right">
-          <img class="feed-image" data-feed-image="rgb_right" src="/video/rgb_right" alt="RGB right live preview">
-          <div class="feed-chrome">
-            <div class="feed-chrome-top">
-              <span class="feed-live badge badge-muted" id="rgb_right_state_copy">Waiting</span>
-              <span class="feed-fps" id="rgb_right_fps">0.0 fps</span>
-            </div>
-            <div class="feed-chrome-bottom">
-              <span class="feed-name">RGB RIGHT</span>
-              <span class="feed-time" id="rgb_right_last">No frame yet</span>
-            </div>
-          </div>
-          <div class="feed-overlay" id="overlay-rgb_right">Waiting for camera frames. Check that the stream is running.</div>
-        </div>
-        <div class="feed-footer advanced-only">
-          <span class="feed-footer-note" id="rgb_right_state_msg">Waiting for camera frames. Check that the stream is running.</span>
-          <span class="feed-footer-error" id="rgb_right_error">No error reported</span>
-        </div>
-        <div class="button-row">
-          <button class="btn btn-secondary btn-small" data-snapshot="rgb_right">Snapshot</button>
-          <button class="btn btn-ghost btn-small" data-action="start" data-feed="rgb_right">Reconnect</button>
-        </div>
-      </article>
-    </section>
-
-    <section class="mission-footer">
-      <article class="metric">
-        <span>Recording</span>
-        <strong id="summary-recording">Not connected</strong>
-        <p id="summary-recording-detail">Recording controls are available from Acquisition</p>
-      </article>
-      <article class="metric">
-        <span>Fusion</span>
-        <strong id="fused-state">Preview not connected</strong>
-        <p id="fused-fusion-state">Multimodal fusion preview. RGB + Thermal fusion will appear here.</p>
-      </article>
-      <article class="metric">
-        <span>Inference</span>
-        <strong id="summary-inference">AI analysis not connected yet</strong>
-        <p id="summary-inference-detail">AI analysis not connected yet</p>
-      </article>
-      <article class="metric">
-        <span>Global snapshot</span>
-        <strong>Ready</strong>
-        <p>Use any feed button or the acquisition page to save a frame.</p>
-      </article>
-    </section>
-
-    <section class="mission-insights advanced-only">
-      <article class="panel insight-card">
-        <div class="panel-head">
-          <div>
-            <p class="kicker">ATTENTION</p>
-            <h2>Threat level</h2>
+        <div class="live-feed-body">
+          <img class="feed-image live-feed-image" data-feed-image="rgb_right" src="/video/rgb_right" alt="RGB right live preview">
+          <div class="live-offline-card" id="rgb_right_offline" hidden>
+            <svg class="live-offline-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7.5h2.8l1.6-2h3.2l1.6 2H18a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9.5a2 2 0 0 1 2-2Z"></path>
+              <path d="M8 12.5a4 4 0 0 1 6.2-3.3"></path>
+              <path d="M13.8 14.8a4 4 0 0 1-5.6 0"></path>
+            </svg>
+            <strong id="rgb_right_device_name">Arducam UC-517 RIGHT</strong>
           </div>
         </div>
-        <div class="threat-block">
-          <strong id="attention-level">LOW</strong>
-          <p id="attention-reason">System status is being loaded</p>
+        <div class="live-feed-foot">
+          <span class="live-feed-fps" id="rgb_right_fps">--</span>
+          <span class="live-feed-time" id="rgb_right_last">--</span>
         </div>
-      </article>
-
-      <article class="panel insight-card">
-        <div class="panel-head">
-          <div>
-            <p class="kicker">DETECTIONS</p>
-            <h2>Current detections</h2>
-          </div>
-        </div>
-        <div class="placeholder-list" id="current-detections">
-          <div class="placeholder-item">
-            <strong>No detections yet</strong>
-            <p>The AI detection pipeline is not connected.</p>
-          </div>
-        </div>
-      </article>
-
-      <article class="panel insight-card">
-        <div class="panel-head">
-          <div>
-            <p class="kicker">SENSOR HEALTH</p>
-            <h2>Online state</h2>
-          </div>
-        </div>
-        <div class="health-summary" id="mission-sensor-health"></div>
-      </article>
-
-      <article class="panel insight-card">
-        <div class="panel-head">
-          <div>
-            <p class="kicker">PIPELINE HEALTH</p>
-            <h2>Operational blocks</h2>
-          </div>
-        </div>
-        <div class="health-summary" id="mission-pipeline-health"></div>
       </article>
     </section>
   </section>
