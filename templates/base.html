@@ -10,33 +10,66 @@
     <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
     <main class="shell">
       <header class="topbar">
-        <div class="brand-block">
-          <img class="brand-logo" src="{{ url_for('static', filename='img/easy-logo.svg') }}" alt="EASY">
-          <div>
-            <p class="eyebrow">Environmental Awareness by the Sea and beYond</p>
-            <h1>{{ page_title }}</h1>
-            <p class="subline">{{ page_subtitle }}</p>
+        <div class="topbar-main">
+          <div class="brand-block">
+            <img class="brand-logo" src="{{ url_for('static', filename='img/easy-logo.svg') }}" alt="EASY">
+            <div>
+              <p class="eyebrow">Environmental Awareness by the Sea and beYond</p>
+              <h1>{{ page_title }}</h1>
+              <p class="subline">{{ page_subtitle }}</p>
+            </div>
+          </div>
+          <div class="topbar-controls">
+            <nav class="topnav" aria-label="Dashboard navigation">
+              {% for item in nav_items %}
+                <a
+                  class="topnav-link{% if item.key == page_key %} is-active{% endif %}"
+                  href="{{ item.href }}"
+                  data-nav-key="{{ item.key }}"
+                >
+                  <span class="nav-icon" aria-hidden="true">
+                    {% if item.key == "live" %}
+                      <svg class="icon-svg" viewBox="0 0 24 24">
+                        <path d="M3 17l3-2.5V9.5L3 7l3-2h12l3 2v7.5l-3 2.5H6z"></path>
+                        <path d="M10 10.5h4"></path>
+                        <path d="M10 13.5h4"></path>
+                      </svg>
+                    {% elif item.key == "detections" %}
+                      <svg class="icon-svg" viewBox="0 0 24 24">
+                        <path d="M4 12a8 8 0 1 0 8-8"></path>
+                        <path d="M4 12h4"></path>
+                        <path d="M20 12h-4"></path>
+                        <path d="M12 4v4"></path>
+                        <path d="M12 16v4"></path>
+                        <circle cx="12" cy="12" r="2"></circle>
+                      </svg>
+                    {% elif item.key == "log" %}
+                      <svg class="icon-svg" viewBox="0 0 24 24">
+                        <path d="M4 6h16"></path>
+                        <path d="M4 12h16"></path>
+                        <path d="M4 18h10"></path>
+                        <path d="M16 17l2 2 3-3"></path>
+                      </svg>
+                    {% elif item.key == "system" %}
+                      <svg class="icon-svg" viewBox="0 0 24 24">
+                        <path d="M5 4h14v16H5z"></path>
+                        <path d="M9 8h6"></path>
+                        <path d="M9 12h6"></path>
+                        <path d="M9 16h4"></path>
+                      </svg>
+                    {% endif %}
+                  </span>
+                  <span class="nav-label">{{ item.label }}</span>
+                  {% if item.key in ["log", "system"] %}
+                    <span class="nav-alert-badge" hidden></span>
+                  {% endif %}
+                </a>
+              {% endfor %}
+            </nav>
           </div>
         </div>
         <div class="header-meta">
           {% block header_meta %}{% endblock %}
-        </div>
-        <nav class="topnav" aria-label="Dashboard navigation">
-          {% for item in nav_items %}
-            <a
-              class="topnav-link{% if item.key == page_key %} is-active{% endif %}"
-              href="{{ item.href }}"
-              data-nav-key="{{ item.key }}"
-            >
-              <span class="nav-status-dot" aria-hidden="true"></span>
-              <span class="nav-label">{{ item.label }}</span>
-              <span class="nav-alert-badge" hidden></span>
-            </a>
-          {% endfor %}
-        </nav>
-        <div class="view-toggle" role="group" aria-label="View mode">
-          <button type="button" class="view-toggle-button is-active" data-view-mode="simple">Simple View</button>
-          <button type="button" class="view-toggle-button" data-view-mode="advanced">Advanced View</button>
         </div>
       </header>
 

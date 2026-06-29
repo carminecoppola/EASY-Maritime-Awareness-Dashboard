@@ -36,7 +36,7 @@ ip_probe() {
 
 {
   printf 'EASY Preflight Report\n'
-  printf 'Generated: %s\n' "$(date -Is)"
+  printf 'Generated: %s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
   printf 'Project: %s\n' "${ROOT_DIR}"
 } > "${REPORT}"
 

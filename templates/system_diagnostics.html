@@ -1,72 +1,51 @@
 {% extends "base.html" %}
 
-{% block header_meta %}
-  <div class="header-chip">
-    <span>CPU</span>
-    <strong id="system-header-cpu">Loading</strong>
-  </div>
-  <div class="header-chip">
-    <span>RAM</span>
-    <strong id="system-header-ram">Loading</strong>
-  </div>
-  <div class="header-chip">
-    <span>Uptime</span>
-    <strong id="system-header-uptime">Loading</strong>
-  </div>
-  <div class="header-chip">
-    <span>Model</span>
-    <strong id="system-header-model">Loading</strong>
-  </div>
-{% endblock %}
+{% block header_meta %}{% endblock %}
 
 {% block content %}
-  <section class="grid diagnostics-grid">
-    <article class="panel diagnostics-panel">
-      <div class="panel-head">
-        <div>
-          <p class="kicker">SYSTEM RESOURCES</p>
-          <h2>System resources</h2>
-        </div>
+  <section class="system-page">
+    <section class="system-resources panel">
+      <div class="system-metric-row">
+        <article class="metric system-metric">
+          <span>CPU</span>
+          <strong id="cpu-percent" class="system-metric-value">--</strong>
+        </article>
+        <article class="metric system-metric">
+          <span>RAM</span>
+          <strong id="ram-percent" class="system-metric-value">--</strong>
+        </article>
+        <article class="metric system-metric">
+          <span>Disco</span>
+          <strong id="disk-percent" class="system-metric-value">--</strong>
+        </article>
+        <article class="metric system-metric">
+          <span>Temp</span>
+          <strong id="cpu-temp" class="system-metric-value">--</strong>
+        </article>
+        <article class="metric system-metric">
+          <span>Uptime</span>
+          <strong id="uptime" class="system-metric-value">--</strong>
+        </article>
       </div>
-      <div class="metric-grid diagnostics-metrics">
-        <div class="metric"><span>CPU</span><strong id="cpu-percent">Loading</strong></div>
-        <div class="metric"><span>Temp</span><strong id="cpu-temp">Loading</strong></div>
-        <div class="metric"><span>RAM</span><strong id="ram-percent">Loading</strong></div>
-        <div class="metric"><span>Disk</span><strong id="disk-percent">Loading</strong></div>
-        <div class="metric"><span>Uptime</span><strong id="uptime">Loading</strong></div>
-        <div class="metric"><span>Model</span><strong id="pi-model">Loading</strong></div>
-      </div>
-    </article>
+    </section>
 
-    <article class="panel diagnostics-panel">
-      <div class="panel-head">
-        <div>
-          <p class="kicker">SERVICES</p>
-          <h2>Pipeline state</h2>
-        </div>
-      </div>
-      <div class="health-summary" id="system-pipeline-health"></div>
-      <div class="placeholder-list" id="system-service-list"></div>
-    </article>
+    <section class="system-devices panel">
+      <span class="badge badge-muted system-device-count" id="system-device-count">0/3</span>
+      <div class="system-device-list" id="device-list"></div>
+    </section>
 
-    <article class="panel diagnostics-panel diagnostics-wide">
-      <div class="panel-head">
-        <div>
-          <p class="kicker">DEVICES</p>
-          <h2>Detected devices</h2>
-        </div>
+    <section class="system-errors panel">
+      <a class="panel-link panel-link-icon" href="/snapshots?severity=error">
+        <span>Vedi tutti nel log →</span>
+      </a>
+      <div class="system-errors-empty" id="system-errors-empty" hidden>
+        <svg class="system-empty-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M20 12.5a8 8 0 1 1-4.3-7.1"></path>
+          <path d="m10.2 12.2 2.1 2.1 4.1-4.9"></path>
+        </svg>
+        <span>Nessun errore recente</span>
       </div>
-      <div class="device-list" id="device-list"></div>
-    </article>
-
-    <article class="panel diagnostics-panel diagnostics-wide">
-      <div class="panel-head">
-        <div>
-          <p class="kicker">RECENT ERRORS</p>
-          <h2>Recent errors</h2>
-        </div>
-      </div>
-      <div class="placeholder-list" id="recent-errors-list"></div>
-    </article>
+      <div class="system-error-list" id="recent-errors-list"></div>
+    </section>
   </section>
 {% endblock %}

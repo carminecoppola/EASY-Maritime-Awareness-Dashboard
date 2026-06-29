@@ -50,6 +50,88 @@ function formatRomeDateTime(value) {
   }).format(date);
 }
 
+function formatRomeTimeOnly(value) {
+  if (!value) return "--";
+  const date = new Date(Number(value) < 1e12 ? Number(value) * 1000 : value);
+  if (Number.isNaN(date.getTime())) return "--";
+  return new Intl.DateTimeFormat("it-IT", {
+    timeZone: "Europe/Rome",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
+function romeDateParts(value) {
+  const date = new Date(Number(value) < 1e12 ? Number(value) * 1000 : value);
+  if (Number.isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("it-IT", {
+    timeZone: "Europe/Rome",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date).reduce((acc, part) => {
+    if (part.type !== "literal") acc[part.type] = part.value;
+    return acc;
+  }, {});
+  return parts;
+}
+
+function formatLogTimestamp(value) {
+  const parts = romeDateParts(value);
+  if (!parts) return "--";
+  const now = romeDateParts(Date.now());
+  if (parts.year === now.year && parts.month === now.month && parts.day === now.day) {
+    return formatRomeTimeOnly(value);
+  }
+  const date = new Date(Number(value) < 1e12 ? Number(value) * 1000 : value);
+  if (Number.isNaN(date.getTime())) return "--";
+  const dtParts = new Intl.DateTimeFormat("it-IT", {
+    timeZone: "Europe/Rome",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date).reduce((acc, part) => {
+    if (part.type !== "literal") acc[part.type] = part.value;
+    return acc;
+  }, {});
+  return `${dtParts.day}/${dtParts.month} ${dtParts.hour}:${dtParts.minute}`;
+}
+
+function logDayKey(value) {
+  const parts = romeDateParts(value);
+  if (!parts) return "";
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function formatLogDayLabel(value) {
+  const parts = romeDateParts(value);
+  if (!parts) return "--";
+  const today = romeDateParts(Date.now());
+  const sameDay = parts.year === today.year && parts.month === today.month && parts.day === today.day;
+  const yesterdayDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const yesterday = romeDateParts(yesterdayDate);
+  const sameYesterday = yesterday && parts.year === yesterday.year && parts.month === yesterday.month && parts.day === yesterday.day;
+  const monthName = new Intl.DateTimeFormat("it-IT", { timeZone: "Europe/Rome", month: "long" })
+    .format(new Date(Number(value) < 1e12 ? Number(value) * 1000 : value))
+    .toLowerCase();
+  const dayNumber = Number(parts.day);
+  if (sameDay) return `Oggi, ${dayNumber} ${monthName}`;
+  if (sameYesterday) return `Ieri, ${dayNumber} ${monthName}`;
+  return `${dayNumber} ${monthName}`;
+}
+
+function isFreshTimestamp(value, maxAgeMs = 5000) {
+  if (!value) return false;
+  const ts = Number(value);
+  if (!Number.isFinite(ts)) return false;
+  const epochMs = ts < 1e12 ? ts * 1000 : ts;
+  return Date.now() - epochMs <= maxAgeMs;
+}
+
 function formatUptime(seconds) {
   if (seconds == null) return "--";
   const s = Math.floor(seconds);
@@ -58,6 +140,15 @@ function formatUptime(seconds) {
   const minutes = Math.floor((s % 3600) / 60);
   const secs = s % 60;
   return days ? `${days}d ${hours}h ${minutes}m ${secs}s` : `${hours}h ${minutes}m ${secs}s`;
+}
+
+function formatUptimeShort(seconds) {
+  if (seconds == null) return "--";
+  const s = Math.floor(seconds);
+  const days = Math.floor(s / 86400);
+  const hours = Math.floor((s % 86400) / 3600);
+  const minutes = Math.floor((s % 3600) / 60);
+  return days ? `${days}d ${hours}h ${minutes}m` : `${hours}h ${minutes}m`;
 }
 
 function friendlySource(value) {
@@ -113,6 +204,7 @@ function cleanLogText(value) {
 function eventCategory(event) {
   const source = String(event?.source || "").toUpperCase();
   const type = String(event?.type || "").toUpperCase();
+  if (type.includes("DETECTED") || type.includes("ANOMALY") || type.includes("HOTSPOT")) return "detection";
   if (type.includes("SNAPSHOT")) return "snapshot";
   if (source.includes("THERMAL")) return "thermal";
   if (source.includes("RGB_CAM") || source.includes("UC512")) return "camera";
@@ -120,20 +212,110 @@ function eventCategory(event) {
   return "other";
 }
 
-function getViewMode() {
-  return window.localStorage.getItem("easy-dashboard-view") || "simple";
+function logSourceKey(event) {
+  const source = String(event?.source || "").toUpperCase();
+  if (source.includes("THERMAL")) return "thermal";
+  if (source.includes("RGB_CAM_LEFT") || source.includes("RGB_LEFT")) return "rgb_left";
+  if (source.includes("RGB_CAM_RIGHT") || source.includes("RGB_RIGHT")) return "rgb_right";
+  if (source.includes("UC512")) return "uc512";
+  if (source === "SYSTEM") return "system";
+  return "all";
 }
 
-function applyViewMode(mode) {
-  const resolved = mode === "advanced" ? "advanced" : "simple";
-  window.localStorage.setItem("easy-dashboard-view", resolved);
-  document.body.classList.toggle("view-simple", resolved === "simple");
-  document.body.classList.toggle("view-advanced", resolved === "advanced");
-  document.querySelectorAll("[data-view-mode]").forEach((button) => {
-    const isActive = button.getAttribute("data-view-mode") === resolved;
-    button.classList.toggle("is-active", isActive);
-    button.setAttribute("aria-pressed", isActive ? "true" : "false");
+function logSourceLabel(event) {
+  const key = logSourceKey(event);
+  const labels = {
+    thermal: "THERMAL",
+    rgb_left: "RGB LEFT",
+    rgb_right: "RGB RIGHT",
+    system: "SISTEMA",
+    uc512: "UC512",
+    all: "Tutte",
+  };
+  return labels[key] || "Tutte";
+}
+
+function logSourceClass(event) {
+  const key = logSourceKey(event);
+  return `log-source-${key}`;
+}
+
+function logLevelMeta(event) {
+  const category = eventCategory(event);
+  const severity = String(event?.severity || "info").toLowerCase();
+  if (category === "detection") {
+    return { label: "Rilevazione", tone: "online" };
+  }
+  if (severity === "error") return { label: "Errore", tone: "error" };
+  if (severity === "warning") return { label: "Warning", tone: "warning" };
+  return { label: "Info", tone: "muted" };
+}
+
+function logRowId(event) {
+  return String(event?.id || `${event?.timestamp || ""}-${event?.source || ""}-${event?.type || ""}`).replace(/[^a-zA-Z0-9_-]/g, "_");
+}
+
+function logVisibleText(event) {
+  return cleanLogText(event?.description || event?.message || event?.type || "Evento");
+}
+
+function logExpandedText(event) {
+  const message = cleanLogText(event?.description || event?.message || event?.type || "");
+  const detail = cleanLogText(event?.meta?.detail || event?.meta?.message || "");
+  const raw = cleanLogText(event?.meta?.raw_error || event?.meta?.raw || event?.error || "");
+  const fragments = [];
+  if (message) fragments.push(message);
+  if (detail) fragments.push(detail);
+  if (raw) fragments.push(`Raw error: ${raw}`);
+  return fragments.length ? fragments.join("\n") : "Nessun dettaglio aggiuntivo disponibile.";
+}
+
+function logGroupKey(event) {
+  const source = logSourceKey(event);
+  const text = logVisibleText(event);
+  return `${source}::${text}`;
+}
+
+function groupConsecutiveLogEvents(events) {
+  const groups = [];
+  (Array.isArray(events) ? events : []).forEach((event) => {
+    const key = logGroupKey(event);
+    const last = groups[groups.length - 1];
+    if (last && last.key === key) {
+      last.events.push(event);
+      last.count += 1;
+      return;
+    }
+    groups.push({
+      key,
+      id: logRowId(event),
+      source: logSourceKey(event),
+      sourceLabel: logSourceLabel(event),
+      level: logLevelMeta(event),
+      text: logVisibleText(event),
+      firstTimestamp: event.timestamp,
+      events: [event],
+      count: 1,
+    });
   });
+  return groups;
+}
+
+function formatRomeCsvTimestamp(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("it-IT", {
+    timeZone: "Europe/Rome",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(date).reduce((acc, part) => {
+    if (part.type !== "literal") acc[part.type] = part.value;
+    return acc;
+  }, {});
+  return `${parts.year}${parts.month}${parts.day}-${parts.hour}${parts.minute}${parts.second}`;
 }
 
 function humanMissionState(health, thermal, rgb, operations) {
@@ -143,30 +325,45 @@ function humanMissionState(health, thermal, rgb, operations) {
   if (health?.ok && cameraFramesReady && thermalOk) {
     return {
       title: "System ready",
-      copy: "All core sensors are online and the console is ready for operation.",
+      copy: "All main sensors are online. You can monitor the feeds or capture snapshots.",
+      helper: "If you only need to operate the system, start from the live camera and thermal pages. Diagnostics are only needed for faults.",
+      nextTitle: "Monitor the live feeds",
+      nextCopy: "Open the live camera page to confirm that RGB left, RGB right, and thermal are updating correctly.",
     };
   }
   if (!cameraFramesReady) {
     return {
       title: "Waiting for camera frames",
-      copy: "Check that the RGB stream is running and that the cameras are delivering frames.",
+      copy: "The dashboard is online, but at least one RGB feed is not delivering frames yet.",
+      helper: "Start from the live camera page. There you can reconnect the stream and verify whether both cameras are responding.",
+      nextTitle: "Go to live cameras",
+      nextCopy: "Open Acquisition and use reconnect on the feed that is still offline or not updating.",
     };
   }
   if (!thermalOk) {
     return {
       title: "Thermal unavailable",
-      copy: "The thermal sensor is not available yet, so the console is running with limited thermal awareness.",
+      copy: "RGB feeds are available, but the thermal sensor is not ready yet.",
+      helper: "You can keep using the RGB feeds, but thermal checks and anomaly confirmation are currently limited.",
+      nextTitle: "Check thermal feed",
+      nextCopy: "Open the thermal page to confirm whether the sensor is disconnected, disabled, or still starting up.",
     };
   }
   if ((sensorHealth.online_count || 0) < (sensorHealth.total_count || 3)) {
     return {
       title: "Needs attention",
-      copy: "Some sensors are still coming online or need a quick check.",
+      copy: "Some sensors are still coming online or need a quick check before normal operation.",
+      helper: "Use the live pages first. Open diagnostics only if a sensor stays offline after a reconnect attempt.",
+      nextTitle: "Check the affected sensor",
+      nextCopy: "Open the page related to the offline sensor and confirm whether the issue is on RGB or thermal.",
     };
   }
   return {
     title: "Needs attention",
     copy: "The dashboard is up, but one or more operational elements still need a look.",
+    helper: "Use the live monitoring pages first, then open diagnostics only if the issue remains unclear.",
+    nextTitle: "Review live status",
+    nextCopy: "Check the feeds and recent events to understand which block needs action first.",
   };
 }
 
@@ -180,7 +377,7 @@ function showToast(title, message, tone = "info", actionUrl = "") {
       <strong>${escapeHtml(title)}</strong>
       <p>${escapeHtml(message)}</p>
     </div>
-    ${actionUrl ? `<a href="${escapeHtml(actionUrl)}" target="_blank" rel="noreferrer">Apri</a>` : ""}
+    ${actionUrl ? `<a href="${escapeHtml(actionUrl)}" target="_blank" rel="noreferrer">Open</a>` : ""}
   `;
   stack.appendChild(toast);
   window.setTimeout(() => {
@@ -207,11 +404,283 @@ function stateTone(state) {
   return { badge: "muted", dot: "state-dot-muted" };
 }
 
+function humanStateLabel(state) {
+  const value = String(state || "--").toUpperCase();
+  const map = {
+    ONLINE: "Live",
+    DETECTED: "Detected",
+    READY: "Ready",
+    OK: "Ready",
+    BUSY: "Recovering",
+    WARNING: "Needs check",
+    WARN: "Needs check",
+    OFFLINE: "Offline",
+    ERROR: "Error",
+    FAILED: "Error",
+    DISABLED: "Disabled",
+    STARTING: "Starting",
+    LOADING: "Loading",
+    WAITING: "Waiting",
+    CHECKING: "Checking",
+    PAUSED: "Paused",
+    REAL: "Live",
+    MOCK: "Simulation",
+    NOT_DETECTED: "Not detected",
+    PENDING: "Starting",
+  };
+  return map[value] || (state || "--");
+}
+
+function liveFeedTone(state, feed, lastFrameTs = null, detected = true) {
+  const value = String(state || "").toUpperCase();
+  const fresh = isFreshTimestamp(lastFrameTs);
+  if (["OFFLINE", "ERROR", "FAILED"].includes(value)) {
+    return { dot: "state-dot-error", badge: "error", offline: true, loading: false };
+  }
+  if (["NOT_DETECTED", "DISABLED"].includes(value)) {
+    return { dot: "state-dot-muted", badge: "muted", offline: true, loading: false };
+  }
+  if (["STARTING", "LOADING", "WAITING", "CHECKING", "PENDING"].includes(value)) {
+    return { dot: "state-dot-loading", badge: "loading", offline: false, loading: true };
+  }
+  if (["BUSY", "WARNING", "WARN"].includes(value)) {
+    return { dot: "state-dot-warning", badge: "warning", offline: false, loading: false };
+  }
+  if (["ONLINE", "DETECTED", "READY", "OK", "REAL", "REALTIME", "MOCK", "LIVE"].includes(value) && fresh) {
+    return { dot: "state-dot-online", badge: "online", offline: false, loading: false };
+  }
+  if (!fresh) {
+    return { dot: detected ? "state-dot-error" : "state-dot-muted", badge: detected ? "error" : "muted", offline: true, loading: false };
+  }
+  return { dot: "state-dot-muted", badge: "muted", offline: false, loading: false };
+}
+
+function liveStatusText(feed, state, fps, lastFrameTs = null, detected = true) {
+  const value = String(state || "").toUpperCase();
+  const fresh = isFreshTimestamp(lastFrameTs);
+  if (feed === "thermal") {
+    if (["NOT_DETECTED", "DISABLED"].includes(value)) return "NON RILEVATO";
+    if (["OFFLINE", "ERROR", "FAILED"].includes(value)) return "OFFLINE";
+    if (!fresh) return detected ? "OFFLINE" : "NON RILEVATO";
+    if (["STARTING", "LOADING", "WAITING", "CHECKING", "PENDING"].includes(value)) return "CARICANDO";
+    if (value === "MOCK") return "SIMULAZIONE";
+    return "REALE";
+  }
+  if (["NOT_DETECTED"].includes(value)) return "NON RILEVATO";
+  if (["OFFLINE", "ERROR", "FAILED", "DISABLED"].includes(value)) return "OFFLINE";
+  if (!fresh) return detected ? "OFFLINE" : "NON RILEVATO";
+  if (["STARTING", "LOADING", "WAITING", "CHECKING", "PENDING"].includes(value)) return "CARICANDO";
+  if (["ONLINE", "DETECTED", "READY", "OK"].includes(value)) {
+    const rate = fps != null && Number.isFinite(Number(fps)) ? `${Math.round(Number(fps))}fps` : "LIVE";
+    return `LIVE ${rate}`;
+  }
+  return "LIVE";
+}
+
+function buildFeedGuidance(feed, state, message) {
+  const value = String(state || "").toUpperCase();
+  if (value === "ONLINE") {
+    return feed === "thermal"
+      ? "Thermal preview is updating. Use the thermal page if you need deeper details or anomaly history."
+      : "Live preview is updating correctly. You can save a snapshot at any time.";
+  }
+  if (value === "BUSY" || value === "STARTING" || value === "WAITING" || value === "LOADING" || value === "CHECKING" || value === "PENDING") {
+    return feed === "thermal"
+      ? "The thermal feed is starting. Wait a moment, then check again before opening diagnostics."
+      : "The camera is detected but not ready yet. Wait a moment, then try reconnect if the image does not appear.";
+  }
+  if (value === "OFFLINE" || value === "ERROR" || value === "FAILED" || value === "DISABLED" || value === "NOT_DETECTED") {
+    return feed === "thermal"
+      ? "Thermal preview is unavailable. Check the thermal page first, then diagnostics only if the sensor stays unavailable."
+      : "This camera is not providing a usable feed right now. Try reconnect first, then open diagnostics only if it stays offline.";
+  }
+  return message || "Status is being updated.";
+}
+
+function humanFeedMessage(feed, state, message) {
+  const value = String(state || "").toUpperCase();
+  if (value === "ONLINE") {
+    return feed === "thermal" ? "Thermal preview is updating." : "Live preview is updating.";
+  }
+  if (value === "BUSY") {
+    return feed === "thermal" ? "The thermal sensor is trying to recover." : "The camera feed is trying to recover.";
+  }
+  if (value === "STARTING" || value === "WAITING" || value === "LOADING" || value === "CHECKING" || value === "PENDING") {
+    return feed === "thermal" ? "The thermal sensor is starting up." : "The camera is detected and waiting for the first usable frame.";
+  }
+  if (value === "OFFLINE" || value === "ERROR" || value === "FAILED" || value === "NOT_DETECTED") {
+    return feed === "thermal" ? "Thermal preview is unavailable right now." : "This camera is unavailable right now.";
+  }
+  if (value === "DISABLED" || value === "PAUSED") {
+    return feed === "thermal" ? "Thermal preview is paused." : "This camera feed is paused.";
+  }
+  return message || "Status is being updated.";
+}
+
+function humanAcquisitionState(health, rgbLeft, rgbRight, thermal, pipeline) {
+  const leftState = String(rgbLeft.state || health.rgb?.camera_state || "").toUpperCase();
+  const rightState = String(rgbRight.state || health.rgb?.camera_state || "").toUpperCase();
+  const thermalState = String(thermal.status || thermal.mode || "").toUpperCase();
+  const rgbReady = leftState === "ONLINE" && rightState === "ONLINE";
+  const thermalReady = !["ERROR", "FAILED", "OFFLINE", "NOT_DETECTED", "DISABLED"].includes(thermalState);
+
+  if (health.ok && rgbReady && thermalReady) {
+    return {
+      title: "Live acquisition is ready",
+      copy: "All primary feeds are available. Operators can confirm the previews and start saving snapshots immediately.",
+      helper: "New users should stay on this page until they see all three feeds updating. Diagnostics are only needed if a reconnect does not recover the stream.",
+      nextTitle: "Confirm the live previews",
+      nextCopy: "Check left RGB, thermal, and right RGB in order. If all three are updating, you are ready to capture evidence.",
+      controlState: pipeline.recording?.supported ? "Ready to capture" : "Ready",
+    };
+  }
+
+  if (!rgbReady) {
+    return {
+      title: "One or more RGB feeds need recovery",
+      copy: "At least one visible-light camera is not delivering a stable live image yet.",
+      helper: "Use reconnect only on the blocked camera card below. If the image still does not return, then open diagnostics.",
+      nextTitle: "Recover the affected RGB feed",
+      nextCopy: "Look for the card marked offline, loading, or error, then use reconnect on that single stream.",
+      controlState: "Action needed",
+    };
+  }
+
+  if (!thermalReady) {
+    return {
+      title: "Thermal confirmation is still pending",
+      copy: "RGB is available, but the thermal sensor is not fully ready for normal monitoring.",
+      helper: "You can continue reviewing RGB feeds, but hotspot verification should wait until the thermal panel becomes stable.",
+      nextTitle: "Validate the thermal panel",
+      nextCopy: "Keep the thermal card in view and confirm the heatmap starts updating before escalating to system checks.",
+      controlState: "Thermal check",
+    };
+  }
+
+  return {
+    title: "Acquisition needs a quick review",
+    copy: "The page is live, but at least one component still needs operator confirmation before a full session starts.",
+    helper: "Use the live cards below first. Move to advanced diagnostics only if the page cannot explain the problem clearly.",
+    nextTitle: "Review the flagged source",
+    nextCopy: "Use the status cards and operator overview to identify which stream or capture block still needs attention.",
+    controlState: "Needs review",
+  };
+}
+
+function humanThermalState(thermal, eventCount) {
+  const thermalState = String(thermal.status || thermal.mode || "").toUpperCase();
+  const available = !["ERROR", "FAILED", "OFFLINE", "NOT_DETECTED", "DISABLED"].includes(thermalState);
+
+  if (available && thermal.anomaly_active) {
+    return {
+      title: "Thermal alarm requires confirmation",
+      copy: "The thermal feed is live and an active hotspot or anomaly is being reported.",
+      helper: "Keep this page open and validate the heatmap first. Use the event list to confirm whether the alarm is persistent or part of startup recovery noise.",
+      nextTitle: "Confirm the hotspot on the heatmap",
+      nextCopy: "If the alarm remains visible in the live image, review only the latest warning and error events for extra context.",
+      eventsHelper: "Focus on warning, error, and anomaly events first. Informational entries are usually secondary while an alarm is active.",
+    };
+  }
+
+  if (available) {
+    return {
+      title: "Thermal monitoring is stable",
+      copy: "The heatmap is available and there is no active thermal alarm right now.",
+      helper: "New users can trust this page as the main thermal check. Move to events only if you need historical context or want to confirm a recent alarm.",
+      nextTitle: "Verify the live image is stable",
+      nextCopy: "If the heatmap looks normal and the alarm card stays clear, scan only the latest thermal events before moving on.",
+      eventsHelper: eventCount ? "Use filters when you need to narrow the timeline. Thermal and warning events are the most useful for quick verification." : "No events are recorded yet. If the heatmap is stable, there is nothing urgent to investigate.",
+    };
+  }
+
+  return {
+    title: "Thermal feed needs attention",
+    copy: "The thermal sensor is not ready or is currently unavailable for reliable verification.",
+    helper: "Use this page first to confirm whether the issue is only startup delay. If the feed stays unavailable, then escalate to system diagnostics.",
+    nextTitle: "Wait briefly, then recheck the feed",
+    nextCopy: "If the image does not recover and new thermal errors keep appearing, move to the system page for hardware or pipeline troubleshooting.",
+    eventsHelper: "Prioritize thermal and system errors. They usually explain whether the issue is sensor startup, disconnect, or a broader pipeline fault.",
+  };
+}
+
+function humanSystemState(health, eventsPayload) {
+  const system = health.system || {};
+  const operations = health.operations || {};
+  const pipeline = operations.pipeline || {};
+  const cameras = health.cameras || {};
+  const rgbCams = cameras.rgb_cameras || [];
+  const thermalCam = cameras.thermal_camera || {};
+  const recentErrors = dashboardState.events.filter((event) => String(event.severity || "").toLowerCase() === "error").length;
+  const cpu = Number(system.cpu_percent ?? 0);
+  const ram = Number(system.ram?.percent ?? 0);
+  const disk = Number(system.disk?.percent ?? 0);
+  const temp = Number(system.cpu_temperature_c ?? 0);
+  const cameraOnline = [rgbCams[0]?.enabled, rgbCams[1]?.enabled, thermalCam.state === "OFFLINE" ? false : true].filter(Boolean).length;
+  const stressed = cpu >= 80 || ram >= 85 || disk >= 90 || temp >= 70;
+
+  if (!stressed && health.ok && recentErrors === 0 && cameraOnline >= 3) {
+    return {
+      title: "System health looks stable",
+      copy: "The Raspberry has enough headroom and the connected services are in a good state.",
+      helper: "If a live feed still fails, the problem is likely local to that feed rather than the host itself.",
+      nextTitle: "Check services and devices",
+      nextCopy: "With resources stable, move to the service list and confirm whether anything is still paused or offline.",
+      badge: "Stable",
+    };
+  }
+
+  if (stressed) {
+    return {
+      title: "System resources need attention",
+      copy: "One or more host metrics are high enough to affect live capture or recovery.",
+      helper: "Deal with the host load first. High CPU, temperature, RAM, or disk pressure can make camera and thermal issues look worse than they are.",
+      nextTitle: "Reduce host pressure",
+      nextCopy: "Check the resource cards below and decide whether the Raspberry needs a reboot, cleanup, or a simpler workload.",
+      badge: "Check load",
+    };
+  }
+
+  if (recentErrors > 0) {
+    return {
+      title: "Recent errors deserve a quick review",
+      copy: "The host is up, but the latest error log suggests one or more components still need confirmation.",
+      helper: "Use the service and device sections first, then inspect the newest errors to see whether the issue is recurring.",
+      nextTitle: "Inspect the latest error",
+      nextCopy: "The newest red or warning event is usually the fastest way to identify the failing sensor or service.",
+      badge: "Review errors",
+    };
+  }
+
+  if ((cameraOnline || 0) < 3) {
+    return {
+      title: "One or more devices are offline",
+      copy: "The host is running, but at least one connected camera or sensor is not yet available.",
+      helper: "This usually means the fault is in the capture path, the cable, or the startup sequence rather than the OS itself.",
+      nextTitle: "Confirm the offline device",
+      nextCopy: "Use the device list below to identify which sensor is missing, then go back to the live page for that feed.",
+      badge: "Devices missing",
+    };
+  }
+
+  return {
+    title: "System check complete",
+    copy: "No clear host issue is visible yet, but the diagnostics page is ready if you need a second pass.",
+    helper: "Keep this page for deeper investigation only. The live pages are still the best first stop for day-to-day operation.",
+    nextTitle: "Return to live monitoring",
+    nextCopy: "If everything is healthy, go back to acquisition or thermal view and keep the console focused on operations.",
+    badge: "Ready",
+  };
+}
+
 function updateCameraState(prefix, state, message) {
   const tone = stateTone(state);
-  setBadge(`${prefix}_state`, state || "--", tone.badge);
-  setText(`${prefix}_state_copy`, state || "--");
-  setText(`${prefix}_state_msg`, message || "--");
+  const label = humanStateLabel(state);
+  const feedType = prefix.includes("thermal") ? "thermal" : "rgb";
+  const uiMessage = humanFeedMessage(feedType, state, message);
+  setBadge(`${prefix}_state`, label, tone.badge);
+  setText(`${prefix}_state_copy`, label);
+  setText(`${prefix}_state_msg`, uiMessage);
+  setText(`${prefix}_quick_help`, buildFeedGuidance(feedType, state, message));
   const dot = byId(`${prefix}_dot`);
   if (dot) {
     dot.classList.remove("state-dot-muted", "state-dot-error", "state-dot-warning", "state-dot-online", "state-dot-loading");
@@ -304,79 +773,337 @@ function renderMissionDetections(nodeId, detections) {
     .join("");
 }
 
-function renderEventLog(events) {
-  const body = byId("event-body");
-  const emptyState = byId("events-empty-state");
-  const popover = byId("event-popover");
-  if (!body) return;
-  const filtered = events.filter((event) => {
-    const severity = String(event.severity || "info").toLowerCase();
-    const category = eventCategory(event);
-    const query = `${event.timestamp || ""} ${event.source || ""} ${event.type || ""} ${event.description || ""}`.toLowerCase();
-    const filters = dashboardState.filters;
-    const matchesSeverity = filters.severity === "all" || filters.severity === severity;
-    const matchesSource = filters.source === "all" || filters.source === category;
-    const matchesQuery = !filters.query || query.includes(filters.query);
-    return matchesSeverity && matchesSource && matchesQuery;
+function cpuTone(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "neutral";
+  if (n < 70) return "good";
+  if (n <= 90) return "warn";
+  return "bad";
+}
+
+function tempTone(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "neutral";
+  if (n < 70) return "good";
+  if (n <= 80) return "warn";
+  return "bad";
+}
+
+function setMetricValue(id, text, tone) {
+  const node = byId(id);
+  if (!node) return;
+  node.textContent = text;
+  node.classList.remove("is-good", "is-warn", "is-bad", "is-neutral", "is-online", "is-warning", "is-error", "is-muted");
+  node.classList.add(`is-${tone || "neutral"}`);
+}
+
+function renderSystemDevices(items, onlineCount = 0, totalCount = 3) {
+  const node = byId("device-list");
+  const countNode = byId("system-device-count");
+  if (!node) return;
+  node.innerHTML = "";
+  if (countNode) countNode.textContent = `${onlineCount}/${totalCount}`;
+  (items || []).forEach((item) => {
+    const row = document.createElement("div");
+    row.className = "system-device-row";
+    row.innerHTML = `
+      <div class="system-device-main">
+        <strong class="system-device-name">${escapeHtml(item.name)}</strong>
+        <span class="system-device-desc">${escapeHtml(item.desc)}</span>
+      </div>
+      <span class="badge badge-${item.tone || "muted"} system-device-state">${escapeHtml(item.state)}</span>
+    `;
+    node.appendChild(row);
   });
-  body.innerHTML = "";
-  if (emptyState) {
-    const copy = events.length ? "No events match the current filters." : "No events recorded in this session.";
-    emptyState.textContent = copy;
-    emptyState.hidden = filtered.length > 0;
-  }
-  if (popover) {
-    popover.hidden = true;
-    popover.innerHTML = "";
-  }
-  if (!filtered.length) {
+}
+
+function renderSystemErrors(events) {
+  const list = byId("recent-errors-list");
+  const empty = byId("system-errors-empty");
+  if (!list) return;
+  list.innerHTML = "";
+  const items = (Array.isArray(events) ? events : []).slice(0, 5);
+  if (!items.length) {
+    if (empty) empty.hidden = false;
     return;
   }
-  const showPopover = (event) => {
-    if (!popover) return;
-    popover.innerHTML = `
-      <div class="event-popover-head">
-        <strong>${escapeHtml(friendlySource(event.source))}</strong>
-        <span class="event-severity event-severity-${String(event.severity || "info").toLowerCase()}">${escapeHtml(friendlySeverity(event.severity))}</span>
-      </div>
-      <p>${escapeHtml(cleanLogText(event.description))}</p>
-      <p class="event-popover-action">${escapeHtml(cleanLogText(event.action || "No action required."))}</p>
-      <p class="event-popover-detail">${escapeHtml(cleanLogText(event.meta?.detail || event.meta?.message || "No extra detail available."))}</p>
-    `;
-    popover.hidden = false;
-  };
-  filtered.forEach((event) => {
-    const row = document.createElement("tr");
-    const category = eventCategory(event);
-    row.className = `event-row event-row-${category}`;
-    row.tabIndex = 0;
+  if (empty) empty.hidden = true;
+  items.forEach((event) => {
+    const row = document.createElement("div");
+    row.className = "system-error-row";
     row.innerHTML = `
-      <td>${escapeHtml(formatRomeDateTime(event.timestamp))}</td>
-      <td><span class="event-source event-source-${category}">${escapeHtml(friendlySource(event.source))}</span></td>
-      <td>${escapeHtml(friendlyEventType(event.type))}</td>
-      <td class="event-severity event-severity-${String(event.severity || "info").toLowerCase()}">${escapeHtml(friendlySeverity(event.severity))}</td>
+      <span class="log-row-time">${escapeHtml(formatRomeTimeOnly(event.timestamp))}</span>
+      <span class="badge ${logSourceClass(event)}">${escapeHtml(logSourceLabel(event))}</span>
+      <div class="system-error-main">
+        <strong class="system-error-title">${escapeHtml(cleanLogText(event.description || event.message || event.type || "Errore"))}</strong>
+      </div>
+      <span class="badge badge-error">${escapeHtml(logLevelMeta(event).label)}</span>
     `;
-    row.addEventListener("mouseenter", () => showPopover(event));
-    row.addEventListener("focus", () => showPopover(event));
-    row.addEventListener("click", () => showPopover(event));
-    body.appendChild(row);
+    list.appendChild(row);
   });
-  showPopover(filtered[0]);
-  const summaryNode = byId("log-summary");
-  if (summaryNode) {
-    summaryNode.hidden = false;
-    const severityTotals = filtered.reduce((acc, event) => {
-      const sev = String(event.severity || "info").toLowerCase();
-      acc[sev] = (acc[sev] || 0) + 1;
-      return acc;
-    }, {});
-    summaryNode.innerHTML = `
-      <span class="log-chip">Visible <strong>${filtered.length}</strong></span>
-      <span class="log-chip">Info <strong>${severityTotals.info || 0}</strong></span>
-      <span class="log-chip">Warnings <strong>${severityTotals.warning || 0}</strong></span>
-      <span class="log-chip">Errors <strong>${severityTotals.error || 0}</strong></span>
-    `;
+}
+
+function recentErrorEvents(events, limit = 5) {
+  return (Array.isArray(events) ? events : [])
+    .filter((event) => String(event.severity || "").toLowerCase() === "error")
+    .slice()
+    .reverse()
+    .slice(0, limit);
+}
+
+function detectionTypeMeta(type) {
+  const value = String(type || "").toLowerCase();
+  if (value.includes("boat") || value.includes("ship") || value.includes("vessel")) {
+    return {
+      label: "Barca",
+      icon: `<svg class="detection-type-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15h16l-2 3H6z"></path><path d="M7 15V9l5-3 5 3v6"></path><path d="M12 6v9"></path></svg>`,
+      filter: "boat",
+    };
   }
+  if (value.includes("buoy") || value.includes("marker")) {
+    return {
+      label: "Boa",
+      icon: `<svg class="detection-type-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="11" r="5"></circle><path d="M12 16v5"></path></svg>`,
+      filter: "buoy",
+    };
+  }
+  if (value.includes("person") || value.includes("human")) {
+    return {
+      label: "Persona",
+      icon: `<svg class="detection-type-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7.5" r="2.8"></circle><path d="M8 20c0-3 1.8-5.2 4-5.2s4 2.2 4 5.2"></path></svg>`,
+      filter: "person",
+    };
+  }
+  return {
+    label: "Oggetto",
+    icon: `<svg class="detection-type-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"></rect></svg>`,
+    filter: "object",
+  };
+}
+
+function detectionSourceLabel(source) {
+  const value = String(source || "").toUpperCase();
+  if (value.includes("RGB_LEFT")) return "RGB-L";
+  if (value.includes("RGB_RIGHT")) return "RGB-R";
+  if (value.includes("THERMAL")) return "THERMAL";
+  if (value.includes("FUSION")) return "FUSION";
+  return value || "--";
+}
+
+function detectionConfidenceTone(confidence) {
+  const value = Number(confidence);
+  if (!Number.isFinite(value)) return "muted";
+  if (value > 80) return "online";
+  if (value >= 50) return "warning";
+  return "error";
+}
+
+function detectionConfidenceLabel(confidence) {
+  const value = Number(confidence);
+  if (!Number.isFinite(value)) return "—";
+  return `${Math.round(value)}%`;
+}
+
+function detectionDistanceLabel(distance) {
+  const value = Number(distance);
+  if (!Number.isFinite(value)) return "--";
+  return `~${Math.round(value)}m`;
+}
+
+function detectionCoordinateLabel(item) {
+  const lat = item?.lat ?? item?.latitude;
+  const lon = item?.lon ?? item?.lng ?? item?.longitude;
+  if (lat == null || lon == null) return "—";
+  const latDir = Number(lat) >= 0 ? "N" : "S";
+  const lonDir = Number(lon) >= 0 ? "E" : "W";
+  return `${Math.abs(Number(lat)).toFixed(4)} ${latDir}, ${Math.abs(Number(lon)).toFixed(4)} ${lonDir}`;
+}
+
+function detectionTimestampLabel(value) {
+  return formatRomeTimeOnly(value);
+}
+
+function renderDetectionsPage(health) {
+  const container = byId("detections-table-body");
+  const tableShell = byId("detections-table-shell");
+  const emptyState = byId("detections-empty-state");
+  const badge = byId("detections-count-badge");
+  const totalNode = byId("detections-total-count");
+  const avgNode = byId("detections-avg-confidence");
+  const latestNode = byId("detections-latest-time");
+  const detections = Array.isArray(dashboardState.detections)
+    ? dashboardState.detections
+    : Array.isArray(health?.operations?.detections)
+      ? health.operations.detections
+      : [];
+  const liveDetections = detections.filter((item) => {
+    const source = String(item?.source || "").toLowerCase();
+    const label = String(item?.label || "").toLowerCase();
+    return source !== "placeholder" && !label.includes("no detections yet");
+  });
+  const filter = dashboardState.filters.detection || "all";
+  const filtered = liveDetections.filter((item) => {
+    const meta = detectionTypeMeta(item?.type || item?.label || item?.category || "");
+    return filter === "all" || meta.filter === filter;
+  });
+
+  if (container) {
+    container.innerHTML = "";
+    if (filtered.length) {
+      if (tableShell) tableShell.hidden = false;
+      filtered.forEach((item) => {
+        const meta = detectionTypeMeta(item?.type || item?.label || item?.category || "");
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>
+            <span class="detection-type">${meta.icon}<span>${escapeHtml(meta.label)}</span></span>
+          </td>
+          <td><span class="detection-coordinate">${escapeHtml(detectionCoordinateLabel(item))}</span></td>
+          <td>${escapeHtml(detectionDistanceLabel(item?.distance_m ?? item?.distance))}</td>
+          <td><span class="badge badge-${detectionConfidenceTone(item?.confidence)} detection-confidence">${escapeHtml(detectionConfidenceLabel(item?.confidence))}</span></td>
+          <td><span class="detection-time">${escapeHtml(detectionTimestampLabel(item?.timestamp || item?.created || item?.ts))}</span></td>
+          <td><span class="badge badge-muted detection-source">${escapeHtml(detectionSourceLabel(item?.source))}</span></td>
+        `;
+        container.appendChild(row);
+      });
+    } else {
+      if (tableShell) tableShell.hidden = true;
+    }
+  }
+
+  const totalCount = liveDetections.length;
+  const confidenceValues = liveDetections.map((item) => Number(item?.confidence)).filter((value) => Number.isFinite(value));
+  const avgConfidence = confidenceValues.length ? Math.round(confidenceValues.reduce((a, b) => a + b, 0) / confidenceValues.length) : null;
+  const latest = liveDetections[0] || null;
+
+  if (badge) badge.textContent = `${totalCount} oggetti`;
+  if (totalNode) totalNode.textContent = `${totalCount}`;
+  if (avgNode) avgNode.textContent = avgConfidence == null ? "—" : `${avgConfidence}%`;
+  if (latestNode) latestNode.textContent = latest ? detectionTimestampLabel(latest.timestamp || latest.created || latest.ts) : "—";
+
+  if (emptyState) {
+    emptyState.hidden = totalCount > 0 && filtered.length > 0;
+  }
+}
+
+function renderEventLog(events) {
+  const list = byId("log-list");
+  if (!list) return;
+  const emptyState = byId("log-empty-state");
+  const loadMoreButton = byId("log-load-more");
+  const visibleEvents = (Array.isArray(events) ? events : []).slice(0, dashboardState.logLimit);
+  const filtered = getVisibleLogEvents(events);
+  const grouped = groupConsecutiveLogEvents(filtered);
+
+  list.innerHTML = "";
+  if (emptyState) {
+    emptyState.hidden = filtered.length > 0;
+    emptyState.textContent = visibleEvents.length ? "Nessun evento corrisponde ai filtri attivi." : "Nessun evento registrato in questa sessione.";
+  }
+
+  let lastDayKey = "";
+  grouped.forEach((group) => {
+    const dayKey = logDayKey(group.firstTimestamp);
+    if (dayKey && dayKey !== lastDayKey) {
+      const divider = document.createElement("div");
+      divider.className = "log-day-divider";
+      divider.textContent = formatLogDayLabel(group.firstTimestamp);
+      list.appendChild(divider);
+      lastDayKey = dayKey;
+    }
+    const expanded = dashboardState.logExpandedIds?.has(group.id);
+    const row = document.createElement("div");
+    row.className = `log-entry${expanded ? " is-expanded" : ""}`;
+    row.innerHTML = `
+      <button class="log-row" type="button" data-log-row="${escapeHtml(group.id)}" aria-expanded="${expanded ? "true" : "false"}">
+        <span class="log-row-time">${escapeHtml(formatLogTimestamp(group.firstTimestamp))}</span>
+        <span class="log-row-source ${logSourceClass(group.events[0])}">${escapeHtml(group.sourceLabel)}</span>
+        <span class="log-row-event">${escapeHtml(group.text || friendlyEventType(group.events[0].type) || "Evento")}</span>
+        ${group.count > 1 ? `<span class="badge badge-warning log-row-count">×${group.count}</span>` : ""}
+        <span class="badge badge-${group.level.tone} log-row-level">${escapeHtml(group.level.label)}</span>
+      </button>
+      <div class="log-row-detail" data-log-detail="${escapeHtml(group.id)}" ${expanded ? "" : "hidden"}>
+        <div class="log-group-children">
+          ${group.events
+            .map((event) => {
+              const level = logLevelMeta(event);
+              return `
+                <div class="log-row log-row-child" role="presentation">
+                  <span class="log-row-time">${escapeHtml(formatLogTimestamp(event.timestamp))}</span>
+                  <span class="log-row-source ${logSourceClass(event)}">${escapeHtml(logSourceLabel(event))}</span>
+                  <span class="log-row-event">${escapeHtml(logVisibleText(event) || friendlyEventType(event.type) || "Evento")}</span>
+                  <span class="badge badge-${level.tone} log-row-level">${escapeHtml(level.label)}</span>
+                </div>
+                <p class="log-row-detail-text">${escapeHtml(logExpandedText(event))}</p>
+              `;
+            })
+            .join("")}
+        </div>
+      </div>
+    `;
+    const toggle = () => {
+      if (!dashboardState.logExpandedIds) dashboardState.logExpandedIds = new Set();
+      if (dashboardState.logExpandedIds.has(group.id)) {
+        dashboardState.logExpandedIds.delete(group.id);
+      } else {
+        dashboardState.logExpandedIds.add(group.id);
+      }
+      renderEventLog(events);
+    };
+    row.querySelector("[data-log-row]")?.addEventListener("click", toggle);
+    list.appendChild(row);
+  });
+
+  if (loadMoreButton) {
+    loadMoreButton.hidden = visibleEvents.length >= (Array.isArray(events) ? events.length : 0);
+    loadMoreButton.disabled = visibleEvents.length >= (Array.isArray(events) ? events.length : 0);
+  }
+
+  const summary = (dashboardState.eventSummary || {}).severity || {};
+  const countAll = dashboardState.eventCount ?? events.length;
+  const countError = summary.error ?? events.filter((event) => String(event.severity || "").toLowerCase() === "error").length;
+  const countInfo = summary.info ?? events.filter((event) => String(event.severity || "").toLowerCase() === "info").length;
+  const countWarning = summary.warning ?? events.filter((event) => String(event.severity || "").toLowerCase() === "warning").length;
+  const countDetection = events.filter((event) => eventCategory(event) === "detection").length;
+
+  setText("log-count-all", `${countAll}`);
+  setText("log-count-error", `${countError}`);
+  setText("log-count-info", `${countInfo}`);
+  setText("log-count-warning", `${countWarning}`);
+  setText("log-count-detection", `${countDetection}`);
+}
+
+function getVisibleLogEvents(events) {
+  const visibleEvents = (Array.isArray(events) ? events : []).slice(0, dashboardState.logLimit);
+  const filters = dashboardState.filters || {};
+  const query = String(filters.logQuery || "").trim().toLowerCase();
+  const selectedSeverity = String(filters.logSeverity || "all").toLowerCase();
+  const selectedSource = String(filters.logSource || "all").toLowerCase();
+  return visibleEvents.filter((event) => {
+    const severity = String(event.severity || "info").toLowerCase();
+    const category = eventCategory(event);
+    const sourceKey = logSourceKey(event);
+    const haystack = [
+      event.timestamp,
+      event.source,
+      event.type,
+      event.description,
+      event.action,
+      event.meta?.detail,
+      event.meta?.message,
+      event.meta?.raw_error,
+      event.error,
+    ]
+      .map((value) => String(value || ""))
+      .join(" ")
+      .toLowerCase();
+    const matchesSeverity =
+      selectedSeverity === "all" ||
+      (selectedSeverity === "detection" ? category === "detection" : severity === selectedSeverity);
+    const matchesSource = selectedSource === "all" || sourceKey === selectedSource;
+    const matchesQuery = !query || haystack.includes(query);
+    return matchesSeverity && matchesSource && matchesQuery;
+  });
 }
 
 function renderSnapshots(snapshots, summary) {
@@ -391,6 +1118,8 @@ function renderSnapshots(snapshots, summary) {
     card.className = `snapshot-card snapshot-card-${item.feed || "generic"}`;
     const feedLabel = item.feed_label || item.feed || "--";
     const feedClass = item.feed === "thermal" ? "is-thermal" : "is-rgb";
+    const openIcon = `<svg class="icon-svg" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3h7v7"></path><path d="M13 3 6 10"></path><path d="M4 5H3a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1v-1"></path></svg>`;
+    const downloadIcon = `<svg class="icon-svg" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v7"></path><path d="m5.2 7.8 2.8 2.8 2.8-2.8"></path><path d="M3 13.5h10"></path></svg>`;
     card.innerHTML = `
       <div class="snapshot-media">
         <a class="snapshot-image-link" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">
@@ -414,8 +1143,8 @@ function renderSnapshots(snapshots, summary) {
         <p class="snapshot-meta-line">${escapeHtml(formatBytes(item.size_bytes))} · Roma ${escapeHtml(formatRomeDateTime(item.created))}</p>
         <p class="snapshot-path" title="${escapeHtml(item.path || "")}">${escapeHtml(item.path || "")}</p>
         <div class="button-row snapshot-actions">
-          <a class="btn btn-secondary btn-small" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">Apri</a>
-          <a class="btn btn-ghost btn-small" href="${escapeHtml(item.download_url)}" download="${escapeHtml(item.filename)}">Scarica</a>
+          <a class="btn btn-secondary btn-small btn-icon" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">${openIcon}<span>Open preview</span></a>
+          <a class="btn btn-ghost btn-small btn-icon" href="${escapeHtml(item.download_url)}" download="${escapeHtml(item.filename)}">${downloadIcon}<span>Download file</span></a>
         </div>
       </div>
     `;
@@ -444,51 +1173,116 @@ function renderSnapshots(snapshots, summary) {
   setText("snapshots-header-size", formatBytes(summary?.size_bytes || 0));
 }
 
-function renderMissionPage(health, eventsPayload, snapshots) {
+function humanSnapshotState(snapshots, summary) {
+  const count = summary?.count ?? snapshots.length;
+  const latest = summary?.latest || snapshots[0];
+  if (!count) {
+    return {
+      title: "No snapshots yet",
+      copy: "The archive is empty for this session. Save a capture from acquisition to populate the list.",
+      helper: "When the first file arrives, you can open it here without leaving the dashboard.",
+      nextTitle: "Capture a snapshot from acquisition",
+      nextCopy: "Use the live feeds to save the first useful frame, then return here to confirm it landed in storage.",
+      badge: "Empty",
+    };
+  }
+  return {
+    title: `${count} snapshots available`,
+    copy: latest ? `The newest item came from ${latest.feed_label || latest.feed || "the selected feed"}.` : "The archive has been populated during this session.",
+    helper: "Open the latest item first, then scan the older captures only if you need to compare history or verify a repeated issue.",
+    nextTitle: latest ? `Open ${latest.feed_label || latest.feed || "the latest capture"} first` : "Open the latest capture first",
+    nextCopy: latest
+      ? `The newest file usually confirms whether ${latest.feed_label || latest.feed || "the feed"} saved correctly and whether the image looks usable.`
+      : "The latest file is usually the quickest check that the pipeline saved correctly.",
+    badge: count > 5 ? "Archive growing" : "Ready",
+  };
+}
+
+function renderLivePage(health) {
   const operations = health.operations || {};
   const sensorHealth = operations.sensor_health || {};
-  const pipeline = operations.pipeline || {};
-  const attention = operations.attention || {};
-  const detections = operations.detections || [];
+  const rgb = health.rgb || {};
   const thermal = health.thermal || {};
-  const missionState = humanMissionState(health, thermal, health.rgb || {}, operations);
+  const cameras = health.cameras || {};
+  const rgbCams = cameras.rgb_cameras || [];
+  const rgbLeft = rgbCams[0] || {};
+  const rgbRight = rgbCams[1] || {};
+  const thermalCam = cameras.thermal_camera || {};
 
-  setText("mission-header-time", formatRomeDateTime(health.timestamp));
-  setText("mission-header-system", missionState.title);
-  setText("mission-state-title", missionState.title);
-  setText("mission-state-copy", missionState.copy);
-  setText("summary-sensors-online", `${sensorHealth.online_count ?? 0}/${sensorHealth.total_count ?? 3}`);
-  setText("summary-sensors-detail", `${sensorHealth.detected_count ?? 0} detected · ${sensorHealth.online_count ?? 0} online`);
-  setText("summary-thermal", thermal.status || thermal.mode || "Not available");
-  setText("summary-thermal-detail", thermal.message || "Thermal status is being loaded");
-  setText("summary-snapshots", `${snapshots.length}`);
-  setText("summary-snapshots-detail", snapshots[0] ? `${snapshots[0].feed_label || snapshots[0].feed} · ${formatAgeIt(snapshots[0].created_ts)}` : "No snapshots captured in this session");
-  setText("summary-events", `${eventsPayload?.count ?? dashboardState.events.length}`);
-  const severity = eventsPayload?.summary?.severity || {};
-  setText("summary-events-detail", `${severity.warning || 0} avvisi, ${severity.error || 0} errori`);
-  setText("summary-recording", pipeline.recording?.state || "Not connected");
-  setText("summary-recording-detail", pipeline.recording?.message || "Recording controls are available from Acquisition");
-  setText("summary-inference", pipeline.inference?.state || "AI analysis not connected yet");
-  setText("summary-inference-detail", pipeline.inference?.message || "AI analysis not connected yet");
-  setText("attention-level", attention.level || "LOW");
-  setText("attention-reason", attention.reason || "System status is being loaded");
-  renderMissionDetections("current-detections", detections);
-  renderMissionList("mission-sensor-health", [
-    { label: "Sensors online", value: `${sensorHealth.online_count ?? 0}/${sensorHealth.total_count ?? 3}`, status: "OK", tone: "muted" },
-    { label: "RGB LEFT", value: sensorHealth.rgb_left?.state || "Loading", status: sensorHealth.rgb_left?.enabled ? "ENABLED" : "PAUSED", tone: sensorHealth.rgb_left?.enabled ? "muted" : "error" },
-    { label: "RGB RIGHT", value: sensorHealth.rgb_right?.state || "Loading", status: sensorHealth.rgb_right?.enabled ? "ENABLED" : "PAUSED", tone: sensorHealth.rgb_right?.enabled ? "muted" : "error" },
-    { label: "THERMAL", value: `${sensorHealth.thermal?.state || "Loading"} · ${sensorHealth.thermal?.mode || "Loading"}`, status: sensorHealth.thermal?.detected ? "ONLINE" : "MOCK", tone: sensorHealth.thermal?.detected ? "muted" : "warn" },
-  ]);
-  renderMissionList("mission-pipeline-health", [
-    { label: "Fused view", value: pipeline.fusion?.message || "Multimodal fusion preview. RGB + Thermal fusion will appear here.", status: pipeline.fusion?.state || "Preview not connected", tone: "muted" },
-    { label: "Inference", value: pipeline.inference?.message || "AI analysis not connected yet.", status: pipeline.inference?.state || "Not connected", tone: "muted" },
-    { label: "Recording", value: pipeline.recording?.message || "Recording controls are available from Acquisition.", status: pipeline.recording?.state || "Not connected", tone: pipeline.recording?.supported ? "muted" : "warn" },
-    { label: "Snapshot", value: pipeline.snapshot?.message || "Snapshot capture ready", status: pipeline.snapshot?.state || "READY", tone: "muted" },
-  ]);
-  setText("fused-state", pipeline.fusion?.state || "Preview not connected");
-  setText("fused-fusion-state", pipeline.fusion?.state || "Preview not connected");
-  setText("fused-detection-state", detections.length ? "Active" : "Idle");
-  setText("fused-inference-state", pipeline.inference?.state || "AI analysis not connected yet");
+  const liveCards = [
+    {
+      key: "rgb_left",
+      state: rgbLeft.state || rgb.camera_state || "LOADING",
+      fps: rgbLeft.fps ?? rgb.fps ?? null,
+      last: rgbLeft.last_acquisition_ts || rgb.last_frame_ts || rgb.last_acquisition_ts || null,
+      device: rgbLeft.hardware_name || "Arducam UC-517 LEFT",
+      detected: Boolean(rgbLeft.last_acquisition_ts || rgb.last_frame_ts),
+    },
+    {
+      key: "thermal",
+      state: thermal.status || thermalCam.state || thermal.mode || "LOADING",
+      fps: thermal.fps ?? thermal.frame_rate ?? thermalCam.fps ?? null,
+      last: thermal.last_frame_ts || thermal.last_acquisition_ts || thermalCam.last_frame_ts || null,
+      device: "FLIR Lepton",
+      detected: Boolean(thermal.last_frame_ts || thermal.last_acquisition_ts || thermalCam.last_frame_ts),
+      mode: thermal.mode || thermalCam.mode || "real",
+    },
+    {
+      key: "rgb_right",
+      state: rgbRight.state || rgb.camera_state || "LOADING",
+      fps: rgbRight.fps ?? rgb.fps ?? null,
+      last: rgbRight.last_acquisition_ts || rgb.last_frame_ts || rgbRight.last_frame_ts || null,
+      device: rgbRight.hardware_name || "Arducam UC-517 RIGHT",
+      detected: Boolean(rgbRight.last_acquisition_ts || rgb.last_frame_ts || rgbRight.last_frame_ts),
+    },
+  ];
+
+  liveCards.forEach((cardInfo) => {
+    const tone = liveFeedTone(cardInfo.state, cardInfo.key, cardInfo.last, cardInfo.detected);
+    if (cardInfo.key === "thermal" && !isFreshTimestamp(cardInfo.last)) {
+      tone.offline = true;
+      tone.loading = false;
+      tone.dot = cardInfo.detected ? "state-dot-error" : "state-dot-muted";
+      tone.badge = cardInfo.detected ? "error" : "muted";
+    }
+    const label = tone.offline ? (cardInfo.detected ? "Offline" : "Not detected") : humanStateLabel(cardInfo.state);
+    const statusText = liveStatusText(cardInfo.key, cardInfo.state, cardInfo.fps, cardInfo.last, cardInfo.detected);
+    const card = document.querySelector(`[data-feed="${cardInfo.key}"]`);
+    const badgeTone = tone.badge === "loading" ? "loading" : tone.badge;
+    setBadge(`${cardInfo.key}_state`, label, badgeTone);
+    setText(`${cardInfo.key}_status`, statusText);
+    setText(`${cardInfo.key}_fps`, cardInfo.fps != null && Number.isFinite(Number(cardInfo.fps)) ? `${Number(cardInfo.fps).toFixed(1)} fps` : "--");
+    setText(`${cardInfo.key}_last`, cardInfo.last ? formatRomeTimeOnly(cardInfo.last) : "--");
+    const offlineNode = byId(`${cardInfo.key}_offline`);
+    const offline = tone.offline;
+    if (card) {
+      card.classList.toggle("is-offline", offline);
+      card.classList.toggle("is-loading", tone.loading);
+      card.classList.toggle("is-live", !offline && !tone.loading);
+    }
+    if (offlineNode) {
+      offlineNode.hidden = !offline;
+    }
+    const deviceNode = byId(`${cardInfo.key}_device_name`);
+    if (deviceNode) deviceNode.textContent = cardInfo.device;
+    const image = card ? card.querySelector("[data-feed-image], #thermal-frame") : null;
+    if (image) {
+      image.classList.toggle("is-hidden", offline);
+    }
+  });
+
+  const recording = operations.pipeline?.recording || {};
+  const thermalState = String(thermal.status || thermal.mode || "").toUpperCase();
+  const snapshotButton = byId("live-snapshot-button");
+  if (snapshotButton) {
+    snapshotButton.dataset.primaryFeed = thermalState === "REAL" || thermalState === "LIVE" || thermalState === "READY" ? "thermal" : "rgb_left";
+  }
+  const recordButton = byId("live-record-button");
+  if (recordButton) {
+    const supported = Boolean(recording.supported);
+    recordButton.disabled = !supported;
+    recordButton.title = supported ? "" : "Recording non disponibile";
+  }
 }
 
 function renderSensorsPage(health, snapshots) {
@@ -500,25 +1294,35 @@ function renderSensorsPage(health, snapshots) {
   const rgbCams = health.cameras?.rgb_cameras || [];
   const rgbLeft = rgbCams[0] || {};
   const rgbRight = rgbCams[1] || {};
+  const acquisitionState = humanAcquisitionState(health, rgbLeft, rgbRight, thermal, pipeline);
+  const rgbLeftLabel = humanStateLabel(rgbLeft.state || rgb.camera_state || "Loading");
+  const rgbRightLabel = humanStateLabel(rgbRight.state || rgb.camera_state || "Loading");
+  const thermalLabel = humanStateLabel(thermal.status || thermal.mode || "Loading");
+  const recordingLabel = pipeline.recording?.supported ? humanStateLabel(pipeline.recording?.state || "READY") : "Planned";
 
   setText("sensors-header-streams", `${sensorHealth.online_count ?? 0}/${sensorHealth.total_count ?? 3} online`);
   setText("sensors-header-snapshots", `${snapshots.length}`);
-  setText("sensors-header-recording", pipeline.recording?.state || "Not connected");
+  setText("sensors-header-recording", recordingLabel);
   setText("sensors-header-errors", `${(dashboardState.events || []).filter((event) => String(event.severity || "").toLowerCase() === "error").length}`);
-  setText("acq-rgb-left-state", rgbLeft.state || rgb.camera_state || "Loading");
-  setText("acq-rgb-left-meta", `${rgbLeft.fps != null ? `${Number(rgbLeft.fps).toFixed(1)} fps` : "No FPS yet"} · ${rgbLeft.message || rgb.message || "Waiting for camera frames. Check that the stream is running."}`);
-  setText("acq-rgb-right-state", rgbRight.state || rgb.camera_state || "Loading");
-  setText("acq-rgb-right-meta", `${rgbRight.fps != null ? `${Number(rgbRight.fps).toFixed(1)} fps` : "No FPS yet"} · ${rgbRight.message || rgb.message || "Waiting for camera frames. Check that the stream is running."}`);
-  setText("acq-thermal-state", thermal.status || thermal.mode || "Loading");
-  setText("acq-thermal-meta", thermal.message || "Thermal status is being loaded");
-  setText("acq-recording-state", pipeline.recording?.state || "Not connected");
-  setText("acq-recording-meta", pipeline.recording?.message || "Recording controls are available from Acquisition");
-  setText("acq-control-state", health.ok ? "Ready" : "Needs attention");
+  setText("acq-hero-title", acquisitionState.title);
+  setText("acq-hero-copy", acquisitionState.copy);
+  setText("acq-hero-helper", acquisitionState.helper);
+  setText("acq-next-step-title", acquisitionState.nextTitle);
+  setText("acq-next-step-copy", acquisitionState.nextCopy);
+  setText("acq-rgb-left-state", rgbLeftLabel);
+  setText("acq-rgb-left-meta", `${rgbLeft.fps != null ? `${Number(rgbLeft.fps).toFixed(1)} fps` : "No live FPS yet"} · ${buildFeedGuidance("rgb", rgbLeft.state || rgb.camera_state, rgbLeft.message || rgb.message || "Waiting for camera frames. Check that the stream is running.")}`);
+  setText("acq-rgb-right-state", rgbRightLabel);
+  setText("acq-rgb-right-meta", `${rgbRight.fps != null ? `${Number(rgbRight.fps).toFixed(1)} fps` : "No live FPS yet"} · ${buildFeedGuidance("rgb", rgbRight.state || rgb.camera_state, rgbRight.message || rgb.message || "Waiting for camera frames. Check that the stream is running.")}`);
+  setText("acq-thermal-state", thermalLabel);
+  setText("acq-thermal-meta", buildFeedGuidance("thermal", thermal.status || thermal.mode, thermal.message || "Thermal status is being loaded"));
+  setText("acq-recording-state", recordingLabel);
+  setText("acq-recording-meta", pipeline.recording?.supported ? (pipeline.recording?.message || "Recording controls are available from this page.") : "Recording workflow is visible here and will connect to the Raspberry pipeline next.");
+  setText("acq-control-state", acquisitionState.controlState);
   renderHealthSummary("acquisition-health", [
-    { label: "RGB LEFT", value: `${rgbLeft.state || "Loading"} · ${rgbLeft.message || "Waiting for camera frames. Check that the stream is running."}`, tone: rgbLeft.enabled ? "muted" : "error" },
-    { label: "RGB RIGHT", value: `${rgbRight.state || "Loading"} · ${rgbRight.message || "Waiting for camera frames. Check that the stream is running."}`, tone: rgbRight.enabled ? "muted" : "error" },
-    { label: "THERMAL", value: `${thermal.status || "Loading"} · ${thermal.message || "Thermal status is being loaded"}`, tone: thermal.anomaly_active ? "warn" : "muted" },
-    { label: "Recording", value: pipeline.recording?.state || "Not connected", tone: pipeline.recording?.supported ? "muted" : "warn" },
+    { label: "Left RGB", value: `${rgbLeftLabel} · ${buildFeedGuidance("rgb", rgbLeft.state || rgb.camera_state, rgbLeft.message || "Waiting for camera frames. Check that the stream is running.")}`, tone: rgbLeft.enabled ? "muted" : "error" },
+    { label: "Right RGB", value: `${rgbRightLabel} · ${buildFeedGuidance("rgb", rgbRight.state || rgb.camera_state, rgbRight.message || "Waiting for camera frames. Check that the stream is running.")}`, tone: rgbRight.enabled ? "muted" : "error" },
+    { label: "Thermal", value: `${thermalLabel} · ${buildFeedGuidance("thermal", thermal.status || thermal.mode, thermal.message || "Thermal status is being loaded")}`, tone: thermal.anomaly_active ? "warn" : "muted" },
+    { label: "Capture workflow", value: pipeline.recording?.supported ? (pipeline.recording?.message || recordingLabel) : "Planned for Raspberry pipeline integration", tone: pipeline.recording?.supported ? "muted" : "warn" },
   ]);
   const errors = dashboardState.events.filter((event) => String(event.severity || "").toLowerCase() === "error").slice(0, 4);
   renderKeyValueList(
@@ -535,15 +1339,22 @@ function renderSensorsPage(health, snapshots) {
 
 function renderThermalPage(health, eventsPayload) {
   const thermal = health.thermal || {};
+  const thermalState = humanThermalState(thermal, eventsPayload?.count ?? dashboardState.events.length);
+  const thermalLabel = humanStateLabel(thermal.status || thermal.mode || "Loading");
   const summary = [thermal.min_c, thermal.avg_c, thermal.max_c].map((item) => (item == null ? "Not available" : `${item} °C`)).join(" / ");
-  setText("thermal-page-state", thermal.status || thermal.mode || "Loading thermal state");
+  setText("thermal-hero-title", thermalState.title);
+  setText("thermal-hero-copy", thermalState.copy);
+  setText("thermal-hero-helper", thermalState.helper);
+  setText("thermal-events-helper", thermalState.eventsHelper);
+  setText("thermal-page-state", thermalLabel);
   setText("thermal-page-metrics", summary);
   setText("thermal-page-alarm", thermal.anomaly_active ? "Active" : "Clear");
   setText("thermal-page-events", `${eventsPayload?.count ?? dashboardState.events.length}`);
   setText("thermal-alarm-reason", thermal.message || (thermal.anomaly_active ? "Thermal anomaly detected." : "Thermal feed nominal."));
-  setText("thermal_state", thermal.status || thermal.mode || "Loading thermal state");
-  setText("thermal_state_copy", thermal.status || thermal.mode || "Loading thermal state");
-  setText("thermal_state_msg", thermal.message || "Thermal status is being loaded");
+  setText("thermal_state", thermalLabel);
+  setText("thermal_state_copy", thermalLabel);
+  setText("thermal_state_msg", humanFeedMessage("thermal", thermal.status || thermal.mode, thermal.message || "Thermal status is being loaded"));
+  setText("thermal_quick_help", buildFeedGuidance("thermal", thermal.status || thermal.mode, thermal.message || "Thermal status is being loaded"));
   setText("thermal_min", thermal.min_c != null ? `${thermal.min_c} ${thermal.unit === "raw" ? "raw" : "°C"}` : thermal.raw_min != null ? `${thermal.raw_min} raw` : "Not available");
   setText("thermal_avg", thermal.avg_c != null ? `${thermal.avg_c} ${thermal.unit === "raw" ? "raw" : "°C"}` : thermal.raw_avg != null ? `${thermal.raw_avg} raw` : "Not available");
   const thermalMaxNode = byId("thermal_max");
@@ -588,88 +1399,57 @@ function renderSystemPage(health) {
   const system = health.system || {};
   const cameras = health.cameras || {};
   const operations = health.operations || {};
-  const pipeline = operations.pipeline || {};
   const sensorHealth = operations.sensor_health || {};
   const rgbCams = cameras.rgb_cameras || [];
   const thermalCam = cameras.thermal_camera || {};
   const uc512 = cameras.uc512_multiplexer || {};
+  const rgbLeftLive = sensorHealth.rgb_left || {};
+  const rgbRightLive = sensorHealth.rgb_right || {};
+  const thermalLive = sensorHealth.thermal || {};
+  const cpu = Number(system.cpu_percent ?? 0);
+  const ram = Number(system.ram?.percent ?? 0);
+  const disk = Number(system.disk?.percent ?? 0);
+  const temp = Number(system.cpu_temperature_c ?? 0);
+  const uptime = formatUptimeShort(system.uptime_seconds);
+  setMetricValue("cpu-percent", `${cpu.toFixed(1)}%`, cpuTone(cpu));
+  setMetricValue("ram-percent", `${ram.toFixed(1)}%`, cpuTone(ram));
+  setMetricValue("disk-percent", `${disk.toFixed(1)}%`, cpuTone(disk));
+  setMetricValue("cpu-temp", temp ? `${temp.toFixed(1)}°C` : "--", tempTone(temp));
+  setMetricValue("uptime", uptime, "neutral");
 
-  setText("system-header-cpu", `${system.cpu_percent ?? "--"}%`);
-  setText("system-header-ram", `${system.ram?.percent ?? "--"}%`);
-  setText("system-header-uptime", formatUptime(system.uptime_seconds));
-  setText("system-header-model", system.model || "--");
-  setText("cpu-percent", `${system.cpu_percent ?? "--"}%`);
-  setText("cpu-temp", system.cpu_temperature_c != null ? `${system.cpu_temperature_c} °C` : "--");
-  setText("ram-percent", `${system.ram?.percent ?? "--"}%`);
-  setText("disk-percent", `${system.disk?.percent ?? "--"}%`);
-  setText("uptime", formatUptime(system.uptime_seconds));
-  setText("pi-model", system.model || "--");
-
-  renderHealthSummary("system-pipeline-health", [
-    { label: "Fusion", value: pipeline.fusion?.state || "Preview not connected", tone: "muted" },
-    { label: "Inference", value: pipeline.inference?.state || "AI analysis not connected yet", tone: "muted" },
-    { label: "Recording", value: pipeline.recording?.state || "Not connected", tone: pipeline.recording?.supported ? "muted" : "warn" },
-    { label: "Snapshot", value: pipeline.snapshot?.state || "Ready", tone: "muted" },
-  ]);
-
-  const services = [
-    { label: uc512.logical_name || "UC512_MULTIPLEXER", value: `${uc512.hardware_name || "Arducam CamArray UC-512"} · ${uc512.state || "Loading"}${uc512.message ? ` · ${uc512.message}` : ""}`, status: uc512.state || "Loading", tone: "muted" },
-    { label: "RGB_CAM_LEFT", value: `${rgbCams[0]?.hardware_name || "Arducam UC-517 LEFT"} · ${rgbCams[0]?.state || "Loading"} · ${rgbCams[0]?.fps != null ? `${Number(rgbCams[0].fps).toFixed(1)} fps` : "Loading"}`, status: rgbCams[0]?.enabled ? "ONLINE" : "PAUSED", tone: rgbCams[0]?.enabled ? "muted" : "error" },
-    { label: "RGB_CAM_RIGHT", value: `${rgbCams[1]?.hardware_name || "Arducam UC-517 RIGHT"} · ${rgbCams[1]?.state || "Loading"} · ${rgbCams[1]?.fps != null ? `${Number(rgbCams[1].fps).toFixed(1)} fps` : "Loading"}`, status: rgbCams[1]?.enabled ? "ONLINE" : "PAUSED", tone: rgbCams[1]?.enabled ? "muted" : "error" },
-    { label: "THERMAL_FLIR", value: `${thermalCam.hardware_name || "FLIR/Lepton Thermal Sensor"} · ${thermalCam.state || "Loading"} · ${thermalCam.mode || "Loading"}`, status: thermalCam.state || "Loading", tone: thermalCam.state === "OFFLINE" ? "error" : "muted" },
-    { label: "Sensors online", value: `${sensorHealth.online_count ?? 0}/${sensorHealth.total_count ?? 3}`, status: "SUMMARY", tone: "muted" },
+  const devices = [
+    { name: "UC512_MULTIPLEXER", desc: "Arducam CamArray UC-512", state: uc512.state || "UNKNOWN", tone: stateTone(uc512.state).badge },
+    { name: "RGB_CAM_LEFT", desc: `Arducam UC-517 LEFT · ${rgbCams[0]?.fps != null ? `${Number(rgbCams[0].fps).toFixed(1)} fps` : "-- fps"}`, state: rgbLeftLive.state || "NOT_DETECTED", tone: stateTone(rgbLeftLive.state).badge },
+    { name: "RGB_CAM_RIGHT", desc: `Arducam UC-517 RIGHT · ${rgbCams[1]?.fps != null ? `${Number(rgbCams[1].fps).toFixed(1)} fps` : "-- fps"}`, state: rgbRightLive.state || "NOT_DETECTED", tone: stateTone(rgbRightLive.state).badge },
+    { name: "THERMAL_FLIR", desc: `FLIR/Lepton · ${thermalCam.mode || "real"}`, state: thermalLive.state || "NOT_DETECTED", tone: stateTone(thermalLive.state).badge },
+    { name: "Sensors online", desc: `${sensorHealth.online_count ?? 0}/3`, state: sensorHealth.online_count != null && sensorHealth.online_count > 0 ? "DETECTED" : "NOT_DETECTED", tone: stateTone(sensorHealth.online_count > 0 ? "ONLINE" : "NOT_DETECTED").badge },
   ];
-  renderMissionList("system-service-list", services);
+  renderSystemDevices(devices, sensorHealth.online_count ?? 0, sensorHealth.total_count ?? 3);
 
-  const recentErrors = dashboardState.events.filter((event) => String(event.severity || "").toLowerCase() === "error").slice(0, 4);
-  renderKeyValueList(
-    "recent-errors-list",
-    recentErrors.length
-      ? recentErrors.map((event) => ({
-          label: `${friendlySource(event.source)} · ${friendlyEventType(event.type)}`,
-          value: cleanLogText(event.description || event.action || "Error"),
-          tone: "error",
-        }))
-    : [{ label: "No recent errors", value: "The system is healthy right now.", tone: "muted" }],
-  );
+  const recentErrors = recentErrorEvents(dashboardState.events, 5);
+  renderSystemErrors(recentErrors);
 }
 
 function updateNavIndicators(health, eventsPayload, snapshots) {
   const sensorHealth = health?.operations?.sensor_health || {};
-  const thermal = health?.thermal || {};
-  const errors = eventsPayload?.summary?.severity?.error || 0;
-  const warnings = eventsPayload?.summary?.severity?.warning || 0;
-  const alerts = errors + warnings;
-  const offlineSensors = Math.max(0, (sensorHealth.total_count || 0) - (sensorHealth.online_count || 0));
+  const detections = Array.isArray(dashboardState.detections)
+    ? dashboardState.detections.filter((item) => String(item?.source || "").toLowerCase() !== "placeholder")
+    : [];
+  const errorCount = eventsPayload?.summary?.severity?.error || 0;
+  const detectionsErrors = detections.filter((item) => String(item?.severity || "").toLowerCase() === "error").length;
   document.querySelectorAll("[data-nav-key]").forEach((link) => {
     const key = link.getAttribute("data-nav-key");
-    const dot = link.querySelector(".nav-status-dot");
     const badge = link.querySelector(".nav-alert-badge");
-    let tone = "muted";
-    let count = 0;
-    if (key === "mission") {
-      tone = health?.ok ? "online" : "warning";
-      count = alerts;
-    } else if (key === "sensors") {
-      tone = offlineSensors > 0 ? "warning" : "online";
-      count = offlineSensors;
-    } else if (key === "thermal") {
-      tone = thermal.anomaly_active || alerts > 0 ? "warning" : "online";
-      count = alerts;
-    } else if (key === "system") {
-      tone = errors > 0 ? "warning" : "online";
-      count = errors;
-    } else if (key === "snapshots") {
-      tone = snapshots?.length ? "online" : "muted";
-      count = 0;
-    }
-    if (dot) {
-      dot.classList.remove("is-online", "is-warning", "is-error", "is-muted", "is-loading");
-      dot.classList.add(`is-${tone}`);
-    }
     if (badge) {
-      badge.hidden = !count;
-      badge.textContent = count ? String(count) : "";
+      const showBadge = (key === "log" || key === "system") && errorCount > 0;
+      badge.hidden = !showBadge;
+      badge.classList.remove("is-online", "is-warning", "is-error", "is-muted");
+      if (showBadge) {
+        badge.classList.add("is-error");
+        badge.textContent = `${errorCount} err`;
+      } else {
+        badge.textContent = "";
+      }
     }
   });
 }
@@ -690,6 +1470,9 @@ async function snapshot(feed) {
     rgb_right: "RGB RIGHT",
     thermal: "THERMAL",
   };
+  if (dashboardState.page === "live" && feed === "thermal") {
+    return;
+  }
   const overlay = byId(`overlay-${feed}`);
   if (overlay) {
     overlay.textContent = "Saving snapshot...";
@@ -716,21 +1499,34 @@ async function snapshot(feed) {
 }
 
 function setFeedOverlay(feed, visible, message) {
+  if (dashboardState.page === "live" && feed === "thermal") return;
   const overlay = byId(`overlay-${feed}`);
   if (!overlay) return;
-  overlay.textContent = message || "";
+  overlay.textContent = visible ? humanFeedMessage(feed === "thermal" ? "thermal" : "rgb", feed === "thermal" ? byId("thermal_state")?.textContent : byId(`${feed}_state`)?.textContent, message) : (message || "");
   overlay.classList.toggle("feed-overlay-hidden", !visible);
+  overlay.classList.toggle("is-actionable", Boolean(visible && message));
 }
 
 const dashboardState = {
-  page: document.body?.dataset?.page || "mission",
+  page: document.body?.dataset?.page || "live",
+  health: null,
   events: [],
+  detections: [],
   snapshots: [],
   snapshotSummary: null,
+  eventSummary: null,
+  eventCount: 0,
+  logLimit: 100,
+  logExpandedIds: new Set(),
+  initialLogSeverity: new URLSearchParams(window.location.search).get("severity") || "error",
   filters: {
     severity: "all",
     source: "all",
     query: "",
+    detection: "all",
+    logSeverity: new URLSearchParams(window.location.search).get("severity") || "error",
+    logSource: "all",
+    logQuery: "",
   },
 };
 
@@ -738,14 +1534,18 @@ async function refreshDashboard() {
   try {
     const [healthRes, eventsRes, snapshotsRes] = await Promise.all([
       fetch("/health", { cache: "no-store" }),
-      fetch("/events?limit=24", { cache: "no-store" }),
+      fetch("/events?limit=9999", { cache: "no-store" }),
       fetch("/api/snapshots/recent?limit=12", { cache: "no-store" }),
     ]);
     const health = await healthRes.json();
     const eventsPayload = await eventsRes.json();
     const snapshotsPayload = await snapshotsRes.json();
 
+    dashboardState.health = health;
     dashboardState.events = eventsPayload?.events || [];
+    dashboardState.eventSummary = eventsPayload?.summary || null;
+    dashboardState.eventCount = eventsPayload?.count ?? dashboardState.events.length;
+    dashboardState.detections = health.operations?.detections || [];
     dashboardState.snapshots = snapshotsPayload?.items || [];
     dashboardState.snapshotSummary = snapshotsPayload?.summary || null;
 
@@ -771,8 +1571,6 @@ async function refreshDashboard() {
     setText("summary-events-detail", eventsPayload?.count ? "Recent activity feed" : "No events recorded in this session");
     setText("summary-recording", pipeline.recording?.state || "Not connected");
     setText("summary-recording-detail", pipeline.recording?.message || "Recording controls are available from Acquisition");
-    setText("summary-inference", pipeline.inference?.state || "AI analysis not connected yet");
-    setText("summary-inference-detail", pipeline.inference?.message || "AI analysis not connected yet");
 
     updateCameraState("rgb_left", rgbLeft.state || rgb.camera_state || "DETECTED", rgbLeft.message || rgb.message || "Ready");
     updateCameraState("rgb_right", rgbRight.state || rgb.camera_state || "DETECTED", rgbRight.message || rgb.message || "Ready");
@@ -795,26 +1593,14 @@ async function refreshDashboard() {
     renderSnapshots(dashboardState.snapshots, dashboardState.snapshotSummary);
     updateNavIndicators(health, eventsPayload, dashboardState.snapshots);
 
-    if (dashboardState.page === "mission") {
-      renderMissionPage(health, eventsPayload, dashboardState.snapshots);
+    if (dashboardState.page === "live") {
+      renderLivePage(health);
     }
-    if (dashboardState.page === "sensors") {
-      renderSensorsPage(health, dashboardState.snapshots);
-    }
-    if (dashboardState.page === "thermal") {
-      renderThermalPage(health, eventsPayload);
+    if (dashboardState.page === "detections") {
+      renderDetectionsPage(health);
     }
     if (dashboardState.page === "system") {
       renderSystemPage(health);
-    }
-    if (dashboardState.page === "snapshots") {
-      setText("snapshot-count", `${dashboardState.snapshotSummary?.count ?? dashboardState.snapshots.length}`);
-      setText("snapshot-total-size", formatBytes(dashboardState.snapshotSummary?.size_bytes || 0));
-      const latest = dashboardState.snapshotSummary?.latest || dashboardState.snapshots[0];
-      setText("snapshot-latest-time", latest ? `Roma ${formatRomeDateTime(latest.created)}` : "--");
-      setText("snapshots-header-count", `${dashboardState.snapshotSummary?.count ?? dashboardState.snapshots.length}`);
-      setText("snapshots-header-latest", latest ? latest.feed_label || latest.feed || "--" : "--");
-      setText("snapshots-header-size", formatBytes(dashboardState.snapshotSummary?.size_bytes || 0));
     }
 
     renderKeyValueList(
@@ -829,9 +1615,6 @@ async function refreshDashboard() {
         })),
     );
 
-    setFeedOverlay("rgb_left", !rgb.has_frame || rgbLeft.enabled === false, rgbLeft.enabled === false ? "Stream paused" : rgbLeft.message || "Waiting for camera frames. Check that the stream is running.");
-    setFeedOverlay("rgb_right", !rgb.has_frame || rgbRight.enabled === false, rgbRight.enabled === false ? "Stream paused" : rgbRight.message || "Waiting for camera frames. Check that the stream is running.");
-    setFeedOverlay("thermal", false, thermal.message || "Thermal monitor active");
   } catch (error) {
     console.error(error);
     setText("system-state", "ERROR");
@@ -842,32 +1625,133 @@ async function refreshDashboard() {
 function setupFilters() {
   const searchInput = byId("log-search");
   if (searchInput) {
+    searchInput.value = "";
     searchInput.addEventListener("input", (event) => {
-      dashboardState.filters.query = String(event.target.value || "").trim().toLowerCase();
+      dashboardState.filters.logQuery = String(event.target.value || "").trim().toLowerCase();
       renderEventLog(dashboardState.events);
     });
   }
 
-  document.querySelectorAll("[data-severity-filter]").forEach((button) => {
+  const sourceSelect = byId("log-source-select");
+  if (sourceSelect) {
+    sourceSelect.addEventListener("change", (event) => {
+      dashboardState.filters.logSource = String(event.target.value || "all").toLowerCase();
+      renderEventLog(dashboardState.events);
+    });
+  }
+
+  document.querySelectorAll("[data-log-severity]").forEach((button) => {
     button.addEventListener("click", () => {
-      dashboardState.filters.severity = button.getAttribute("data-severity-filter") || "all";
-      document.querySelectorAll("[data-severity-filter]").forEach((item) => item.classList.remove("is-active"));
+      dashboardState.filters.logSeverity = button.getAttribute("data-log-severity") || "all";
+      document.querySelectorAll("[data-log-severity]").forEach((item) => item.classList.remove("is-active"));
       button.classList.add("is-active");
       renderEventLog(dashboardState.events);
     });
   });
 
-  document.querySelectorAll("[data-source-filter]").forEach((button) => {
+  const initialSeverity = dashboardState.initialLogSeverity || "error";
+  const initialButton = document.querySelector(`[data-log-severity="${initialSeverity}"]`);
+  if (initialButton) {
+    document.querySelectorAll("[data-log-severity]").forEach((item) => item.classList.remove("is-active"));
+    initialButton.classList.add("is-active");
+  }
+
+  document.querySelectorAll("[data-detection-filter]").forEach((button) => {
     button.addEventListener("click", () => {
-      dashboardState.filters.source = button.getAttribute("data-source-filter") || "all";
-      document.querySelectorAll("[data-source-filter]").forEach((item) => item.classList.remove("is-active"));
+      dashboardState.filters.detection = button.getAttribute("data-detection-filter") || "all";
+      document.querySelectorAll("[data-detection-filter]").forEach((item) => item.classList.remove("is-active"));
       button.classList.add("is-active");
-      renderEventLog(dashboardState.events);
+      if (dashboardState.page === "detections") {
+        renderDetectionsPage(dashboardState.health || {});
+      }
     });
   });
+
+  const loadMore = byId("log-load-more");
+  if (loadMore) {
+    loadMore.addEventListener("click", () => {
+      dashboardState.logLimit += 100;
+      renderEventLog(dashboardState.events);
+    });
+  }
 }
 
 function setupButtons() {
+  const logExportButton = byId("log-export-csv");
+  if (logExportButton) {
+    logExportButton.addEventListener("click", () => {
+      const visibleEvents = getVisibleLogEvents(dashboardState.events);
+      const csvRows = [
+        ["timestamp", "sorgente", "evento", "livello", "dettaglio"],
+        ...visibleEvents.map((event) => {
+          const detail = logExpandedText(event).replace(/\n/g, " | ");
+          return [
+            event.timestamp || "",
+            logSourceLabel(event),
+            cleanLogText(event.description || event.message || event.type || ""),
+            logLevelMeta(event).label,
+            detail,
+          ];
+        }),
+      ];
+      const csv = csvRows
+        .map((row) =>
+          row
+            .map((cell) => {
+              const value = String(cell ?? "");
+              const escaped = value.replaceAll('"', '""');
+              return `"${escaped}"`;
+            })
+            .join(","),
+        )
+        .join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `easy-maritime-log-${formatRomeCsvTimestamp()}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
+  }
+
+  const liveSnapshotButton = byId("live-snapshot-button");
+  if (liveSnapshotButton) {
+    liveSnapshotButton.addEventListener("click", async () => {
+      const health = dashboardState.health || {};
+      const thermal = health.thermal || {};
+      const rgb = health.rgb || {};
+      const cameras = health.cameras || {};
+      const rgbCams = cameras.rgb_cameras || [];
+      const rgbLeft = rgbCams[0] || {};
+      const rgbRight = rgbCams[1] || {};
+      const thermalState = String(thermal.mode || thermal.status || "").toUpperCase();
+      const preferredFeed =
+        thermalState === "REAL" || thermalState === "LIVE" || thermalState === "READY"
+          ? "thermal"
+          : rgbLeft.state && !String(rgbLeft.state).toUpperCase().includes("OFFLINE")
+            ? "rgb_left"
+            : rgbRight.state && !String(rgbRight.state).toUpperCase().includes("OFFLINE")
+              ? "rgb_right"
+              : "thermal";
+      await snapshot(preferredFeed);
+    });
+  }
+
+  const liveRecordButton = byId("live-record-button");
+  if (liveRecordButton) {
+    liveRecordButton.addEventListener("click", () => {
+      const recording = dashboardState.health?.operations?.pipeline?.recording || {};
+      if (recording.supported) {
+        showToast("Recording", "Recording actions are not wired in this phase.", "info");
+      } else {
+        liveRecordButton.disabled = true;
+      }
+    });
+  }
+
   document.querySelectorAll("[data-action]").forEach((button) => {
     button.addEventListener("click", async () => {
       const feed = button.getAttribute("data-feed");
@@ -889,53 +1773,17 @@ function setupButtons() {
     });
   });
 
-  document.querySelectorAll("[data-placeholder-control]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const action = button.getAttribute("data-placeholder-control") || "placeholder";
-      const labelMap = {
-        "record-start": "Start recording is not connected yet.",
-        "record-stop": "Stop recording is not connected yet.",
-        "record-clip": "Clip marking is not connected yet.",
-        fusion: "Fusion preview is not connected yet.",
-        inference: "AI analysis is not connected yet.",
-      };
-      showToast("Not connected yet", labelMap[action] || "This control is not connected yet.", "info");
-    });
-  });
-
   const thermalButton = byId("thermal-snapshot");
   if (thermalButton) {
     thermalButton.addEventListener("click", async () => {
       await snapshot("thermal");
     });
   }
-
-  document.querySelectorAll("[data-feed-image]").forEach((img) => {
-    img.addEventListener("load", () => {
-      const feed = img.getAttribute("data-feed-image");
-      setFeedOverlay(feed, false, "");
-    });
-    img.addEventListener("error", () => {
-      const feed = img.getAttribute("data-feed-image");
-      setFeedOverlay(feed, true, "Preview unavailable");
-    });
-  });
-}
-
-function setupViewToggle() {
-  applyViewMode(getViewMode());
-  document.querySelectorAll("[data-view-mode]").forEach((button) => {
-    button.addEventListener("click", () => {
-      applyViewMode(button.getAttribute("data-view-mode"));
-      renderEventLog(dashboardState.events);
-    });
-  });
 }
 
 window.addEventListener("load", () => {
   setupFilters();
   setupButtons();
-  setupViewToggle();
   refreshDashboard();
   window.setInterval(refreshDashboard, 2500);
   if (byId("thermal-frame")) {
