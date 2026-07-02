@@ -160,6 +160,8 @@ function friendlySource(value) {
     RGB_LEFT: "RGB LEFT",
     RGB_RIGHT: "RGB RIGHT",
     THERMAL_FLIR: "THERMAL",
+    EASY_INFERENCE: "AI INFERENCE",
+    DETECTION_MANAGER: "DETECTION MANAGER",
   };
   return map[String(value || "").toUpperCase()] || String(value || "--");
 }
@@ -188,6 +190,10 @@ function friendlyEventType(value) {
     THERMAL_HOTSPOT: "Hotspot termico",
     DETECTED: "Rilevato",
     NOT_DETECTED: "Non rilevato",
+    INFERENCE_START: "AI avviata",
+    INFERENCE_STOP: "AI fermata",
+    INFERENCE_ERROR: "Errore AI",
+    DETECTION_NEW: "Nuova detection",
     FEED_ENABLE: "Feed abilitato",
     FEED_DISABLE: "Feed sospeso",
   };
@@ -773,6 +779,245 @@ function renderMissionDetections(nodeId, detections) {
     .join("");
 }
 
+function formatAiBBox(box) {
+  const normalized = normalizeBBox(box);
+  if (!normalized) return "BBox: --";
+  const [x1, y1, x2, y2] = normalized;
+  if ([x1, y1, x2, y2].some((value) => !Number.isFinite(value))) return "BBox: --";
+  return `BBox: ${Math.round(x1)}, ${Math.round(y1)}, ${Math.round(x2)}, ${Math.round(y2)}`;
+}
+
+function normalizeBBox(box) {
+  if (Array.isArray(box) && box.length === 4) {
+    return box.map((value) => Number(value));
+  }
+  if (box && typeof box === "object") {
+    return [box.x1, box.y1, box.x2, box.y2].map((value) => Number(value));
+  }
+  return null;
+}
+
+function compactPath(value) {
+  const text = String(value || "");
+  if (!text) return "--";
+  const parts = text.split("/").filter(Boolean);
+  if (parts.length <= 3) return text;
+  return `.../${parts.slice(-3).join("/")}`;
+}
+
+function aiConfidencePercent(value) {
+  const confidence = Number(value);
+  if (!Number.isFinite(confidence)) return null;
+  return confidence <= 1 ? confidence * 100 : confidence;
+}
+
+function aiStatusMeta(status, current) {
+  const effectiveStatus = status || {};
+  const effectiveCurrent = current || {};
+  const error = effectiveCurrent?.error || effectiveStatus?.error || effectiveStatus?.config_error || "";
+  const running = Boolean(effectiveStatus.running);
+  const source = String(effectiveCurrent.source_label || effectiveStatus.source_label || effectiveCurrent.source || effectiveStatus.source || "").toLowerCase();
+  const hasDemoSource = source.includes("demo") || source.includes("replay") || source.includes("manual");
+  const label = error ? "ERROR" : running && hasDemoSource ? "DEMO" : running ? "RUNNING" : effectiveStatus.ok ? "IDLE" : "—";
+  const tone = error ? "error" : label === "RUNNING" ? "running" : label === "DEMO" ? "demo" : label === "IDLE" ? "idle" : "unknown";
+  return { label, tone, error, running };
+}
+
+function renderAiCompactStatus(status, current) {
+  const node = byId("ai_status_compact");
+  const dot = byId("ai_status_dot");
+  const pill = byId("status-pill-ai");
+  if (!node || !dot || !pill) return;
+  const meta = aiStatusMeta(status, current);
+  node.textContent = meta.label;
+  pill.classList.remove("is-running", "is-demo", "is-idle", "is-error", "is-unknown");
+  dot.classList.remove("is-running", "is-demo", "is-idle", "is-error", "is-unknown");
+  pill.classList.add(`is-${meta.tone}`);
+  dot.classList.add(`is-${meta.tone}`);
+}
+
+function aiSourceLabel(status, detection) {
+  const source = String(detection?.source || status?.source_label || status?.source || status?.mode || "replay").toLowerCase();
+  if (source.includes("manual")) return "Manual image";
+  if (source.includes("replay") || source.includes("demo") || source.includes("single") || source.includes("loop")) return "Replay / Demo";
+  return source.replace(/\b\w/g, (match) => match.toUpperCase()) || "Replay / Demo";
+}
+
+function aiSourceBadgeMeta(status, detection) {
+  const label = aiSourceLabel(status, detection).toLowerCase();
+  const source = String(detection?.source || status?.source_label || status?.source || "").toLowerCase();
+  const isDemo = label.includes("demo") || label.includes("replay") || label.includes("manual") || source.includes("demo") || source.includes("replay");
+  return isDemo ? { label: "AI · DEMO", className: "badge-ai-demo" } : { label: "AI · LIVE", className: "badge-ai-live" };
+}
+
+function renderAiDetections(status, current) {
+  const list = byId("ai-detections-list");
+  const empty = byId("ai-detections-empty");
+  const countNode = byId("ai-preview-count");
+  if (!list) return;
+  const detections = Array.isArray(current?.last_detections)
+    ? current.last_detections
+    : Array.isArray(current?.detections)
+      ? current.detections
+      : Array.isArray(status?.last_detections)
+        ? status.last_detections
+        : [];
+
+  list.innerHTML = "";
+  if (countNode) countNode.textContent = `${detections.length}`;
+  if (!detections.length) {
+    if (empty) empty.hidden = false;
+    return;
+  }
+
+  if (empty) empty.hidden = true;
+  detections.slice(0, 6).forEach((detection) => {
+    const card = document.createElement("article");
+    card.className = "ai-detection-card";
+    const confidence = aiConfidencePercent(detection?.confidence);
+    const confidenceLabel = Number.isFinite(confidence) ? `${Math.round(confidence * 100)}%` : "—";
+    const confidenceDisplay = Number.isFinite(confidence) ? `${Math.round(confidence)}%` : confidenceLabel;
+    const sourceLabel = aiSourceLabel(current || status, detection);
+    const imagePath = current?.last_image || status?.last_image || detection?.image_path || "";
+    card.innerHTML = `
+      <strong>${escapeHtml(detection?.class_name || detection?.label || "Detection")}</strong>
+      <p>${escapeHtml(formatAiBBox(detection?.box_xyxy || detection?.bbox || detection?.xyxy))}</p>
+      <div class="ai-detection-meta">
+        <span class="badge badge-online">Confidence ${escapeHtml(confidenceDisplay)}</span>
+        <span class="badge badge-muted">Source ${escapeHtml(sourceLabel)}</span>
+      </div>
+      <small title="${escapeHtml(imagePath)}">${escapeHtml(compactPath(imagePath || detection?.source || "runtime/sessions"))}</small>
+    `;
+    list.appendChild(card);
+  });
+}
+
+function renderAiPreview(status, current) {
+  const panel = byId("ai-preview-panel");
+  const img = byId("ai-preview-image");
+  const empty = byId("ai-preview-empty");
+  if (panel) panel.hidden = false;
+  if (!img || !empty) return;
+  const previewAvailable = Boolean((current && current.count > 0) || (status && status.count > 0) || status?.last_image || current?.last_image);
+  const cacheKey = current?.updated_at || status?.updated_at || status?.last_run_ts || Date.now();
+  if (!previewAvailable) {
+    img.hidden = true;
+    empty.hidden = false;
+    return;
+  }
+  empty.hidden = true;
+  img.hidden = false;
+  img.onload = () => {
+    img.hidden = false;
+    empty.hidden = true;
+  };
+  img.onerror = () => {
+    img.hidden = true;
+    empty.hidden = false;
+  };
+  img.src = `/api/inference/preview?ts=${encodeURIComponent(cacheKey)}`;
+}
+
+function renderAiPanel(status, current) {
+  const effectiveStatus = status || {};
+  const effectiveCurrent = current || {};
+  const meta = aiStatusMeta(effectiveStatus, effectiveCurrent);
+  const running = Boolean(effectiveStatus.running);
+  const error = effectiveCurrent?.error || effectiveStatus?.error || effectiveStatus?.config_error || "";
+  const state = meta.label;
+  const badgeTone = error ? "error" : running ? "online" : "muted";
+  const badgeNode = byId("ai-analysis-badge");
+  if (badgeNode?.classList.contains("ai-control-state")) {
+    badgeNode.textContent = state;
+    badgeNode.classList.remove("is-running", "is-demo", "is-idle", "is-error", "is-unknown");
+    badgeNode.classList.add(`is-${meta.tone}`);
+  } else {
+    setBadge("ai-analysis-badge", state, badgeTone);
+  }
+  setText("ai-analysis-copy", running ? "AI inference worker is running." : error ? "AI inference worker reported a problem." : "AI inference worker is stopped.");
+  setText("ai-analysis-helper", error || "The worker uses only runtime/ and can be started in Replay/Demo mode without touching the live cameras.");
+  const modelName = String(effectiveStatus.model_path || "").split("/").pop() || "easy_v1_best_rgb.onnx";
+  const backendName = "ONNX Runtime";
+  const sourceLabel = effectiveStatus.source_label || "Replay / Demo";
+  setText("ai-analysis-model", modelName);
+  setText("ai-analysis-runtime", `${backendName} · Source: ${sourceLabel}`);
+  setText("ai-analysis-last-image", `Last image: ${effectiveStatus.last_image ? String(effectiveStatus.last_image).split("/").pop() : "--"}`);
+  const timing = `${effectiveStatus.last_inference_ms != null ? `${Number(effectiveStatus.last_inference_ms).toFixed(0)}ms` : "--"} · ${effectiveStatus.fps != null ? `${Number(effectiveStatus.fps).toFixed(1)} FPS` : "--"}`;
+  setText(
+    "ai-analysis-timing",
+    running || effectiveStatus.last_inference_ms != null ? timing : "--",
+  );
+  renderAiControlButtons(effectiveStatus, effectiveCurrent);
+  renderAiDetections(effectiveStatus, effectiveCurrent);
+  renderAiPreview(effectiveStatus, effectiveCurrent);
+}
+
+function renderAiControlButtons(status, current) {
+  const meta = aiStatusMeta(status, current);
+  const startButton = byId("ai-start-button");
+  const stopButton = byId("ai-stop-button");
+  const runButton = byId("ai-run-demo-button");
+  const refreshButton = byId("ai-refresh-button");
+  if (!startButton && !stopButton && !runButton && !refreshButton) return;
+
+  const isRunning = meta.label === "RUNNING";
+  const isDemo = meta.label === "DEMO";
+  if (startButton) startButton.hidden = isRunning || isDemo;
+  if (stopButton) stopButton.hidden = !(isRunning || isDemo);
+  if (runButton) runButton.hidden = !(isRunning);
+  if (refreshButton) refreshButton.hidden = !(isRunning || isDemo);
+}
+
+function formatSessionDuration(seconds) {
+  const value = Number(seconds);
+  if (!Number.isFinite(value) || value <= 0) return "—";
+  const total = Math.round(value);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m ${secs}s`;
+  return `${secs}s`;
+}
+
+function renderSessionPanel(status) {
+  const payload = status || {};
+  const session = payload.current || payload.session || null;
+  const running = Boolean(payload.running || session?.status === "RUNNING");
+  const metrics = session?.metrics || {};
+  const title = byId("session-title");
+  const helper = byId("session-helper");
+  const startButton = byId("session-start-button");
+  const stopButton = byId("session-stop-button");
+  const statusNode = byId("session-status");
+
+  if (title) title.textContent = session ? `Sessione ${session.session_id || "EASY"}` : "Nessuna sessione attiva";
+  if (helper) {
+    helper.textContent = session
+      ? "Detection, metriche e archivi vengono salvati nella cartella runtime della sessione."
+      : "Avvia una sessione per archiviare rilevazioni, metriche e futuri eventi EASY.";
+  }
+  if (startButton) startButton.hidden = running;
+  if (stopButton) stopButton.hidden = !running;
+
+  setText("session-id", session?.session_id || "—");
+  setText("session-status", session?.status || "IDLE");
+  setText("session-start-time", session?.start_time ? formatRomeTimeOnly(session.start_time) : "—");
+  setText("session-duration", formatSessionDuration(metrics.session_duration ?? session?.duration));
+  setText("session-model", session?.model_name || "—");
+  setText("session-mode", session?.mode || "—");
+  setText("session-total-detections", `${metrics.total_detections ?? 0}`);
+  setText("session-boat-count", `${metrics.boat_count ?? 0}`);
+  setText("session-ship-count", `${metrics.ship_count ?? 0}`);
+  setText("session-buoy-count", `${metrics.buoy_count ?? 0}`);
+
+  if (statusNode) {
+    statusNode.classList.remove("is-running", "is-stopped");
+    if (running) statusNode.classList.add("is-running");
+    else if (session?.status === "STOPPED") statusNode.classList.add("is-stopped");
+  }
+}
+
 function cpuTone(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return "neutral";
@@ -883,6 +1128,7 @@ function detectionTypeMeta(type) {
 
 function detectionSourceLabel(source) {
   const value = String(source || "").toUpperCase();
+  if (value.includes("AI") || value.includes("INFERENCE")) return "AI";
   if (value.includes("RGB_LEFT")) return "RGB-L";
   if (value.includes("RGB_RIGHT")) return "RGB-R";
   if (value.includes("THERMAL")) return "THERMAL";
@@ -890,8 +1136,20 @@ function detectionSourceLabel(source) {
   return value || "--";
 }
 
+function detectionSourceBadge(item) {
+  const source = String(item?.source || "").toLowerCase();
+  const label = String(item?.source_label || item?.mode || item?.origin || "").toLowerCase();
+  const imagePath = String(item?.image_path || item?.last_image || "").toLowerCase();
+  const isAi = source.includes("ai") || source.includes("inference") || label.includes("replay") || imagePath.includes("/runtime/replay/");
+  if (!isAi) {
+    return { label: detectionSourceLabel(item?.source), className: "badge-muted" };
+  }
+  const isDemo = label.includes("demo") || label.includes("replay") || imagePath.includes("/runtime/replay/");
+  return isDemo ? { label: "AI · DEMO", className: "badge-ai-demo" } : { label: "AI · LIVE", className: "badge-ai-live" };
+}
+
 function detectionConfidenceTone(confidence) {
-  const value = Number(confidence);
+  const value = aiConfidencePercent(confidence);
   if (!Number.isFinite(value)) return "muted";
   if (value > 80) return "online";
   if (value >= 50) return "warning";
@@ -899,8 +1157,9 @@ function detectionConfidenceTone(confidence) {
 }
 
 function detectionConfidenceLabel(confidence) {
-  const value = Number(confidence);
+  let value = Number(confidence);
   if (!Number.isFinite(value)) return "—";
+  if (value <= 1) value *= 100;
   return `${Math.round(value)}%`;
 }
 
@@ -911,6 +1170,11 @@ function detectionDistanceLabel(distance) {
 }
 
 function detectionCoordinateLabel(item) {
+  const box = item?.bbox || item?.box_xyxy || item?.xyxy;
+  const normalized = normalizeBBox(box);
+  if (normalized) {
+    return normalized.map((value) => Math.round(Number(value))).join(", ");
+  }
   const lat = item?.lat ?? item?.latitude;
   const lon = item?.lon ?? item?.lng ?? item?.longitude;
   if (lat == null || lon == null) return "—";
@@ -936,7 +1200,25 @@ function renderDetectionsPage(health) {
     : Array.isArray(health?.operations?.detections)
       ? health.operations.detections
       : [];
-  const liveDetections = detections.filter((item) => {
+  const currentAi = dashboardState.inferenceCurrent || {};
+  const aiDetections = Array.isArray(currentAi.last_detections)
+    ? currentAi.last_detections
+    : Array.isArray(currentAi.detections)
+      ? currentAi.detections
+      : [];
+  const mappedAiDetections = aiDetections.map((item) => ({
+    ...item,
+    label: item.class_name || item.label || "AI",
+    type: item.class_name || item.label || "AI",
+    bbox: item.box_xyxy || item.bbox,
+    source: "ai_inference",
+    source_label: currentAi.source_label || currentAi.source || "Replay / Demo",
+    image_path: currentAi.last_image || currentAi.image_path || "",
+    timestamp: currentAi.last_run_ts || currentAi.updated_at,
+  }));
+  const hasAiInOperations = detections.some((item) => String(item?.source || "").toLowerCase().includes("ai"));
+  const mergedDetections = hasAiInOperations ? detections : [...mappedAiDetections, ...detections];
+  const liveDetections = mergedDetections.filter((item) => {
     const source = String(item?.source || "").toLowerCase();
     const label = String(item?.label || "").toLowerCase();
     return source !== "placeholder" && !label.includes("no detections yet");
@@ -953,6 +1235,7 @@ function renderDetectionsPage(health) {
       if (tableShell) tableShell.hidden = false;
       filtered.forEach((item) => {
         const meta = detectionTypeMeta(item?.type || item?.label || item?.category || "");
+        const sourceBadge = detectionSourceBadge(item);
         const row = document.createElement("tr");
         row.innerHTML = `
           <td>
@@ -962,7 +1245,7 @@ function renderDetectionsPage(health) {
           <td>${escapeHtml(detectionDistanceLabel(item?.distance_m ?? item?.distance))}</td>
           <td><span class="badge badge-${detectionConfidenceTone(item?.confidence)} detection-confidence">${escapeHtml(detectionConfidenceLabel(item?.confidence))}</span></td>
           <td><span class="detection-time">${escapeHtml(detectionTimestampLabel(item?.timestamp || item?.created || item?.ts))}</span></td>
-          <td><span class="badge badge-muted detection-source">${escapeHtml(detectionSourceLabel(item?.source))}</span></td>
+          <td><span class="badge ${escapeHtml(sourceBadge.className)} detection-source">${escapeHtml(sourceBadge.label)}</span></td>
         `;
         container.appendChild(row);
       });
@@ -972,7 +1255,9 @@ function renderDetectionsPage(health) {
   }
 
   const totalCount = liveDetections.length;
-  const confidenceValues = liveDetections.map((item) => Number(item?.confidence)).filter((value) => Number.isFinite(value));
+  const confidenceValues = liveDetections
+    .map((item) => aiConfidencePercent(item?.confidence))
+    .filter((value) => Number.isFinite(value));
   const avgConfidence = confidenceValues.length ? Math.round(confidenceValues.reduce((a, b) => a + b, 0) / confidenceValues.length) : null;
   const latest = liveDetections[0] || null;
 
@@ -1459,6 +1744,21 @@ function reloadThermalFrame() {
   if (node) node.src = `/thermal/frame?ts=${Date.now()}`;
 }
 
+async function fetchJson(url, options = {}) {
+  try {
+    const response = await fetch(url, { cache: "no-store", ...options });
+    let data = null;
+    try {
+      data = await response.json();
+    } catch (parseError) {
+      data = null;
+    }
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 0, error };
+  }
+}
+
 async function streamControl(feed, action) {
   const response = await fetch(`/video/${feed}/${action}`, { method: "POST" });
   return response.json();
@@ -1498,6 +1798,24 @@ async function snapshot(feed) {
   }
 }
 
+async function callInferenceAction(path, body = null) {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch (error) {
+    payload = null;
+  }
+  if (!response.ok || payload?.ok === false) {
+    throw new Error(payload?.error || payload?.message || `Request failed (${response.status})`);
+  }
+  return payload;
+}
+
 function setFeedOverlay(feed, visible, message) {
   if (dashboardState.page === "live" && feed === "thermal") return;
   const overlay = byId(`overlay-${feed}`);
@@ -1509,9 +1827,13 @@ function setFeedOverlay(feed, visible, message) {
 
 const dashboardState = {
   page: document.body?.dataset?.page || "live",
+  liteMode: new URLSearchParams(window.location.search).has("lite"),
   health: null,
   events: [],
   detections: [],
+  inferenceStatus: null,
+  inferenceCurrent: null,
+  sessionStatus: null,
   snapshots: [],
   snapshotSummary: null,
   eventSummary: null,
@@ -1532,20 +1854,29 @@ const dashboardState = {
 
 async function refreshDashboard() {
   try {
-    const [healthRes, eventsRes, snapshotsRes] = await Promise.all([
-      fetch("/health", { cache: "no-store" }),
-      fetch("/events?limit=9999", { cache: "no-store" }),
-      fetch("/api/snapshots/recent?limit=12", { cache: "no-store" }),
+    const [healthRes, eventsRes, snapshotsRes, inferenceStatusRes, inferenceCurrentRes, sessionStatusRes] = await Promise.all([
+      fetchJson("/health"),
+      fetchJson("/events?limit=9999"),
+      fetchJson("/api/snapshots/recent?limit=12"),
+      fetchJson("/api/inference/status"),
+      fetchJson("/api/detection/current"),
+      fetchJson("/api/session/status"),
     ]);
-    const health = await healthRes.json();
-    const eventsPayload = await eventsRes.json();
-    const snapshotsPayload = await snapshotsRes.json();
+    const health = healthRes.data || dashboardState.health || {};
+    const eventsPayload = eventsRes.data || { events: [], summary: {} };
+    const snapshotsPayload = snapshotsRes.data || { items: [], summary: null };
+    const inferenceStatus = inferenceStatusRes.data || {};
+    const inferenceCurrent = inferenceCurrentRes.data || {};
+    const sessionStatus = sessionStatusRes.data || health.session || {};
 
     dashboardState.health = health;
     dashboardState.events = eventsPayload?.events || [];
     dashboardState.eventSummary = eventsPayload?.summary || null;
     dashboardState.eventCount = eventsPayload?.count ?? dashboardState.events.length;
     dashboardState.detections = health.operations?.detections || [];
+    dashboardState.inferenceStatus = inferenceStatus;
+    dashboardState.inferenceCurrent = inferenceCurrent;
+    dashboardState.sessionStatus = sessionStatus;
     dashboardState.snapshots = snapshotsPayload?.items || [];
     dashboardState.snapshotSummary = snapshotsPayload?.summary || null;
 
@@ -1595,9 +1926,12 @@ async function refreshDashboard() {
 
     if (dashboardState.page === "live") {
       renderLivePage(health);
+      renderAiCompactStatus(inferenceStatus, inferenceCurrent);
     }
     if (dashboardState.page === "detections") {
       renderDetectionsPage(health);
+      renderAiPanel(inferenceStatus, inferenceCurrent);
+      renderSessionPanel(sessionStatus);
     }
     if (dashboardState.page === "system") {
       renderSystemPage(health);
@@ -1779,6 +2113,107 @@ function setupButtons() {
       await snapshot("thermal");
     });
   }
+
+  const aiStartButton = byId("ai-start-button");
+  if (aiStartButton) {
+    aiStartButton.addEventListener("click", async () => {
+      aiStartButton.disabled = true;
+      try {
+        await callInferenceAction("/api/inference/start", { mode: "replay" });
+        showToast("AI started", "Replay/Demo inference is now running.", "success");
+        await refreshDashboard();
+      } catch (error) {
+        console.error(error);
+        showToast("AI start failed", error.message || "Unable to start AI worker", "error");
+      } finally {
+        aiStartButton.disabled = false;
+      }
+    });
+  }
+
+  const aiStopButton = byId("ai-stop-button");
+  if (aiStopButton) {
+    aiStopButton.addEventListener("click", async () => {
+      aiStopButton.disabled = true;
+      try {
+        await callInferenceAction("/api/inference/stop");
+        showToast("AI stopped", "Replay/Demo inference has been stopped.", "success");
+        await refreshDashboard();
+      } catch (error) {
+        console.error(error);
+        showToast("AI stop failed", error.message || "Unable to stop AI worker", "error");
+      } finally {
+        aiStopButton.disabled = false;
+      }
+    });
+  }
+
+  const aiRunButton = byId("ai-run-demo-button");
+  if (aiRunButton) {
+    aiRunButton.addEventListener("click", async () => {
+      aiRunButton.disabled = true;
+      try {
+        await callInferenceAction("/api/inference/run-on-image", {});
+        showToast("AI demo run", "The worker processed the next demo image.", "success");
+        await refreshDashboard();
+      } catch (error) {
+        console.error(error);
+        showToast("Demo run failed", error.message || "Unable to run demo inference", "error");
+      } finally {
+        aiRunButton.disabled = false;
+      }
+    });
+  }
+
+  const aiRefreshButton = byId("ai-refresh-button");
+  if (aiRefreshButton) {
+    aiRefreshButton.addEventListener("click", async () => {
+      aiRefreshButton.disabled = true;
+      try {
+        await refreshDashboard();
+        showToast("Detections refreshed", "AI status and detections were updated.", "success");
+      } catch (error) {
+        console.error(error);
+        showToast("Refresh failed", error.message || "Unable to refresh AI detections", "error");
+      } finally {
+        aiRefreshButton.disabled = false;
+      }
+    });
+  }
+
+  const sessionStartButton = byId("session-start-button");
+  if (sessionStartButton) {
+    sessionStartButton.addEventListener("click", async () => {
+      sessionStartButton.disabled = true;
+      try {
+        await callInferenceAction("/api/session/start", { mode: "replay", operator: "dashboard" });
+        showToast("Session started", "A new EASY acquisition session is now active.", "success");
+        await refreshDashboard();
+      } catch (error) {
+        console.error(error);
+        showToast("Session start failed", error.message || "Unable to start session", "error");
+      } finally {
+        sessionStartButton.disabled = false;
+      }
+    });
+  }
+
+  const sessionStopButton = byId("session-stop-button");
+  if (sessionStopButton) {
+    sessionStopButton.addEventListener("click", async () => {
+      sessionStopButton.disabled = true;
+      try {
+        await callInferenceAction("/api/session/stop");
+        showToast("Session stopped", "The current EASY session has been archived.", "success");
+        await refreshDashboard();
+      } catch (error) {
+        console.error(error);
+        showToast("Session stop failed", error.message || "Unable to stop session", "error");
+      } finally {
+        sessionStopButton.disabled = false;
+      }
+    });
+  }
 }
 
 window.addEventListener("load", () => {
@@ -1786,7 +2221,7 @@ window.addEventListener("load", () => {
   setupButtons();
   refreshDashboard();
   window.setInterval(refreshDashboard, 2500);
-  if (byId("thermal-frame")) {
+  if (byId("thermal-frame") && !dashboardState.liteMode) {
     window.setInterval(reloadThermalFrame, 700);
   }
 });

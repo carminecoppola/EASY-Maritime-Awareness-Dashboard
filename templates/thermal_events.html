@@ -4,6 +4,79 @@
 
 {% block content %}
   <section class="detections-page">
+    <section class="ai-control-bar" aria-label="Controlli AI">
+      <div class="ai-control-meta">
+        <span class="ai-control-badge">AI</span>
+        <code id="ai-analysis-model">easy_v1_best_rgb.onnx</code>
+        <span class="ai-control-separator">·</span>
+        <strong class="ai-control-state" id="ai-analysis-badge">—</strong>
+        <span class="ai-control-timing" id="ai-analysis-timing">--</span>
+      </div>
+      <div class="ai-control-actions">
+        <button class="btn btn-ghost btn-small" id="ai-start-button" type="button">Start AI</button>
+        <button class="btn btn-ghost btn-small" id="ai-stop-button" type="button" hidden>Stop AI</button>
+        <button class="btn btn-ghost btn-small" id="ai-run-demo-button" type="button" hidden>Run Demo</button>
+        <button class="btn btn-ghost btn-small" id="ai-refresh-button" type="button" hidden>Refresh</button>
+      </div>
+    </section>
+
+    <section class="session-panel panel" aria-label="Current Session">
+      <div class="session-panel-head">
+        <div>
+          <span class="ai-section-label">Current Session</span>
+          <h2 id="session-title">Nessuna sessione attiva</h2>
+          <p id="session-helper">Avvia una sessione per archiviare rilevazioni, metriche e futuri eventi EASY.</p>
+        </div>
+        <div class="session-actions">
+          <button class="btn btn-ghost btn-small" id="session-start-button" type="button">Start Session</button>
+          <button class="btn btn-ghost btn-small" id="session-stop-button" type="button" hidden>Stop Session</button>
+        </div>
+      </div>
+
+      <div class="session-info-grid" id="session-info-grid">
+        <article class="session-info-item">
+          <span>Session ID</span>
+          <strong id="session-id">—</strong>
+        </article>
+        <article class="session-info-item">
+          <span>Status</span>
+          <strong id="session-status">—</strong>
+        </article>
+        <article class="session-info-item">
+          <span>Start Time</span>
+          <strong id="session-start-time">—</strong>
+        </article>
+        <article class="session-info-item">
+          <span>Duration</span>
+          <strong id="session-duration">—</strong>
+        </article>
+        <article class="session-info-item">
+          <span>Model</span>
+          <strong id="session-model">—</strong>
+        </article>
+        <article class="session-info-item">
+          <span>Mode</span>
+          <strong id="session-mode">—</strong>
+        </article>
+        <article class="session-info-item">
+          <span>Total</span>
+          <strong id="session-total-detections">0</strong>
+        </article>
+        <article class="session-info-item">
+          <span>Boat</span>
+          <strong id="session-boat-count">0</strong>
+        </article>
+        <article class="session-info-item">
+          <span>Ship</span>
+          <strong id="session-ship-count">0</strong>
+        </article>
+        <article class="session-info-item">
+          <span>Buoy</span>
+          <strong id="session-buoy-count">0</strong>
+        </article>
+      </div>
+    </section>
+
     <section class="detections-filters" aria-label="Filtri rapidi">
       <button class="detections-filter is-active" type="button" data-detection-filter="all">Tutti</button>
       <button class="detections-filter" type="button" data-detection-filter="boat">Barche</button>
@@ -38,6 +111,31 @@
         </svg>
         <strong>Nessuna rilevazione attiva</strong>
         <p>Le rilevazioni appariranno qui non appena il sistema identificherà oggetti nel campo visivo.</p>
+      </div>
+    </section>
+
+    <section class="ai-preview-panel panel" id="ai-preview-panel" hidden>
+      <span class="ai-section-label">Ultimo frame analizzato</span>
+      <div class="ai-preview-grid">
+        <article class="ai-preview-details">
+          <div class="ai-preview-details-head">
+            <h3>Rilevazioni correnti</h3>
+            <span class="badge badge-muted" id="ai-preview-count">0</span>
+          </div>
+          <div class="ai-detections-list" id="ai-detections-list"></div>
+        </article>
+
+        <article class="ai-preview-media">
+          <img id="ai-preview-image" class="ai-preview-image" alt="Ultimo frame AI annotato" hidden>
+          <div class="ai-empty-state ai-preview-empty" id="ai-preview-empty">
+            <svg class="detections-empty-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 4.2 20.2 12 12 19.8 3.8 12 12 4.2Z"></path>
+              <path d="M12 8v8"></path>
+              <path d="M8 12h8"></path>
+            </svg>
+            <strong>Avvia l'AI per vedere le rilevazioni annotate</strong>
+          </div>
+        </article>
       </div>
     </section>
 

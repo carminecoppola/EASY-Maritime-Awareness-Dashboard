@@ -27,3 +27,10 @@ data/snapshots/thermal/*
 
 logs/*
 captures/*
+
+runtime/logs/*
+!runtime/logs/.gitkeep
+runtime/sessions/*
+!runtime/sessions/.gitkeep
+runtime/replay/*
+!runtime/replay/.gitkeep
