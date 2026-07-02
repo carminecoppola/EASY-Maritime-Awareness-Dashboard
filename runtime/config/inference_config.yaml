@@ -1,0 +1,29 @@
+runtime_root: runtime
+
+model:
+  preferred_path: runtime/models/easy_v1_best_rgb.onnx
+  fallback_path: runtime/models/easy_v1_best_rgb.pt
+  type: onnx
+
+inference:
+  confidence_threshold: 0.25
+  iou_threshold: 0.45
+  input_size: 640
+
+classes:
+  - id: 0
+    name: boat
+  - id: 1
+    name: ship
+  - id: 2
+    name: buoy
+  - id: 3
+    name: debris
+  - id: 4
+    name: person
+
+outputs:
+  sessions_dir: runtime/sessions
+  replay_dir: runtime/replay
+  logs_dir: runtime/logs
+

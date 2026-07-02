@@ -23,6 +23,10 @@ from flask import Flask, Response, jsonify, redirect, render_template, request, 
 from PIL import Image, ImageDraw
 import numpy as np
 
+from detection_manager import DetectionManager
+from inference_worker import InferenceWorker, find_first_image
+from session_manager import SessionManager
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 DATA_DIR = PROJECT_ROOT / "data"
@@ -368,6 +372,13 @@ class EventStore:
             "SNAPSHOT_ERROR": "Ripeti lo snapshot; se ricapita controlla spazio disco e stato feed.",
             "NOT_DETECTED": "Controlla cavo, alimentazione e device video.",
             "THERMAL_HOTSPOT": "Verifica la scena termica e confronta con RGB.",
+            "INFERENCE_START": "Verifica runtime/replay e attendi i primi risultati AI.",
+            "INFERENCE_STOP": "Riattiva il worker se la demo AI deve continuare.",
+            "INFERENCE_ERROR": "Controlla runtime/models, runtime/config e la disponibilità di onnxruntime.",
+            "DETECTED": "Apri runtime/sessions e verifica le rilevazioni AI annotate.",
+            "SESSION_START": "La sessione è attiva: acquisizioni e detection verranno archiviate.",
+            "SESSION_STOP": "Sessione fermata. Puoi consultare l'archivio in runtime/sessions.",
+            "DETECTION_NEW": "Detection registrata nel manager e nella sessione corrente.",
         }
         event = {
             "id": f"{int(time.time() * 1000)}-{len(self._events)}",
@@ -1523,7 +1534,12 @@ def build_camera_inventory(rgb: RgbMasterSource, thermal: ThermalState) -> Dict[
     }
 
 
-def build_operations_payload(camera_inventory: Dict[str, Any], rgb_state: Dict[str, Any], thermal_state: Dict[str, Any]) -> Dict[str, Any]:
+def build_operations_payload(
+    camera_inventory: Dict[str, Any],
+    rgb_state: Dict[str, Any],
+    thermal_state: Dict[str, Any],
+    inference_state: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     def _stream_status(state: Any, last_ts: Any, *, detected: bool, mode: str = "") -> str:
         state_value = str(state or "").upper()
         mode_value = str(mode or "").lower()
@@ -1561,9 +1577,26 @@ def build_operations_payload(camera_inventory: Dict[str, Any], rgb_state: Dict[s
     )
     detected_sensors = int(bool(rgb_state.get("detected"))) + int(bool(thermal_state.get("detected") or thermal_state.get("mode") == "mock"))
     online_sensors = int(rgb_left_status == "ONLINE") + int(rgb_right_status == "ONLINE") + int(thermal_status == "ONLINE")
+    inference_state = inference_state or {}
+    inference_ok = bool(inference_state.get("ok"))
+    inference_running = bool(inference_state.get("running"))
+    inference_count = int(inference_state.get("count") or 0)
+    inference_error = str(inference_state.get("error") or inference_state.get("config_error") or "")
+    last_detections = inference_state.get("last_detections")
+    if not isinstance(last_detections, list):
+        last_detections = []
+
     attention_level = "LOW"
-    attention_reason = "No active detections pipeline connected."
+    attention_reason = "AI inference ready in Replay/Demo mode." if inference_ok else "No active detections pipeline connected."
     attention_tone = "muted"
+    if inference_count > 0:
+        attention_level = "ELEVATED"
+        attention_reason = f"AI detected {inference_count} object{'s' if inference_count != 1 else ''} in the latest replay image."
+        attention_tone = "warn"
+    if inference_error:
+        attention_level = "WATCH"
+        attention_reason = inference_error
+        attention_tone = "error"
     if thermal_state.get("anomaly_active"):
         attention_level = "ELEVATED"
         attention_reason = "Thermal hotspot flagged by the FLIR pipeline."
@@ -1581,9 +1614,21 @@ def build_operations_payload(camera_inventory: Dict[str, Any], rgb_state: Dict[s
             "message": "Multimodal fusion preview. RGB + Thermal fusion will appear here.",
         },
         "inference": {
-            "state": "Not connected",
-            "supported": False,
-            "message": "AI analysis not connected yet.",
+            "state": "Running" if inference_running else "Ready" if inference_ok else "Error",
+            "supported": inference_ok,
+            "message": (
+                inference_error
+                or (
+                    f"ONNX Runtime ready. Last run produced {inference_count} detection{'s' if inference_count != 1 else ''}."
+                    if inference_count
+                    else "ONNX Runtime ready in Replay/Demo mode."
+                )
+            ),
+            "backend": inference_state.get("backend", "onnx"),
+            "model_path": inference_state.get("model_path"),
+            "last_image": inference_state.get("last_image"),
+            "last_inference_ms": inference_state.get("last_inference_ms"),
+            "fps": inference_state.get("fps"),
         },
         "recording": {
             "state": "Ready" if recording_supported else "Not available",
@@ -1614,15 +1659,30 @@ def build_operations_payload(camera_inventory: Dict[str, Any], rgb_state: Dict[s
             "detected": thermal_state.get("detected", False),
         },
     }
-    detections = [
-        {
-            "label": "No detections yet",
-            "confidence": None,
-            "source": "placeholder",
-            "state": "idle",
-            "message": "The AI detection pipeline is not connected.",
-        }
-    ]
+    detections = []
+    for detection in last_detections:
+        detections.append(
+            {
+                "label": detection.get("class_name") or detection.get("label") or "Detection",
+                "confidence": detection.get("confidence"),
+                "bbox": detection.get("box_xyxy") or detection.get("bbox"),
+                "source": "ai_inference",
+                "source_label": detection.get("source_label") or inference_state.get("source_label"),
+                "image_path": detection.get("image_path") or inference_state.get("last_image"),
+                "state": "detected",
+                "message": f"{detection.get('class_name') or 'object'} detected by ONNX Runtime",
+            }
+        )
+    if not detections:
+        detections = [
+            {
+                "label": "No detections yet",
+                "confidence": None,
+                "source": "ai_inference" if inference_ok else "placeholder",
+                "state": "idle",
+                "message": "Run Replay/Demo inference to populate detections." if inference_ok else "The AI detection pipeline is not connected.",
+            }
+        ]
     return {
         "attention": {
             "level": attention_level,
@@ -1693,6 +1753,9 @@ def create_app() -> Flask:
     probe = SystemProbe()
     thermal = ThermalState(config, events)
     rgb = RgbMasterSource(config, events, probe)
+    session_manager = SessionManager(events=events, hostname=probe.hostname())
+    detection_manager = DetectionManager(events=events, session_manager=session_manager)
+    inference = InferenceWorker(events=events, detection_manager=detection_manager)
 
     run_preflight_script()
     append_startup_notice(events, probe, config)
@@ -1773,7 +1836,23 @@ def create_app() -> Flask:
         system_payload = build_system_payload(probe)
         rgb_state = rgb.latest_state()
         thermal_state = thermal.status_payload()
-        operations_payload = build_operations_payload(camera_inventory, rgb_state, thermal_state)
+        inference_state = inference.status()
+        detection_state = detection_manager.get_current_detections()
+        session_state = session_manager.status()
+        operations_inference_state = dict(inference_state)
+        operations_inference_state.update(
+            {
+                "count": detection_state.get("count", 0),
+                "last_detections": detection_state.get("detections", []),
+                "last_image": detection_state.get("last_image") or inference_state.get("last_image"),
+                "last_run_ts": detection_state.get("last_run_ts") or inference_state.get("last_run_ts"),
+                "last_inference_ms": detection_state.get("last_inference_ms") or inference_state.get("last_inference_ms"),
+                "fps": detection_state.get("fps") or inference_state.get("fps"),
+                "source": detection_state.get("source") or inference_state.get("source"),
+                "source_label": detection_state.get("source_label") or inference_state.get("source_label"),
+            }
+        )
+        operations_payload = build_operations_payload(camera_inventory, rgb_state, thermal_state, operations_inference_state)
         ok = rgb_state["camera_state"] in {"DETECTED", "BUSY"} and thermal_state["status"] in {
             "MOCK",
             "REAL",
@@ -1790,6 +1869,9 @@ def create_app() -> Flask:
                 "cameras": camera_inventory,
                 "rgb": rgb_state,
                 "thermal": thermal_state,
+                "inference": inference_state,
+                "detection_manager": detection_state,
+                "session": session_state,
                 "operations": operations_payload,
                 "events_count": len(events.list(9999)),
             }
@@ -2043,6 +2125,123 @@ def create_app() -> Flask:
             }
         )
 
+    def _inference_json(payload: Dict[str, Any], status_code: int = 200):
+        return jsonify(payload), status_code
+
+    def _parse_json_payload() -> Dict[str, Any]:
+        return request.get_json(force=True, silent=True) or {}
+
+    @app.route("/api/inference/status", methods=["GET"])
+    def api_inference_status():
+        status_payload = inference.status()
+        detection_state = detection_manager.get_current_detections()
+        status_payload["count"] = detection_state.get("count", status_payload.get("count", 0))
+        status_payload["last_detections"] = detection_state.get("detections", status_payload.get("last_detections", []))
+        status_payload["last_image"] = detection_state.get("last_image") or status_payload.get("last_image")
+        status_payload["last_run_ts"] = detection_state.get("last_run_ts") or status_payload.get("last_run_ts")
+        status_payload["last_inference_ms"] = detection_state.get("last_inference_ms") or status_payload.get("last_inference_ms")
+        status_payload["fps"] = detection_state.get("fps") or status_payload.get("fps")
+        status_payload["detection_manager"] = {
+            "current_detections_path": detection_state.get("current_detections_path"),
+            "history_path": detection_state.get("history_path"),
+            "session_id": detection_state.get("session_id"),
+        }
+        return jsonify(status_payload)
+
+    @app.route("/api/inference/start", methods=["POST"])
+    def api_inference_start():
+        payload = _parse_json_payload()
+        mode = str(payload.get("mode", "replay"))
+        interval_seconds = payload.get("interval_seconds")
+        try:
+            interval_seconds = None if interval_seconds is None else float(interval_seconds)
+        except Exception:
+            return _inference_json({"ok": False, "error": "Invalid interval_seconds value"}, 400)
+        result = inference.start(mode=mode, interval_seconds=interval_seconds)
+        return _inference_json(result, 200 if result.get("ok") else 503)
+
+    @app.route("/api/inference/stop", methods=["POST"])
+    def api_inference_stop():
+        return jsonify(inference.stop())
+
+    @app.route("/api/inference/run-on-image", methods=["POST"])
+    def api_inference_run_on_image():
+        payload = _parse_json_payload()
+        image_path = payload.get("image_path") or payload.get("path") or request.args.get("image_path") or request.args.get("path")
+        if image_path is None:
+            try:
+                image_path = str(find_first_image(inference.replay_dir))
+            except Exception:
+                return _inference_json({"ok": False, "error": f"No replay images found in {inference.replay_dir}"}, 404)
+        result = inference.run_on_image(image_path)
+        return _inference_json(result, 200 if result.get("ok") else 400)
+
+    @app.route("/api/detections/current", methods=["GET"])
+    def api_detections_current():
+        return jsonify(detection_manager.get_current_detections())
+
+    @app.route("/api/detection/current", methods=["GET"])
+    def api_detection_current():
+        return jsonify(detection_manager.get_current_detections())
+
+    @app.route("/api/detection/history", methods=["GET"])
+    def api_detection_history():
+        return jsonify(detection_manager.get_history())
+
+    @app.route("/api/detection/<detection_id>", methods=["GET"])
+    def api_detection_detail(detection_id: str):
+        detection = detection_manager.get_detection(detection_id)
+        if not detection:
+            return jsonify({"ok": False, "error": "Detection not found", "id": detection_id}), 404
+        return jsonify({"ok": True, "detection": detection})
+
+    @app.route("/api/detection/clear", methods=["DELETE", "POST"])
+    def api_detection_clear():
+        return jsonify(detection_manager.clear())
+
+    @app.route("/api/session/start", methods=["POST"])
+    def api_session_start():
+        payload = _parse_json_payload()
+        result = session_manager.start_session(
+            mode=str(payload.get("mode") or "replay"),
+            operator=str(payload.get("operator") or "operator"),
+            model_name=Path(str(inference.model_path)).name,
+            model_type=str(inference.backend or "onnx"),
+            notes=str(payload.get("notes") or ""),
+        )
+        return jsonify(result), 200 if result.get("ok") else 400
+
+    @app.route("/api/session/stop", methods=["POST"])
+    def api_session_stop():
+        return jsonify(session_manager.stop_session())
+
+    @app.route("/api/session/status", methods=["GET"])
+    def api_session_status():
+        return jsonify(session_manager.status())
+
+    @app.route("/api/session/current", methods=["GET"])
+    def api_session_current():
+        current = session_manager.get_current_session()
+        return jsonify({"ok": True, "running": bool(current), "session": current})
+
+    @app.route("/api/session/list", methods=["GET"])
+    def api_session_list():
+        return jsonify(session_manager.list_sessions())
+
+    @app.route("/api/inference/preview", methods=["GET"])
+    def api_inference_preview():
+        preview_path = inference.current_preview_path
+        if not preview_path.exists():
+            return jsonify({"ok": False, "error": "Detection preview not available yet"}), 404
+        response = send_file(
+            preview_path,
+            mimetype="image/jpeg",
+            as_attachment=False,
+            conditional=True,
+        )
+        response.headers["Cache-Control"] = "no-store, max-age=0"
+        return response
+
     @app.teardown_appcontext
     def _shutdown(_exc: Optional[BaseException]) -> None:
         # Keep the source process alive across requests, but if Flask exits cleanly
@@ -2051,6 +2250,7 @@ def create_app() -> Flask:
 
     atexit.register(rgb.stop)
     atexit.register(thermal.stop)
+    atexit.register(inference.stop)
 
     return app
 
