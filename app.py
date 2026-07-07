@@ -24,6 +24,7 @@ from PIL import Image, ImageDraw
 import numpy as np
 
 from detection_manager import DetectionManager
+from event_manager import EventManager
 from inference_worker import InferenceWorker, find_first_image
 from session_manager import SessionManager
 
@@ -1754,7 +1755,8 @@ def create_app() -> Flask:
     thermal = ThermalState(config, events)
     rgb = RgbMasterSource(config, events, probe)
     session_manager = SessionManager(events=events, hostname=probe.hostname())
-    detection_manager = DetectionManager(events=events, session_manager=session_manager)
+    event_manager = EventManager(events=events, session_manager=session_manager)
+    detection_manager = DetectionManager(events=events, session_manager=session_manager, event_manager=event_manager)
     inference = InferenceWorker(events=events, detection_manager=detection_manager)
 
     run_preflight_script()
@@ -1806,8 +1808,8 @@ def create_app() -> Flask:
     def thermal_events_page() -> str:
         return dashboard_context(
             "detections",
-            "Rilevazioni",
-            "Oggetti rilevati in sessione",
+            "Eventi",
+            "Eventi correnti e timeline operativa",
             template_name="thermal_events.html",
             hostname=probe.hostname(),
             ip_address=probe.ip_address(),
@@ -2146,7 +2148,35 @@ def create_app() -> Flask:
             "history_path": detection_state.get("history_path"),
             "session_id": detection_state.get("session_id"),
         }
+        status_payload["frame_provider"] = inference.frame_provider_status()
         return jsonify(status_payload)
+
+    @app.route("/api/frame-provider/status", methods=["GET"])
+    def api_frame_provider_status():
+        return jsonify(inference.frame_provider_status())
+
+    @app.route("/api/frame-provider/configure", methods=["POST"])
+    def api_frame_provider_configure():
+        payload = _parse_json_payload()
+        result = inference.configure_frame_provider(
+            source_type=payload.get("source_type"),
+            source_path=payload.get("source_path"),
+            source_name=payload.get("source_name"),
+            loop=payload.get("loop"),
+            save_temp_frames=payload.get("save_temp_frames"),
+        )
+        return jsonify(result), 200 if result.get("ok") else 400
+
+    @app.route("/api/frame-provider/reset", methods=["POST"])
+    def api_frame_provider_reset():
+        return jsonify(inference.reset_frame_provider())
+
+    @app.route("/api/frame-provider/next-frame", methods=["POST"])
+    def api_frame_provider_next_frame():
+        try:
+            return jsonify(inference.next_frame())
+        except Exception as exc:
+            return _inference_json({"ok": False, "error": str(exc), "provider": inference.frame_provider_status()}, 400)
 
     @app.route("/api/inference/start", methods=["POST"])
     def api_inference_start():
@@ -2176,6 +2206,14 @@ def create_app() -> Flask:
         result = inference.run_on_image(image_path)
         return _inference_json(result, 200 if result.get("ok") else 400)
 
+    @app.route("/api/inference/run-on-next-frame", methods=["POST"])
+    def api_inference_run_on_next_frame():
+        try:
+            result = inference.run_on_next_frame()
+        except Exception as exc:
+            return _inference_json({"ok": False, "error": str(exc), "provider": inference.frame_provider_status()}, 400)
+        return _inference_json(result, 200 if result.get("ok") else 400)
+
     @app.route("/api/detections/current", methods=["GET"])
     def api_detections_current():
         return jsonify(detection_manager.get_current_detections())
@@ -2199,6 +2237,25 @@ def create_app() -> Flask:
     def api_detection_clear():
         return jsonify(detection_manager.clear())
 
+    @app.route("/api/events/current", methods=["GET"])
+    def api_events_current():
+        return jsonify(event_manager.get_current_events())
+
+    @app.route("/api/events/history", methods=["GET"])
+    def api_events_history():
+        return jsonify(event_manager.get_history())
+
+    @app.route("/api/events/<event_id>", methods=["GET"])
+    def api_event_detail(event_id: str):
+        event_payload = event_manager.get_event(event_id)
+        if not event_payload:
+            return jsonify({"ok": False, "error": "Event not found", "id": event_id}), 404
+        return jsonify({"ok": True, "event": event_payload})
+
+    @app.route("/api/events/clear", methods=["DELETE", "POST"])
+    def api_events_clear():
+        return jsonify(event_manager.clear())
+
     @app.route("/api/session/start", methods=["POST"])
     def api_session_start():
         payload = _parse_json_payload()
@@ -2213,7 +2270,15 @@ def create_app() -> Flask:
 
     @app.route("/api/session/stop", methods=["POST"])
     def api_session_stop():
-        return jsonify(session_manager.stop_session())
+        current = session_manager.get_current_session()
+        session_id = str(current.get("session_id") or "") if current else ""
+        result = session_manager.stop_session()
+        if session_id:
+            try:
+                event_manager.resolve_session_events(session_id, notes="Session stopped")
+            except Exception:
+                pass
+        return jsonify(result)
 
     @app.route("/api/session/status", methods=["GET"])
     def api_session_status():

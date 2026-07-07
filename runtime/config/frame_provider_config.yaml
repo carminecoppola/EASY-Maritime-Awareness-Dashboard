@@ -1,0 +1,4 @@
+default_source_type: REPLAY_FOLDER
+default_source_path: runtime/replay/test_inference
+loop: true
+save_temp_frames: false

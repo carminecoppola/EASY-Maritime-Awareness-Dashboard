@@ -53,6 +53,9 @@ class DetectionRecord:
     depth: Optional[float] = None
     distance: Optional[float] = None
     velocity: Optional[float] = None
+    frame_id: Optional[str] = None
+    source_type: Optional[str] = None
+    source_name: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         payload = asdict(self)
@@ -77,12 +80,14 @@ class DetectionManager:
         events: Any | None = None,
         session_id: str | None = None,
         session_manager: Any | None = None,
+        event_manager: Any | None = None,
     ) -> None:
         self.sessions_dir = Path(sessions_dir)
         self.current_path = self.sessions_dir / "current_detections.json"
         self.history_path = self.sessions_dir / "detection_history.json"
         self.events = events
         self.session_manager = session_manager
+        self.event_manager = event_manager
         self.session_id = session_id or time.strftime("session-%Y%m%d-%H%M%S", time.gmtime())
         self._lock = threading.Lock()
         self._detections: Dict[str, DetectionRecord] = {}
@@ -133,6 +138,9 @@ class DetectionManager:
                     depth=item.get("depth"),
                     distance=item.get("distance"),
                     velocity=item.get("velocity"),
+                    frame_id=item.get("frame_id"),
+                    source_type=item.get("source_type"),
+                    source_name=item.get("source_name"),
                 )
             except Exception:
                 continue
@@ -165,6 +173,9 @@ class DetectionManager:
                 depth=item.get("depth"),
                 distance=item.get("distance"),
                 velocity=item.get("velocity"),
+                frame_id=item.get("frame_id"),
+                source_type=item.get("source_type"),
+                source_name=item.get("source_name"),
             )
         except Exception:
             return None
@@ -309,6 +320,9 @@ class DetectionManager:
             depth=detection.get("depth"),
             distance=detection.get("distance"),
             velocity=detection.get("velocity"),
+            frame_id=detection.get("frame_id"),
+            source_type=detection.get("source_type"),
+            source_name=detection.get("source_name"),
         )
         with self._lock:
             self._detections[record.id] = record
@@ -320,6 +334,11 @@ class DetectionManager:
             self._last_source_label = record.source_label
             self._persist()
         self._event(record)
+        if self.event_manager is not None:
+            try:
+                self.event_manager.record_detection(record.to_dict())
+            except Exception:
+                pass
         return record.to_dict()
 
     def record_inference_result(self, result: Dict[str, Any], *, mode: str = "replay") -> Dict[str, Any]:
