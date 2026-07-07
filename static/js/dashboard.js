@@ -63,6 +63,14 @@ function formatRomeTimeOnly(value) {
   }).format(date);
 }
 
+function parseDateValue(value) {
+  if (!value) return 0;
+  const numeric = Number(value);
+  if (Number.isFinite(numeric)) return numeric < 1e12 ? numeric * 1000 : numeric;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+}
+
 function romeDateParts(value) {
   const date = new Date(Number(value) < 1e12 ? Number(value) * 1000 : value);
   if (Number.isNaN(date.getTime())) return null;
@@ -162,6 +170,7 @@ function friendlySource(value) {
     THERMAL_FLIR: "THERMAL",
     EASY_INFERENCE: "AI INFERENCE",
     DETECTION_MANAGER: "DETECTION MANAGER",
+    EVENT_ENGINE: "EVENT ENGINE",
   };
   return map[String(value || "").toUpperCase()] || String(value || "--");
 }
@@ -194,6 +203,8 @@ function friendlyEventType(value) {
     INFERENCE_STOP: "AI fermata",
     INFERENCE_ERROR: "Errore AI",
     DETECTION_NEW: "Nuova detection",
+    EVENT_CREATED: "Evento creato",
+    EVENT_UPDATED: "Evento aggiornato",
     FEED_ENABLE: "Feed abilitato",
     FEED_DISABLE: "Feed sospeso",
   };
@@ -994,8 +1005,8 @@ function renderSessionPanel(status) {
   if (title) title.textContent = session ? `Sessione ${session.session_id || "EASY"}` : "Nessuna sessione attiva";
   if (helper) {
     helper.textContent = session
-      ? "Detection, metriche e archivi vengono salvati nella cartella runtime della sessione."
-      : "Avvia una sessione per archiviare rilevazioni, metriche e futuri eventi EASY.";
+      ? "Eventi, detection, metriche e archivi vengono salvati nella cartella runtime della sessione."
+      : "Avvia una sessione per archiviare eventi, rilevazioni, metriche e futuri sviluppi EASY.";
   }
   if (startButton) startButton.hidden = running;
   if (stopButton) stopButton.hidden = !running;
@@ -1007,6 +1018,8 @@ function renderSessionPanel(status) {
   setText("session-model", session?.model_name || "—");
   setText("session-mode", session?.mode || "—");
   setText("session-total-detections", `${metrics.total_detections ?? 0}`);
+  setText("session-total-events", `${metrics.total_events ?? 0}`);
+  setText("session-active-events", `${metrics.active_events ?? 0}`);
   setText("session-boat-count", `${metrics.boat_count ?? 0}`);
   setText("session-ship-count", `${metrics.ship_count ?? 0}`);
   setText("session-buoy-count", `${metrics.buoy_count ?? 0}`);
@@ -1015,6 +1028,30 @@ function renderSessionPanel(status) {
     statusNode.classList.remove("is-running", "is-stopped");
     if (running) statusNode.classList.add("is-running");
     else if (session?.status === "STOPPED") statusNode.classList.add("is-stopped");
+  }
+}
+
+function renderFrameSourcePanel(status) {
+  const payload = status || {};
+  const lastFrame = payload.last_frame || {};
+  const sourceType = payload.source_type || payload.default_source_type || "UNKNOWN";
+  const sourcePath = payload.source_path || payload.default_source_path || "—";
+  const totalFrames = payload.total_frames;
+  const frameIndex = lastFrame.frame_index ?? payload.current_frame_index;
+  const state = payload.error ? "ERROR" : payload.ok === false ? "DEGRADED" : "READY";
+
+  setText("frame-source-type", sourceType);
+  setText("frame-source-path", sourcePath ? compactPath(String(sourcePath)) : "—");
+  setText("frame-source-status", state);
+  setText("frame-current-id", lastFrame.frame_id || payload.current_frame_id || "—");
+  setText("frame-current-index", frameIndex == null ? "—" : `${frameIndex}`);
+  setText("frame-total-frames", totalFrames == null ? "—" : `${totalFrames}`);
+
+  const helper = byId("frame-source-helper");
+  if (helper) {
+    helper.textContent = payload.error
+      ? payload.error
+      : `Source ${sourceType} pronto. Il frame corrente verra' inoltrato all'inference worker con metadata unificati.`;
   }
 }
 
@@ -1185,6 +1222,112 @@ function detectionCoordinateLabel(item) {
 
 function detectionTimestampLabel(value) {
   return formatRomeTimeOnly(value);
+}
+
+function eventTypeMeta(type) {
+  const detectionMeta = detectionTypeMeta(type);
+  const raw = String(type || "");
+  const label = raw
+    .replace(/Detected$/i, " detected")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .trim();
+  return {
+    ...detectionMeta,
+    label: label || detectionMeta.label || "Evento",
+  };
+}
+
+function eventSeverityTone(severity) {
+  const value = String(severity || "INFO").toLowerCase();
+  if (["critical", "high", "medium", "low", "info"].includes(value)) return value;
+  return "info";
+}
+
+function eventStatusTone(status) {
+  const value = String(status || "NEW").toLowerCase();
+  if (["new", "active", "resolved"].includes(value)) return value;
+  return "new";
+}
+
+function eventSourceLabel(event) {
+  return detectionSourceLabel(event?.source || event?.source_label || "unknown");
+}
+
+function eventUpdateLabel(event) {
+  const count = Number(event?.update_count ?? event?.count ?? 0);
+  const confidence = detectionConfidenceLabel(event?.last_confidence);
+  const updates = Number.isFinite(count) && count > 0 ? `${count} update${count === 1 ? "" : "s"}` : "0 updates";
+  return confidence === "—" ? updates : `${updates} · last conf ${confidence}`;
+}
+
+function sortEventsByLatest(events) {
+  return (Array.isArray(events) ? events : []).slice().sort((left, right) => {
+    const leftTs = parseDateValue(left?.updated_at || left?.last_timestamp || left?.created_at || left?.timestamp);
+    const rightTs = parseDateValue(right?.updated_at || right?.last_timestamp || right?.created_at || right?.timestamp);
+    return rightTs - leftTs;
+  });
+}
+
+function renderCurrentEventsPanel() {
+  const grid = byId("current-events-grid");
+  const empty = byId("current-events-empty-state");
+  const badge = byId("events-count-badge");
+  if (!grid) return;
+  const events = sortEventsByLatest(dashboardState.currentEvents);
+  if (badge) badge.textContent = `${events.length} eventi`;
+  grid.innerHTML = "";
+  grid.hidden = !events.length;
+  if (empty) empty.hidden = events.length > 0;
+  events.forEach((event) => {
+    const typeMeta = eventTypeMeta(event?.type);
+    const severityTone = eventSeverityTone(event?.severity);
+    const statusTone = eventStatusTone(event?.status);
+    const card = document.createElement("article");
+    card.className = `event-card is-${severityTone}`;
+    card.innerHTML = `
+      <div class="event-card-head">
+        <span class="event-card-title">${typeMeta.icon}<span>${escapeHtml(typeMeta.label)}</span></span>
+        <span class="badge badge-severity-${severityTone}">${escapeHtml(String(event?.severity || "INFO"))}</span>
+      </div>
+      <div class="event-card-meta">
+        <span class="badge badge-status-${statusTone}">${escapeHtml(String(event?.status || "NEW"))}</span>
+        <span class="badge badge-muted">${escapeHtml(eventSourceLabel(event))}</span>
+      </div>
+      <div class="event-card-times">
+        <span>Created ${escapeHtml(formatRomeTimeOnly(event?.created_at || event?.timestamp))}</span>
+        <span>Updated ${escapeHtml(formatRomeTimeOnly(event?.updated_at || event?.last_timestamp))}</span>
+      </div>
+      <div class="event-card-updates">${escapeHtml(eventUpdateLabel(event))}</div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function renderEventTimeline() {
+  const timeline = byId("events-timeline");
+  const empty = byId("events-timeline-empty-state");
+  if (!timeline) return;
+  const events = sortEventsByLatest(dashboardState.eventHistory);
+  timeline.innerHTML = "";
+  timeline.hidden = !events.length;
+  if (empty) empty.hidden = events.length > 0;
+  events.forEach((event) => {
+    const typeMeta = eventTypeMeta(event?.type);
+    const severityTone = eventSeverityTone(event?.severity);
+    const statusTone = eventStatusTone(event?.status);
+    const row = document.createElement("article");
+    row.className = "timeline-row";
+    row.innerHTML = `
+      <span class="timeline-time">${escapeHtml(formatRomeTimeOnly(event?.updated_at || event?.created_at || event?.timestamp))}</span>
+      <div class="timeline-main">
+        <strong>${escapeHtml(typeMeta.label)}</strong>
+        <p>${escapeHtml(eventSourceLabel(event))} · ${escapeHtml(eventUpdateLabel(event))}</p>
+      </div>
+      <span class="badge badge-severity-${severityTone}">${escapeHtml(String(event?.severity || "INFO"))}</span>
+      <span class="badge badge-status-${statusTone}">${escapeHtml(String(event?.status || "NEW"))}</span>
+    `;
+    timeline.appendChild(row);
+  });
 }
 
 function renderDetectionsPage(health) {
@@ -1830,9 +1973,12 @@ const dashboardState = {
   liteMode: new URLSearchParams(window.location.search).has("lite"),
   health: null,
   events: [],
+  currentEvents: [],
+  eventHistory: [],
   detections: [],
   inferenceStatus: null,
   inferenceCurrent: null,
+  frameProviderStatus: null,
   sessionStatus: null,
   snapshots: [],
   snapshotSummary: null,
@@ -1854,13 +2000,16 @@ const dashboardState = {
 
 async function refreshDashboard() {
   try {
-    const [healthRes, eventsRes, snapshotsRes, inferenceStatusRes, inferenceCurrentRes, sessionStatusRes] = await Promise.all([
+    const [healthRes, eventsRes, snapshotsRes, inferenceStatusRes, inferenceCurrentRes, sessionStatusRes, currentEventsRes, eventHistoryRes, frameProviderRes] = await Promise.all([
       fetchJson("/health"),
       fetchJson("/events?limit=9999"),
       fetchJson("/api/snapshots/recent?limit=12"),
       fetchJson("/api/inference/status"),
       fetchJson("/api/detection/current"),
       fetchJson("/api/session/status"),
+      fetchJson("/api/events/current"),
+      fetchJson("/api/events/history"),
+      fetchJson("/api/frame-provider/status"),
     ]);
     const health = healthRes.data || dashboardState.health || {};
     const eventsPayload = eventsRes.data || { events: [], summary: {} };
@@ -1868,14 +2017,20 @@ async function refreshDashboard() {
     const inferenceStatus = inferenceStatusRes.data || {};
     const inferenceCurrent = inferenceCurrentRes.data || {};
     const sessionStatus = sessionStatusRes.data || health.session || {};
+    const currentEvents = currentEventsRes.data || { events: [] };
+    const eventHistory = eventHistoryRes.data || { events: [] };
+    const frameProviderStatus = frameProviderRes.data || inferenceStatus?.frame_provider || {};
 
     dashboardState.health = health;
     dashboardState.events = eventsPayload?.events || [];
+    dashboardState.currentEvents = currentEvents?.events || [];
+    dashboardState.eventHistory = eventHistory?.events || [];
     dashboardState.eventSummary = eventsPayload?.summary || null;
     dashboardState.eventCount = eventsPayload?.count ?? dashboardState.events.length;
     dashboardState.detections = health.operations?.detections || [];
     dashboardState.inferenceStatus = inferenceStatus;
     dashboardState.inferenceCurrent = inferenceCurrent;
+    dashboardState.frameProviderStatus = frameProviderStatus;
     dashboardState.sessionStatus = sessionStatus;
     dashboardState.snapshots = snapshotsPayload?.items || [];
     dashboardState.snapshotSummary = snapshotsPayload?.summary || null;
@@ -1929,6 +2084,9 @@ async function refreshDashboard() {
       renderAiCompactStatus(inferenceStatus, inferenceCurrent);
     }
     if (dashboardState.page === "detections") {
+      renderFrameSourcePanel(frameProviderStatus);
+      renderCurrentEventsPanel();
+      renderEventTimeline();
       renderDetectionsPage(health);
       renderAiPanel(inferenceStatus, inferenceCurrent);
       renderSessionPanel(sessionStatus);
@@ -2177,6 +2335,80 @@ function setupButtons() {
         showToast("Refresh failed", error.message || "Unable to refresh AI detections", "error");
       } finally {
         aiRefreshButton.disabled = false;
+      }
+    });
+  }
+
+  const frameProviderConfigureButton = byId("frame-provider-configure-button");
+  if (frameProviderConfigureButton) {
+    frameProviderConfigureButton.addEventListener("click", async () => {
+      frameProviderConfigureButton.disabled = true;
+      try {
+        await callInferenceAction("/api/frame-provider/configure", {
+          source_type: "REPLAY_FOLDER",
+          source_path: "runtime/replay/test_inference",
+          loop: true,
+          save_temp_frames: false,
+        });
+        showToast("Frame source configured", "Replay folder provider is now configured on runtime/replay/test_inference.", "success");
+        await refreshDashboard();
+      } catch (error) {
+        console.error(error);
+        showToast("Configure failed", error.message || "Unable to configure frame provider", "error");
+      } finally {
+        frameProviderConfigureButton.disabled = false;
+      }
+    });
+  }
+
+  const frameProviderNextButton = byId("frame-provider-next-button");
+  if (frameProviderNextButton) {
+    frameProviderNextButton.addEventListener("click", async () => {
+      frameProviderNextButton.disabled = true;
+      try {
+        const payload = await callInferenceAction("/api/frame-provider/next-frame");
+        const frame = payload?.frame || {};
+        showToast("Next frame ready", frame.frame_id ? `Loaded ${frame.frame_id}` : "The next frame has been loaded.", "success");
+        await refreshDashboard();
+      } catch (error) {
+        console.error(error);
+        showToast("Next frame failed", error.message || "Unable to load the next frame", "error");
+      } finally {
+        frameProviderNextButton.disabled = false;
+      }
+    });
+  }
+
+  const frameProviderRunButton = byId("frame-provider-run-button");
+  if (frameProviderRunButton) {
+    frameProviderRunButton.addEventListener("click", async () => {
+      frameProviderRunButton.disabled = true;
+      try {
+        await callInferenceAction("/api/inference/run-on-next-frame");
+        showToast("Inference completed", "The next unified frame was processed by the AI pipeline.", "success");
+        await refreshDashboard();
+      } catch (error) {
+        console.error(error);
+        showToast("Inference failed", error.message || "Unable to process the next frame", "error");
+      } finally {
+        frameProviderRunButton.disabled = false;
+      }
+    });
+  }
+
+  const frameProviderResetButton = byId("frame-provider-reset-button");
+  if (frameProviderResetButton) {
+    frameProviderResetButton.addEventListener("click", async () => {
+      frameProviderResetButton.disabled = true;
+      try {
+        await callInferenceAction("/api/frame-provider/reset");
+        showToast("Frame provider reset", "Provider state has been cleared and rewound.", "success");
+        await refreshDashboard();
+      } catch (error) {
+        console.error(error);
+        showToast("Reset failed", error.message || "Unable to reset frame provider", "error");
+      } finally {
+        frameProviderResetButton.disabled = false;
       }
     });
   }

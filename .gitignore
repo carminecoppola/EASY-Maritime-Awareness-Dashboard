@@ -1,6 +1,7 @@
 __pycache__/
 *.pyc
 .venv/
+.venv313/
 venv/
 env/
 
@@ -34,3 +35,9 @@ runtime/sessions/*
 !runtime/sessions/.gitkeep
 runtime/replay/*
 !runtime/replay/.gitkeep
+!runtime/replay/test_inference/
+runtime/replay/test_inference/*
+!runtime/replay/test_inference/.gitkeep
+!runtime/replay/test_inference/*.jpg
+runtime/replay/test_output/*
+runtime/sessions/frame_provider_temp/*

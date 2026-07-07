@@ -3,12 +3,14 @@ from __future__ import annotations
 import json
 import threading
 import time
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
+from frame_provider import FrameObject, UnifiedFrameProvider
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -121,6 +123,10 @@ def letterbox(
 def preprocess_image(image_path: Path, input_size: int) -> Tuple[np.ndarray, np.ndarray, float, Tuple[float, float]]:
     image = Image.open(image_path).convert("RGB")
     rgb = np.asarray(image)
+    return preprocess_array(rgb, input_size)
+
+
+def preprocess_array(rgb: np.ndarray, input_size: int) -> Tuple[np.ndarray, np.ndarray, float, Tuple[float, float]]:
     letterboxed, ratio, pad = letterbox(rgb, input_size)
     tensor = letterboxed.astype(np.float32) / 255.0
     tensor = np.transpose(tensor, (2, 0, 1))[None, ...]
@@ -247,6 +253,15 @@ def decode_yolo_output(
 
 def draw_detections(image_path: Path, detections: Sequence[Detection], output_path: Path) -> None:
     image = Image.open(image_path).convert("RGB")
+    draw_detections_on_image(image, detections, output_path)
+
+
+def draw_detections_on_array(image_rgb: np.ndarray, detections: Sequence[Detection], output_path: Path) -> None:
+    image = Image.fromarray(image_rgb.astype(np.uint8)).convert("RGB")
+    draw_detections_on_image(image, detections, output_path)
+
+
+def draw_detections_on_image(image: Image.Image, detections: Sequence[Detection], output_path: Path) -> None:
     draw = ImageDraw.Draw(image)
     try:
         font = ImageFont.truetype("DejaVuSans.ttf", 18)
@@ -344,11 +359,13 @@ class InferenceWorker:
         self._interval_seconds = 1.5
         self._last_image: str | None = None
         self._last_detections: List[Dict[str, Any]] = []
+        self._last_frame: Dict[str, Any] | None = None
         self._last_inference_ms: float | None = None
         self._last_fps: float | None = None
         self._last_error = ""
         self._last_run_ts: str | None = None
         self._last_event_ts: float = 0.0
+        self.frame_provider = UnifiedFrameProvider()
         self._available_images = len(list_images(self.replay_dir))
         self.sessions_dir.mkdir(parents=True, exist_ok=True)
         self.replay_dir.mkdir(parents=True, exist_ok=True)
@@ -418,6 +435,7 @@ class InferenceWorker:
             "available_images": self._available_images,
             "interval_seconds": self._interval_seconds,
             "last_image": self._last_image,
+            "last_frame": dict(self._last_frame) if self._last_frame else None,
             "last_inference_ms": self._last_inference_ms,
             "fps": self._last_fps,
             "last_run_ts": self._last_run_ts,
@@ -427,6 +445,7 @@ class InferenceWorker:
             "config_error": self._config_error,
             "session_loaded": self._session is not None,
             "fallback_model_path": str(self.fallback_model_path),
+            "frame_provider": self.frame_provider.status(),
         }
 
     def _load_previous_state(self) -> None:
@@ -448,6 +467,8 @@ class InferenceWorker:
         last_image = payload.get("last_image") or payload.get("image_path")
         if last_image:
             self._last_image = str(last_image)
+        if isinstance(payload.get("last_frame"), dict):
+            self._last_frame = dict(payload.get("last_frame"))
 
         last_inference_ms = payload.get("last_inference_ms", payload.get("inference_time_ms"))
         try:
@@ -499,6 +520,16 @@ class InferenceWorker:
         label = self._mode.replace("_", " ").title() if self._mode else "Unknown"
         return self._mode, label
 
+    def _frame_source_payload(self, frame: FrameObject | None = None) -> Tuple[str, str]:
+        if frame is not None:
+            return frame.source_type, frame.source_name
+        return self._source_payload()
+
+    def _provider_mode(self) -> str:
+        status = self.frame_provider.status()
+        source_type = str(status.get("source_type") or "UNKNOWN").strip().lower()
+        return source_type or "replay"
+
     def _normalize_image_path(self, image_path: str | Path) -> Path:
         path = Path(image_path)
         if not path.is_absolute():
@@ -510,7 +541,23 @@ class InferenceWorker:
                 return candidate
         return path
 
-    def _execute_inference(self, image_path: Path, *, save_artifacts: bool = True) -> Dict[str, Any]:
+    def _temporary_frame_path(self, frame: FrameObject) -> Path:
+        if frame.image_path:
+            return Path(frame.image_path)
+        temp_dir = self.sessions_dir / "frame_provider_cache"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        suffix = ".jpg"
+        return temp_dir / f"{frame.frame_id}{suffix}"
+
+    def _image_path_for_frame(self, frame: FrameObject) -> Path:
+        if frame.image_path:
+            return Path(frame.image_path)
+        path = self._temporary_frame_path(frame)
+        if frame.image is not None and not path.exists():
+            Image.fromarray(frame.image.astype(np.uint8)).save(path, quality=92)
+        return path
+
+    def _execute_inference(self, image_path: Path, *, save_artifacts: bool = True, frame: FrameObject | None = None) -> Dict[str, Any]:
         ok, error = self._ensure_session()
         if not ok or self._session is None:
             return {
@@ -520,15 +567,19 @@ class InferenceWorker:
                 "detections": [],
             }
         if not image_path.exists():
-            return {
-                "ok": False,
-                "error": f"Input image not found: {image_path}",
-                "image_path": str(image_path),
-                "detections": [],
-            }
+            if frame is None or frame.image is None:
+                return {
+                    "ok": False,
+                    "error": f"Input image not found: {image_path}",
+                    "image_path": str(image_path),
+                    "detections": [],
+                }
 
         start = time.perf_counter()
-        tensor, original_rgb, ratio, pad = preprocess_image(image_path, self.input_size)
+        if frame is not None and frame.image is not None:
+            tensor, original_rgb, ratio, pad = preprocess_array(frame.image, self.input_size)
+        else:
+            tensor, original_rgb, ratio, pad = preprocess_image(image_path, self.input_size)
         input_name = self._session.get_inputs()[0].name
         outputs = self._session.run(None, {input_name: tensor})
         detections = decode_yolo_output(
@@ -546,14 +597,19 @@ class InferenceWorker:
         fps = round(1000.0 / elapsed_ms, 2) if elapsed_ms > 0 else None
         detections_payload = [
             {
+                "id": f"det-{uuid.uuid4().hex[:12]}",
                 "class_id": detection.class_id,
                 "class_name": detection.class_name,
                 "confidence": round(detection.confidence, 6),
                 "box_xyxy": [round(value, 2) for value in detection.box_xyxy],
+                "frame_id": frame.frame_id if frame else None,
+                "source_type": frame.source_type if frame else None,
+                "source_name": frame.source_name if frame else None,
+                "session_id": frame.session_id if frame else None,
             }
             for detection in detections
         ]
-        source, source_label = self._source_payload()
+        source, source_label = self._frame_source_payload(frame)
         payload = {
             "ok": True,
             "backend": self.backend,
@@ -569,10 +625,16 @@ class InferenceWorker:
             "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "output_preview_path": str(self.current_preview_path),
             "output_json_path": str(self.current_detections_path),
+            "frame": frame.to_dict() if frame else None,
+            "frame_id": frame.frame_id if frame else None,
+            "session_id": frame.session_id if frame else None,
         }
 
         if save_artifacts:
-            draw_detections(image_path, detections, self.current_preview_path)
+            if frame is not None and frame.image is not None:
+                draw_detections_on_array(frame.image, detections, self.current_preview_path)
+            else:
+                draw_detections(image_path, detections, self.current_preview_path)
             if self.detection_manager is not None:
                 self.detection_manager.record_inference_result(payload, mode=self._mode)
             else:
@@ -608,6 +670,7 @@ class InferenceWorker:
         with self._state_lock:
             if result.get("ok"):
                 self._last_image = str(normalized)
+                self._last_frame = dict(result.get("frame") or {}) if result.get("frame") else None
                 self._last_detections = list(result.get("detections", []))
                 self._last_inference_ms = float(result.get("inference_time_ms") or 0.0)
                 self._last_fps = result.get("fps")
@@ -626,44 +689,108 @@ class InferenceWorker:
             )
         return result
 
+    def run_on_frame(self, frame: FrameObject) -> Dict[str, Any]:
+        image_path = self._image_path_for_frame(frame)
+        result = self._execute_inference(image_path, save_artifacts=True, frame=frame)
+        with self._state_lock:
+            if result.get("ok"):
+                self._last_frame = frame.to_dict()
+                self._last_image = str(image_path)
+                self._last_detections = list(result.get("detections", []))
+                self._last_inference_ms = float(result.get("inference_time_ms") or 0.0)
+                self._last_fps = result.get("fps")
+                self._last_run_ts = str(result.get("updated_at"))
+                self._last_error = ""
+            else:
+                self._last_error = str(result.get("error", "Unknown error"))
+            self._write_current_state()
+        if not result.get("ok"):
+            self._emit_event(
+                "INFERENCE_ERROR",
+                f"AI inference failed for frame {frame.frame_id}: {result.get('error')}",
+                "error",
+                meta={"frame": frame.to_dict(), "error": result.get("error")},
+            )
+        return result
+
+    def next_frame(self) -> Dict[str, Any]:
+        frame = self._next_frame_object()
+        return {"ok": True, "frame": frame.to_dict(), "provider": self.frame_provider.status()}
+
+    def _next_frame_object(self) -> FrameObject:
+        session_id = None
+        if self.detection_manager is not None and getattr(self.detection_manager, "session_manager", None) is not None:
+            try:
+                session = self.detection_manager.session_manager.ensure_session(mode=self._provider_mode(), operator="auto")
+                session_id = str(session.get("session_id") or "")
+            except Exception:
+                session_id = None
+        return self.frame_provider.next_frame(session_id=session_id)
+
+    def configure_frame_provider(
+        self,
+        *,
+        source_type: str | None,
+        source_path: str | Path | None = None,
+        source_name: str | None = None,
+        loop: bool | None = None,
+        save_temp_frames: bool | None = None,
+    ) -> Dict[str, Any]:
+        return self.frame_provider.configure(
+            source_type=source_type,
+            source_path=source_path,
+            source_name=source_name,
+            loop=loop,
+            save_temp_frames=save_temp_frames,
+        )
+
+    def reset_frame_provider(self) -> Dict[str, Any]:
+        return self.frame_provider.reset()
+
+    def frame_provider_status(self) -> Dict[str, Any]:
+        return self.frame_provider.status()
+
+    def run_on_next_frame(self) -> Dict[str, Any]:
+        frame = self._next_frame_object()
+        return self.run_on_frame(frame)
+
     def _demo_loop(self) -> None:
         while not self._stop_event.is_set():
-            images = list_images(self.replay_dir)
-            self._available_images = len(images)
-            if not images:
+            provider_status = self.frame_provider.status()
+            self._available_images = int(provider_status.get("total_frames") or 0)
+            try:
+                result = self.run_on_next_frame()
+            except Exception as exc:
                 with self._state_lock:
-                    self._last_error = f"No replay images found in {self.replay_dir}"
+                    self._last_error = str(exc)
                     self._running = False
                     self._write_current_state()
                 self._emit_event(
                     "INFERENCE_ERROR",
-                    f"No replay images available in {self.replay_dir}",
+                    str(exc),
                     "warning",
-                    meta={"replay_dir": str(self.replay_dir)},
+                    meta={"provider": provider_status},
                 )
                 return
-
-            for image_path in images:
-                if self._stop_event.is_set():
-                    break
-                result = self._execute_inference(image_path, save_artifacts=True)
-                with self._state_lock:
-                    if result.get("ok"):
-                        self._last_image = str(image_path)
-                        self._last_detections = list(result.get("detections", []))
-                        self._last_inference_ms = float(result.get("inference_time_ms") or 0.0)
-                        self._last_fps = result.get("fps")
-                        self._last_run_ts = str(result.get("updated_at"))
-                        self._last_error = ""
-                    else:
-                        self._last_error = str(result.get("error", "Unknown error"))
-                    self._available_images = len(images)
-                    self._write_current_state()
-                if self._stop_event.is_set():
-                    break
-                if self._mode in {"single", "once"}:
-                    break
-                time.sleep(max(0.2, self._interval_seconds))
+            with self._state_lock:
+                provider_status = self.frame_provider.status()
+                self._available_images = int(provider_status.get("total_frames") or self._available_images)
+                if result.get("ok"):
+                    self._last_frame = dict(result.get("frame") or {}) if result.get("frame") else self._last_frame
+                    self._last_image = str(result.get("image_path") or self._last_image or "")
+                    self._last_detections = list(result.get("detections", []))
+                    self._last_inference_ms = float(result.get("inference_time_ms") or 0.0)
+                    self._last_fps = result.get("fps")
+                    self._last_run_ts = str(result.get("updated_at"))
+                    self._last_error = ""
+                else:
+                    self._last_error = str(result.get("error", "Unknown error"))
+                self._write_current_state()
+            if self._stop_event.is_set():
+                break
+            if self._mode in {"single", "once"}:
+                break
+            time.sleep(max(0.2, self._interval_seconds))
             if self._mode in {"single", "once"}:
                 break
 
@@ -693,10 +820,21 @@ class InferenceWorker:
             payload["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
             return payload
 
-        images = list_images(self.replay_dir)
-        self._available_images = len(images)
-        if not images:
-            error = f"No replay images found in {self.replay_dir}"
+        provider_status = self.frame_provider.status()
+        total_frames = int(provider_status.get("total_frames") or 0)
+        self._available_images = total_frames
+        if provider_status.get("error"):
+            error = str(provider_status.get("error"))
+            with self._state_lock:
+                self._last_error = error
+                self._running = False
+                self._write_current_state()
+                payload = self._snapshot_payload()
+            payload.update({"ok": False, "error": error, "running": False})
+            payload["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            return payload
+        if normalized_mode in {"replay", "demo", "loop", "single", "once"} and total_frames == 0 and provider_status.get("source_type") in {"REPLAY_FOLDER", "DATASET"}:
+            error = f"No replay images found in {provider_status.get('source_path') or self.replay_dir}"
             with self._state_lock:
                 self._last_error = error
                 self._running = False
@@ -716,7 +854,7 @@ class InferenceWorker:
             self._stop_event.clear()
             self._running = True
             self._last_error = ""
-            self._available_images = len(images)
+            self._available_images = total_frames
             self._write_current_state()
 
         self._emit_event(

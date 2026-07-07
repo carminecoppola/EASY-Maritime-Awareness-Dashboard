@@ -124,7 +124,10 @@ class SessionManager:
         if not paths["detections"].exists():
             _atomic_write_json(paths["detections"], {"ok": True, "session_id": session_id, "count": 0, "detections": []})
         if not paths["events"].exists():
-            _atomic_write_json(paths["events"], {"ok": True, "session_id": session_id, "count": 0, "events": []})
+            _atomic_write_json(
+                paths["events"],
+                {"ok": True, "session_id": session_id, "count": 0, "active_count": 0, "events": [], "current_events": [], "activity_log": []},
+            )
         if not paths["metrics"].exists():
             _atomic_write_json(paths["metrics"], self._empty_metrics(session_id))
 
@@ -133,6 +136,8 @@ class SessionManager:
             "ok": True,
             "session_id": session_id,
             "total_detections": 0,
+            "total_events": 0,
+            "active_events": 0,
             "boat_count": 0,
             "ship_count": 0,
             "buoy_count": 0,
@@ -353,6 +358,13 @@ class SessionManager:
         if not isinstance(detections, list):
             detections = []
         previous = _read_json(paths["metrics"], self._empty_metrics(session_id))
+        events_payload = _read_json(paths["events"], {"events": [], "current_events": []})
+        stored_events = events_payload.get("events", [])
+        current_events = events_payload.get("current_events", [])
+        if not isinstance(stored_events, list):
+            stored_events = []
+        if not isinstance(current_events, list):
+            current_events = []
         inference_calls = int(previous.get("inference_calls") or 0)
         average = previous.get("average_inference_time")
         if inference_time_ms is not None:
@@ -370,6 +382,8 @@ class SessionManager:
             "ok": True,
             "session_id": session_id,
             "total_detections": len(detections),
+            "total_events": len(stored_events),
+            "active_events": len(current_events),
             "boat_count": sum(1 for item in detections if str(item.get("class_name") or item.get("label") or "").lower() == "boat"),
             "ship_count": sum(1 for item in detections if str(item.get("class_name") or item.get("label") or "").lower() == "ship"),
             "buoy_count": sum(1 for item in detections if str(item.get("class_name") or item.get("label") or "").lower() == "buoy"),
@@ -393,12 +407,26 @@ class SessionManager:
 
     def _append_session_event(self, session_id: str, event_type: str, meta: Dict[str, Any]) -> None:
         path = self._paths(session_id)["events"]
-        payload = _read_json(path, {"ok": True, "session_id": session_id, "events": []})
-        events = payload.get("events", [])
-        if not isinstance(events, list):
-            events = []
-        events.append({"timestamp": utc_now_iso(), "type": event_type, "meta": meta})
-        _atomic_write_json(path, {"ok": True, "session_id": session_id, "count": len(events), "events": events})
+        payload = _read_json(path, {"ok": True, "session_id": session_id, "events": [], "current_events": [], "activity_log": []})
+        activity_log = payload.get("activity_log", [])
+        if not isinstance(activity_log, list):
+            activity_log = []
+        activity_log.append({"timestamp": utc_now_iso(), "type": event_type, "meta": meta})
+        payload.update(
+            {
+                "ok": True,
+                "session_id": session_id,
+                "activity_log": activity_log,
+                "updated_at": utc_now_iso(),
+            }
+        )
+        if not isinstance(payload.get("events"), list):
+            payload["events"] = []
+        if not isinstance(payload.get("current_events"), list):
+            payload["current_events"] = []
+        payload["count"] = len(payload["events"])
+        payload["active_count"] = len(payload["current_events"])
+        _atomic_write_json(path, payload)
 
     def _emit(self, event_type: str, description: str, severity: str, meta: Dict[str, Any]) -> None:
         if not self.events:
