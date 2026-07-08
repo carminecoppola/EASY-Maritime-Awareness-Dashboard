@@ -27,6 +27,7 @@ from detection_manager import DetectionManager
 from event_manager import EventManager
 from inference_worker import InferenceWorker, find_first_image
 from session_manager import SessionManager
+from source_manager import SourceManager
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -380,6 +381,9 @@ class EventStore:
             "SESSION_START": "La sessione è attiva: acquisizioni e detection verranno archiviate.",
             "SESSION_STOP": "Sessione fermata. Puoi consultare l'archivio in runtime/sessions.",
             "DETECTION_NEW": "Detection registrata nel manager e nella sessione corrente.",
+            "SOURCE_SELECT": "La sorgente è stata aggiornata nel Source Manager.",
+            "SOURCE_SELECT_FAILED": "Verifica che la sorgente richiesta esista ancora.",
+            "SOURCE_REFRESH": "La registry delle sorgenti è stata aggiornata.",
         }
         event = {
             "id": f"{int(time.time() * 1000)}-{len(self._events)}",
@@ -1754,10 +1758,11 @@ def create_app() -> Flask:
     probe = SystemProbe()
     thermal = ThermalState(config, events)
     rgb = RgbMasterSource(config, events, probe)
+    source_manager = SourceManager(runtime_root=PROJECT_ROOT / "runtime", replay_root=PROJECT_ROOT / "runtime" / "replay", events=events, logger=LOGGER)
     session_manager = SessionManager(events=events, hostname=probe.hostname())
     event_manager = EventManager(events=events, session_manager=session_manager)
     detection_manager = DetectionManager(events=events, session_manager=session_manager, event_manager=event_manager)
-    inference = InferenceWorker(events=events, detection_manager=detection_manager)
+    inference = InferenceWorker(events=events, detection_manager=detection_manager, source_manager=source_manager)
 
     run_preflight_script()
     append_startup_notice(events, probe, config)
@@ -1839,6 +1844,7 @@ def create_app() -> Flask:
         rgb_state = rgb.latest_state()
         thermal_state = thermal.status_payload()
         inference_state = inference.status()
+        sources_state = source_manager.get_status()
         detection_state = detection_manager.get_current_detections()
         session_state = session_manager.status()
         operations_inference_state = dict(inference_state)
@@ -1869,6 +1875,7 @@ def create_app() -> Flask:
                 "timestamp": utc_now_iso(),
                 "system": system_payload,
                 "cameras": camera_inventory,
+                "sources": sources_state,
                 "rgb": rgb_state,
                 "thermal": thermal_state,
                 "inference": inference_state,
@@ -1886,6 +1893,40 @@ def create_app() -> Flask:
     @app.route("/cameras")
     def cameras():
         return jsonify(build_camera_inventory(rgb, thermal))
+
+    @app.route("/api/sources", methods=["GET"])
+    def api_sources():
+        return jsonify(source_manager.get_status())
+
+    @app.route("/api/sources/status", methods=["GET"])
+    def api_sources_status():
+        return jsonify(source_manager.get_status())
+
+    @app.route("/api/sources/<source_id>", methods=["GET"])
+    def api_source_detail(source_id: str):
+        source = source_manager.get_source(source_id)
+        if not source:
+            return jsonify({"ok": False, "error": "Source not found", "id": source_id}), 404
+        return jsonify({"ok": True, "source": source})
+
+    @app.route("/api/sources/refresh", methods=["POST"])
+    def api_sources_refresh():
+        payload = request.get_json(force=True, silent=True) or {}
+        source_id = payload.get("source_id") or payload.get("id")
+        if source_id:
+            return jsonify(source_manager.refresh_status(str(source_id)))
+        return jsonify(source_manager.refresh_status())
+
+    @app.route("/api/sources/select", methods=["POST"])
+    def api_sources_select():
+        payload = request.get_json(force=True, silent=True) or {}
+        source_id = str(payload.get("source_id") or payload.get("id") or "").strip()
+        if not source_id:
+            return jsonify({"ok": False, "error": "source_id is required"}), 400
+        result = source_manager.select_source(source_id)
+        if result.get("ok") is False:
+            return jsonify(result), 404
+        return jsonify(result)
 
     @app.route("/events")
     def events_endpoint():
