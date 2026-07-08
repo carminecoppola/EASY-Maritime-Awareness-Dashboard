@@ -31,6 +31,21 @@
       </div>
     </div>
 
+    <section class="panel mission-sources-panel" aria-label="Mission Sources">
+      <div class="panel-head">
+        <div>
+          <span class="panel-kicker">Mission Sources</span>
+          <h2 class="panel-title">Sorgenti disponibili</h2>
+          <p class="panel-copy">Seleziona la sorgente del Frame Provider senza riavviare la dashboard. Replay resta la modalità operativa valida in questa fase.</p>
+        </div>
+        <div class="panel-head-actions">
+          <span class="badge badge-muted" id="sources-selected-badge">Selected: --</span>
+          <button class="btn btn-ghost btn-small" id="sources-refresh-button" type="button">Refresh</button>
+        </div>
+      </div>
+      <div class="sources-grid" id="sources-grid"></div>
+    </section>
+
     <section class="live-grid">
       <article class="panel live-feed-card" data-feed="rgb_left">
         <div class="live-feed-head">

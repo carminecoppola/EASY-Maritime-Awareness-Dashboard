@@ -12,6 +12,8 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from frame_provider import FrameObject, UnifiedFrameProvider
 
+from source_manager import SourceManager, SourceStatus
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 RUNTIME_ROOT = PROJECT_ROOT / "runtime"
@@ -301,9 +303,16 @@ def _atomic_write_json(path: Path, payload: dict) -> None:
 
 
 class InferenceWorker:
-    def __init__(self, events: Any | None = None, config_path: Path | None = None, detection_manager: Any | None = None) -> None:
+    def __init__(
+        self,
+        events: Any | None = None,
+        config_path: Path | None = None,
+        detection_manager: Any | None = None,
+        source_manager: SourceManager | None = None,
+    ) -> None:
         self.events = events
         self.detection_manager = detection_manager
+        self.source_manager = source_manager
         self.config_path = config_path
         self._config_error = ""
         try:
@@ -336,7 +345,8 @@ class InferenceWorker:
             self._config_error = str(exc)
         self.runtime_root = resolve_runtime_path(self.config.get("runtime_root", "runtime"))
         self.sessions_dir = resolve_runtime_path(self.config.get("outputs", {}).get("sessions_dir", "runtime/sessions"))
-        self.replay_dir = resolve_runtime_path(self.config.get("outputs", {}).get("replay_dir", "runtime/replay"))
+        self.default_replay_dir = resolve_runtime_path(self.config.get("outputs", {}).get("replay_dir", "runtime/replay"))
+        self.replay_dir = self._resolve_active_replay_dir()
         self.logs_dir = resolve_runtime_path(self.config.get("outputs", {}).get("logs_dir", "runtime/logs"))
         self.current_detections_path = self.sessions_dir / "current_detections.json"
         self.current_preview_path = self.sessions_dir / "current_detections.jpg"
@@ -377,6 +387,57 @@ class InferenceWorker:
         model_info = self.config.get("model", {})
         return resolve_runtime_path(str(model_info.get("preferred_path", "runtime/models/easy_v1_best_rgb.onnx")))
 
+    def _selected_source(self) -> Dict[str, Any]:
+        if self.source_manager is None:
+            return {
+                "id": "replay",
+                "name": "Replay Folder",
+                "type": "replay_folder",
+                "status": SourceStatus.STREAMING if self.default_replay_dir.exists() else SourceStatus.OFFLINE,
+                "enabled": True,
+                "last_update": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "configuration": {"replay_dir": str(self.default_replay_dir)},
+                "selected": True,
+            }
+        try:
+            return dict(self.source_manager.get_selected_source())
+        except Exception:
+            return {
+                "id": "replay",
+                "name": "Replay Folder",
+                "type": "replay_folder",
+                "status": SourceStatus.UNKNOWN,
+                "enabled": True,
+                "last_update": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "configuration": {"replay_dir": str(self.default_replay_dir)},
+                "selected": True,
+            }
+
+    def _resolve_active_replay_dir(self) -> Path:
+        if self.source_manager is not None:
+            try:
+                selected_dir = self.source_manager.get_selected_replay_dir()
+                if selected_dir is not None:
+                    return selected_dir
+            except Exception:
+                pass
+        return self.default_replay_dir
+
+    def _refresh_active_source(self) -> None:
+        self.replay_dir = self._resolve_active_replay_dir()
+        try:
+            self._available_images = len(list_images(self.replay_dir))
+        except Exception:
+            self._available_images = 0
+
+    def _selected_source_status(self) -> str:
+        source = self._selected_source()
+        return str(source.get("status") or SourceStatus.UNKNOWN)
+
+    def _selected_source_label(self) -> str:
+        source = self._selected_source()
+        return str(source.get("name") or "Replay Folder")
+
     def _ensure_session(self) -> Tuple[bool, str]:
         if self._session is not None:
             return True, ""
@@ -411,20 +472,23 @@ class InferenceWorker:
             pass
 
     def _snapshot_payload(self) -> Dict[str, Any]:
+        source = self._selected_source()
         if self._mode in {"replay", "demo", "loop", "single", "once"}:
-            source = "replay"
-            source_label = "Replay / Demo"
+            source_name = str(source.get("id") or "replay")
+            source_label = str(source.get("name") or "Replay / Demo")
         elif self._mode == "manual":
-            source = "manual"
+            source_name = "manual"
             source_label = "Manual image"
         else:
-            source = self._mode
+            source_name = self._mode
             source_label = self._mode.replace("_", " ").title() if self._mode else "Unknown"
         return {
             "running": self._running,
             "mode": self._mode,
-            "source": source,
+            "source": source_name,
             "source_label": source_label,
+            "source_status": source.get("status", SourceStatus.UNKNOWN),
+            "selected_source": source,
             "backend": self.backend,
             "model_path": str(self.model_path),
             "config_path": str(self.config_path or self.config.get("_loaded_from", "")),
@@ -513,8 +577,9 @@ class InferenceWorker:
         return self.status()
 
     def _source_payload(self) -> Tuple[str, str]:
+        source = self._selected_source()
         if self._mode in {"replay", "demo", "loop", "single", "once"}:
-            return "replay", "Replay / Demo"
+            return str(source.get("id") or "replay"), str(source.get("name") or "Replay Folder")
         if self._mode == "manual":
             return "manual", "Manual image"
         label = self._mode.replace("_", " ").title() if self._mode else "Unknown"
@@ -657,8 +722,16 @@ class InferenceWorker:
         return payload
 
     def run_on_image(self, image_path: str | Path | None = None) -> Dict[str, Any]:
+        self._refresh_active_source()
         if image_path is None:
             try:
+                if self._selected_source_status() not in {SourceStatus.ONLINE, SourceStatus.STREAMING}:
+                    error = f"Selected source {self._selected_source_label()} is not available"
+                    result = {"ok": False, "error": error, "detections": [], "image_path": None}
+                    with self._state_lock:
+                        self._last_error = error
+                        self._write_current_state()
+                    return result
                 image_path = find_first_image(self.replay_dir)
             except Exception as exc:
                 result = {"ok": False, "error": str(exc), "detections": []}
@@ -758,6 +831,45 @@ class InferenceWorker:
         while not self._stop_event.is_set():
             provider_status = self.frame_provider.status()
             self._available_images = int(provider_status.get("total_frames") or 0)
+            selected_source = self._selected_source()
+            selected_type = str(selected_source.get("type") or "").lower()
+            selected_status = self._selected_source_status()
+            if provider_status.get("error"):
+                with self._state_lock:
+                    self._last_error = str(provider_status.get("error"))
+                    self._running = False
+                    self._write_current_state()
+                self._emit_event(
+                    "INFERENCE_ERROR",
+                    self._last_error,
+                    "warning",
+                    meta={"provider": provider_status},
+                )
+                return
+            if selected_type != "replay_folder" and selected_status not in {SourceStatus.ONLINE, SourceStatus.STREAMING}:
+                with self._state_lock:
+                    self._last_error = f"Selected source {selected_source.get('name') or 'Unknown'} is not available"
+                    self._running = False
+                    self._write_current_state()
+                self._emit_event(
+                    "INFERENCE_ERROR",
+                    self._last_error,
+                    "warning",
+                    meta={"selected_source": selected_source},
+                )
+                return
+            if selected_type in {"replay_folder", "dataset"} and self._available_images == 0:
+                with self._state_lock:
+                    self._last_error = f"No replay images found in {self.replay_dir}"
+                    self._running = False
+                    self._write_current_state()
+                self._emit_event(
+                    "INFERENCE_ERROR",
+                    self._last_error,
+                    "warning",
+                    meta={"replay_dir": str(self.replay_dir), "selected_source": selected_source},
+                )
+                return
             try:
                 result = self.run_on_next_frame()
             except Exception as exc:
@@ -773,8 +885,6 @@ class InferenceWorker:
                 )
                 return
             with self._state_lock:
-                provider_status = self.frame_provider.status()
-                self._available_images = int(provider_status.get("total_frames") or self._available_images)
                 if result.get("ok"):
                     self._last_frame = dict(result.get("frame") or {}) if result.get("frame") else self._last_frame
                     self._last_image = str(result.get("image_path") or self._last_image or "")
@@ -823,6 +933,9 @@ class InferenceWorker:
         provider_status = self.frame_provider.status()
         total_frames = int(provider_status.get("total_frames") or 0)
         self._available_images = total_frames
+        selected_source = self._selected_source()
+        selected_type = str(selected_source.get("type") or "").lower()
+        selected_status = self._selected_source_status()
         if provider_status.get("error"):
             error = str(provider_status.get("error"))
             with self._state_lock:
@@ -833,7 +946,17 @@ class InferenceWorker:
             payload.update({"ok": False, "error": error, "running": False})
             payload["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
             return payload
-        if normalized_mode in {"replay", "demo", "loop", "single", "once"} and total_frames == 0 and provider_status.get("source_type") in {"REPLAY_FOLDER", "DATASET"}:
+        if selected_type != "replay_folder" and selected_status not in {SourceStatus.ONLINE, SourceStatus.STREAMING}:
+            error = f"Selected source {self._selected_source_label()} is not available"
+            with self._state_lock:
+                self._last_error = error
+                self._running = False
+                self._write_current_state()
+                payload = self._snapshot_payload()
+            payload.update({"ok": False, "error": error, "running": False})
+            payload["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            return payload
+        if normalized_mode in {"replay", "demo", "loop", "single", "once"} and total_frames == 0 and selected_type in {"replay_folder", "dataset"}:
             error = f"No replay images found in {provider_status.get('source_path') or self.replay_dir}"
             with self._state_lock:
                 self._last_error = error

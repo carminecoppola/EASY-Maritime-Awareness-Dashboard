@@ -171,6 +171,7 @@ function friendlySource(value) {
     EASY_INFERENCE: "AI INFERENCE",
     DETECTION_MANAGER: "DETECTION MANAGER",
     EVENT_ENGINE: "EVENT ENGINE",
+    SOURCE_MANAGER: "SOURCES",
   };
   return map[String(value || "").toUpperCase()] || String(value || "--");
 }
@@ -207,8 +208,21 @@ function friendlyEventType(value) {
     EVENT_UPDATED: "Evento aggiornato",
     FEED_ENABLE: "Feed abilitato",
     FEED_DISABLE: "Feed sospeso",
+    SOURCE_SELECT: "Sorgente selezionata",
+    SOURCE_SELECT_FAILED: "Selezione fallita",
+    SOURCE_REFRESH: "Aggiorna sorgenti",
+    SOURCE_CHANGED: "Sorgente cambiata",
   };
   return map[String(value || "").toUpperCase()] || String(value || "--");
+}
+
+function sourceTone(state) {
+  const value = String(state || "--").toUpperCase();
+  if (["ONLINE", "STREAMING"].includes(value)) return { badge: "online", dot: "state-dot-online" };
+  if (["INITIALIZING", "STARTING", "LOADING"].includes(value)) return { badge: "loading", dot: "state-dot-loading" };
+  if (["WARNING", "WARN"].includes(value)) return { badge: "warning", dot: "state-dot-warning" };
+  if (["OFFLINE", "ERROR", "FAILED"].includes(value)) return { badge: "error", dot: "state-dot-error" };
+  return { badge: "muted", dot: "state-dot-muted" };
 }
 
 function cleanLogText(value) {
@@ -413,11 +427,12 @@ function setBadge(id, text, severity) {
 
 function stateTone(state) {
   const value = String(state || "--").toUpperCase();
-  if (["ONLINE", "DETECTED", "READY", "OK"].includes(value)) return { badge: "online", dot: "state-dot-online" };
+  if (["ONLINE", "DETECTED", "READY", "OK", "STREAMING"].includes(value)) return { badge: "online", dot: "state-dot-online" };
   if (["BUSY", "WARNING", "WARN"].includes(value)) return { badge: "warning", dot: "state-dot-warning" };
   if (["OFFLINE", "ERROR", "FAILED", "DISABLED"].includes(value)) return { badge: "error", dot: "state-dot-error" };
-  if (["STARTING", "LOADING", "WAITING", "CHECKING"].includes(value)) return { badge: "loading", dot: "state-dot-loading" };
+  if (["STARTING", "LOADING", "WAITING", "CHECKING", "INITIALIZING"].includes(value)) return { badge: "loading", dot: "state-dot-loading" };
   if (value === "PAUSED") return { badge: "muted", dot: "state-dot-muted" };
+  if (["NOT_AVAILABLE", "UNKNOWN"].includes(value)) return { badge: "muted", dot: "state-dot-muted" };
   return { badge: "muted", dot: "state-dot-muted" };
 }
 
@@ -439,7 +454,11 @@ function humanStateLabel(state) {
     LOADING: "Loading",
     WAITING: "Waiting",
     CHECKING: "Checking",
+    INITIALIZING: "Initializing",
     PAUSED: "Paused",
+    STREAMING: "Streaming",
+    NOT_AVAILABLE: "Not available",
+    UNKNOWN: "Unknown",
     REAL: "Live",
     MOCK: "Simulation",
     NOT_DETECTED: "Not detected",
@@ -740,6 +759,73 @@ function renderHealthSummary(nodeId, items) {
         </div>
       `,
     )
+    .join("");
+}
+
+function renderSourcePanel(payload) {
+  const grid = byId("sources-grid");
+  const selectedBadge = byId("sources-selected-badge");
+  if (!grid || !selectedBadge) return;
+  const sources = Array.isArray(payload?.sources) ? payload.sources : [];
+  const selected = payload?.selected_source || null;
+  selectedBadge.textContent = selected?.name ? `Selected: ${selected.name}` : "Selected: --";
+
+  if (!sources.length) {
+    grid.innerHTML = `
+      <div class="placeholder-item">
+        <strong>No sources registered</strong>
+        <p>The Source Manager will list Replay, RGB LEFT, RGB RIGHT and THERMAL here.</p>
+      </div>
+    `;
+    return;
+  }
+
+  grid.innerHTML = sources
+    .map((source) => {
+      const tone = sourceTone(source.status);
+      const label = humanStateLabel(source.status);
+      const isSelected = Boolean(source.selected);
+      const updated = source.last_update ? formatRomeDateTime(source.last_update) : "--";
+      const configBits = [];
+      if (source.type) configBits.push(source.type.replace(/_/g, " "));
+      if (source.configuration?.replay_dir) configBits.push(compactPath(source.configuration.replay_dir));
+      if (source.configuration?.provider) configBits.push(source.configuration.provider);
+      const buttonLabel = isSelected ? "Selected" : "Select";
+      return `
+        <article class="source-card${isSelected ? " is-selected" : ""}">
+          <div class="source-card-head">
+            <div>
+              <span class="source-card-name">${escapeHtml(source.name || source.id || "--")}</span>
+              <p class="source-card-subtitle">${escapeHtml(configBits.join(" · ") || "No configuration")}</p>
+            </div>
+            <span class="badge badge-${tone.badge}">${escapeHtml(label)}</span>
+          </div>
+          <div class="source-card-body">
+            <div class="source-status-line">
+              <span class="state-dot ${tone.dot}"></span>
+              <span>${escapeHtml(source.enabled ? "Enabled" : "Disabled")}</span>
+            </div>
+            <div class="source-card-meta">
+              <span>Last update</span>
+              <strong>${escapeHtml(updated)}</strong>
+            </div>
+            <div class="source-card-meta">
+              <span>Type</span>
+              <strong>${escapeHtml(source.type || "--")}</strong>
+            </div>
+          </div>
+          <div class="source-card-actions">
+            <button
+              class="btn btn-small ${isSelected ? "btn-primary" : "btn-ghost"}"
+              type="button"
+              data-source-select="${escapeHtml(source.id || "")}"
+              ${isSelected ? "disabled" : ""}
+            >${escapeHtml(buttonLabel)}</button>
+            ${isSelected ? '<span class="source-selected-badge">Current source</span>' : ""}
+          </div>
+        </article>
+      `;
+    })
     .join("");
 }
 
@@ -1982,6 +2068,7 @@ const dashboardState = {
   sessionStatus: null,
   snapshots: [],
   snapshotSummary: null,
+  sources: null,
   eventSummary: null,
   eventCount: 0,
   logLimit: 100,
@@ -2000,10 +2087,11 @@ const dashboardState = {
 
 async function refreshDashboard() {
   try {
-    const [healthRes, eventsRes, snapshotsRes, inferenceStatusRes, inferenceCurrentRes, sessionStatusRes, currentEventsRes, eventHistoryRes, frameProviderRes] = await Promise.all([
+    const [healthRes, eventsRes, snapshotsRes, sourcesRes, inferenceStatusRes, inferenceCurrentRes, sessionStatusRes, currentEventsRes, eventHistoryRes, frameProviderRes] = await Promise.all([
       fetchJson("/health"),
       fetchJson("/events?limit=9999"),
       fetchJson("/api/snapshots/recent?limit=12"),
+      fetchJson("/api/sources/status"),
       fetchJson("/api/inference/status"),
       fetchJson("/api/detection/current"),
       fetchJson("/api/session/status"),
@@ -2014,6 +2102,7 @@ async function refreshDashboard() {
     const health = healthRes.data || dashboardState.health || {};
     const eventsPayload = eventsRes.data || { events: [], summary: {} };
     const snapshotsPayload = snapshotsRes.data || { items: [], summary: null };
+    const sourcesPayload = sourcesRes.data || { sources: [] };
     const inferenceStatus = inferenceStatusRes.data || {};
     const inferenceCurrent = inferenceCurrentRes.data || {};
     const sessionStatus = sessionStatusRes.data || health.session || {};
@@ -2034,6 +2123,7 @@ async function refreshDashboard() {
     dashboardState.sessionStatus = sessionStatus;
     dashboardState.snapshots = snapshotsPayload?.items || [];
     dashboardState.snapshotSummary = snapshotsPayload?.summary || null;
+    dashboardState.sources = sourcesPayload || null;
 
     const rgb = health.rgb || {};
     const thermal = health.thermal || {};
@@ -2077,6 +2167,7 @@ async function refreshDashboard() {
 
     renderEventLog(dashboardState.events);
     renderSnapshots(dashboardState.snapshots, dashboardState.snapshotSummary);
+    renderSourcePanel(dashboardState.sources);
     updateNavIndicators(health, eventsPayload, dashboardState.snapshots);
 
     if (dashboardState.page === "live") {
@@ -2169,6 +2260,42 @@ function setupFilters() {
 }
 
 function setupButtons() {
+  document.addEventListener("click", async (event) => {
+    const button = event.target.closest?.("[data-source-select]");
+    if (!button) return;
+    const sourceId = button.getAttribute("data-source-select");
+    if (!sourceId) return;
+    button.disabled = true;
+    try {
+      const payload = await callInferenceAction("/api/sources/select", { source_id: sourceId });
+      const selectedName = payload?.selected_source?.name || sourceId;
+      showToast("Source changed", `${selectedName} selected`, "success");
+      await refreshDashboard();
+    } catch (error) {
+      console.error(error);
+      showToast("Source selection failed", error.message || "Unable to select source", "error");
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  const sourcesRefreshButton = byId("sources-refresh-button");
+  if (sourcesRefreshButton) {
+    sourcesRefreshButton.addEventListener("click", async () => {
+      sourcesRefreshButton.disabled = true;
+      try {
+        await callInferenceAction("/api/sources/refresh", {});
+        showToast("Sources refreshed", "The source registry was updated.", "success");
+        await refreshDashboard();
+      } catch (error) {
+        console.error(error);
+        showToast("Refresh failed", error.message || "Unable to refresh sources", "error");
+      } finally {
+        sourcesRefreshButton.disabled = false;
+      }
+    });
+  }
+
   const logExportButton = byId("log-export-csv");
   if (logExportButton) {
     logExportButton.addEventListener("click", () => {
