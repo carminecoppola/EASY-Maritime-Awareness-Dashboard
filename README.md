@@ -42,18 +42,29 @@ Open:
 http://<Raspberry_IP>:5000
 ```
 
-Rainbow must remain an SSH-only reverse tunnel. From the Mac, open a local
-forward through Rainbow with ProxyJump:
+Purple exposes the Raspberry SSH server only on its loopback address through
+the persistent reverse tunnel `rainbow-tunnel.service`. Start the dashboard on
+the Raspberry, then run this command in a second terminal on the Mac:
 
 ```bash
-ssh -N -L 5000:127.0.0.1:5000 -J ccoppola@193.205.230.76 -p 44222 pi@127.0.0.1
+curl -fsS --max-time 2 http://127.0.0.1:5500/ >/dev/null || \
+  ssh -fNT -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 \
+    -L 5500:127.0.0.1:5000 \
+    -J ccoppola@193.205.230.76 \
+    -p 44222 pi@127.0.0.1
+open http://127.0.0.1:5500
 ```
 
-Then open on the Mac:
+The command reuses a working local tunnel when one already exists. Otherwise,
+SSH moves to the background after creating it. Safari then opens automatically.
+Port `5500` is used on the Mac to avoid the macOS AirPlay service that may
+already occupy local port `5000`; Flask continues to listen on Raspberry port
+`5000`.
 
-```text
-http://127.0.0.1:5000
-```
+The two SSH ports have different roles:
+
+- Purple SSH uses its normal port `22`.
+- Port `44222` exists only on Purple loopback and reaches Raspberry SSH.
 
 ## Debug
 
