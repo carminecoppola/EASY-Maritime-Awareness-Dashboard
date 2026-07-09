@@ -7,6 +7,7 @@ Keeping that plumbing in one place makes the manager modules shorter and
 keeps naming consistent across detections, events and sessions.
 """
 
+import calendar
 import json
 import time
 import uuid
@@ -22,7 +23,9 @@ def parse_utc_ts(value: str | None) -> float | None:
     if not value:
         return None
     try:
-        return time.mktime(time.strptime(value, "%Y-%m-%dT%H:%M:%SZ"))
+        # The trailing Z is UTC. time.mktime() interprets the tuple as local
+        # time and shifted mission durations by the host timezone.
+        return float(calendar.timegm(time.strptime(value, "%Y-%m-%dT%H:%M:%SZ")))
     except Exception:
         return None
 

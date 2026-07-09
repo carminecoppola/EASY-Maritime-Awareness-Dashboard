@@ -4,6 +4,27 @@
 
 {% block content %}
   <section class="log-page">
+    <section class="snapshot-library panel" aria-label="Foto salvate">
+      <div class="panel-head">
+        <div>
+          <span class="panel-kicker">Archivio locale</span>
+          <h2 class="panel-title">Foto salvate sulla Raspberry</h2>
+          <p class="panel-copy">Le acquisizioni più recenti. Apri l’anteprima o scarica il file originale.</p>
+        </div>
+        <div class="snapshot-library-summary">
+          <span><strong id="snapshot-count">0</strong> foto</span>
+          <span id="snapshot-total-size">0 B</span>
+          <span id="snapshot-latest-time">—</span>
+        </div>
+      </div>
+      <div class="snapshot-grid" id="snapshot-grid"></div>
+    </section>
+
+    <div class="section-divider">
+      <span>Registro attività</span>
+      <p>Eventi tecnici, rilevazioni e avvisi prodotti dal sistema.</p>
+    </div>
+
     <section class="log-count-bar" aria-label="Filtri rapidi log">
       <button type="button" class="log-count-chip is-active" data-log-severity="all">
         <span>Tutti</span><strong id="log-count-all">0</strong>

@@ -164,11 +164,11 @@ function renderSessionPanel(status) {
   const stopButton = byId(detectionsElementId("sessionStopButton"));
   const statusNode = byId(detectionsElementId("sessionStatus"));
 
-  if (title) title.textContent = session ? `Sessione ${session.session_id || "EASY"}` : "Nessuna sessione attiva";
+  if (title) title.textContent = session ? (running ? "Missione in registrazione" : "Ultima missione archiviata") : "Nessuna missione attiva";
   if (helper) {
     helper.textContent = session
-      ? "Eventi, detection, metriche e archivi vengono salvati nella cartella runtime della sessione."
-      : "Avvia una sessione per archiviare eventi, rilevazioni, metriche e futuri sviluppi EASY.";
+      ? `${session.session_id || "Sessione EASY"} · i dati sono salvati nell’archivio runtime della Raspberry.`
+      : "Avvia una missione per salvare rilevazioni, eventi e metriche sulla Raspberry.";
   }
   if (startButton) startButton.hidden = running;
   if (stopButton) stopButton.hidden = !running;

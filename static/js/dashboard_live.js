@@ -37,6 +37,12 @@ function liveActionElementId(action) {
     sourceSelectedBadge: "live-source-selected-badge",
     sourceRefreshButton: "button-live-refresh-sources",
     thermalImage: "live-feed-thermal-image",
+    missionBar: "live-mission-command-bar",
+    missionIndicator: "live-mission-state-indicator",
+    missionTitle: "live-mission-state-title",
+    missionCopy: "live-mission-state-copy",
+    captureTitle: "live-capture-feedback-title",
+    captureLink: "live-capture-feedback-link",
   };
   return mapping[action];
 }
@@ -102,7 +108,7 @@ function renderLivePage(health) {
   const thermal = health.thermal || {};
   const cameras = health.cameras || {};
   const selectedSource = health.sources?.selected_source || {};
-  const session = health.session || {};
+  const healthSession = health.session || {};
   const mission = humanMissionState(health, thermal, rgb, operations);
   const detectionCount = Number(health.detection_manager?.count || health.inference?.count || 0);
   const rgbCams = cameras.rgb_cameras || [];
@@ -114,11 +120,11 @@ function renderLivePage(health) {
   setText(liveSummaryElementId("healthCopy"), mission.copy || "Controlla lo stato delle sorgenti live.");
   setText(liveSummaryElementId("sourceTitle"), selectedSource.label || selectedSource.id || "Non selezionata");
   setText(liveSummaryElementId("sourceCopy"), selectedSource.description || selectedSource.state || "Seleziona la sorgente attiva del Frame Provider dal pannello qui sotto.");
-  setText(liveSummaryElementId("sessionTitle"), session.running ? "In corso" : "Standby");
+  setText(liveSummaryElementId("sessionTitle"), healthSession.running ? "In corso" : "Standby");
   setText(
     liveSummaryElementId("sessionCopy"),
-    session.running
-      ? `Sessione ${session.session_id || "--"} · ${formatUptimeShort(session.duration_seconds || 0)}`
+    healthSession.running
+      ? `Sessione ${healthSession.session_id || "--"} · ${formatUptimeShort(healthSession.duration_seconds || 0)}`
       : "Avvia una sessione quando vuoi archiviare detections ed eventi della missione.",
   );
   setText(liveSummaryElementId("detectionsCount"), `${detectionCount}`);
@@ -183,7 +189,9 @@ function renderLivePage(health) {
     if (image) image.classList.toggle("is-hidden", Boolean(tone.offline));
   });
 
-  const recording = operations.pipeline?.recording || {};
+  const sessionStatus = dashboardState.sessionStatus || health.session || {};
+  const session = sessionStatus.current || sessionStatus.session || null;
+  const sessionRunning = Boolean(sessionStatus.running || session?.status === "RUNNING");
   const thermalState = String(thermal.status || thermal.mode || "").toUpperCase();
   const snapshotButton = byId(liveActionElementId("snapshot"));
   if (snapshotButton) {
@@ -191,8 +199,22 @@ function renderLivePage(health) {
   }
   const recordButton = byId(liveActionElementId("record"));
   if (recordButton) {
-    const supported = Boolean(recording.supported);
-    recordButton.disabled = !supported;
-    recordButton.title = supported ? "" : "Recording non disponibile";
+    recordButton.disabled = false;
+    recordButton.classList.toggle("btn-danger", sessionRunning);
+    recordButton.classList.toggle("btn-primary", !sessionRunning);
+    recordButton.textContent = sessionRunning ? "Termina missione" : "Avvia missione";
+    recordButton.title = sessionRunning ? "Termina e archivia la missione corrente" : "Inizia a salvare rilevazioni, eventi e metriche";
   }
+
+  const missionBar = byId(liveActionElementId("missionBar"));
+  const missionIndicator = byId(liveActionElementId("missionIndicator"));
+  if (missionBar) missionBar.classList.toggle("is-running", sessionRunning);
+  if (missionIndicator) missionIndicator.classList.toggle("is-running", sessionRunning);
+  setText(liveActionElementId("missionTitle"), sessionRunning ? "Missione in registrazione" : "Nessuna missione attiva");
+  setText(
+    liveActionElementId("missionCopy"),
+    sessionRunning
+      ? `${session?.session_id || "Sessione EASY"} · ${formatUptimeShort(session?.metrics?.session_duration ?? session?.duration ?? 0)} · dati salvati sulla Raspberry`
+      : "Avvia una missione per salvare rilevazioni, eventi e metriche sulla Raspberry.",
+  );
 }

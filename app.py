@@ -381,8 +381,8 @@ def create_app() -> Flask:
     def snapshots_gallery():
         return dashboard_context(
             "log",
-            "Registro attività",
-            "Cronologia, rilevazioni ed errori",
+            "Foto e attività",
+            "Acquisizioni salvate, cronologia ed errori",
             template_name="snapshots.html",
             hostname=probe.hostname(),
             ip_address=probe.ip_address(),

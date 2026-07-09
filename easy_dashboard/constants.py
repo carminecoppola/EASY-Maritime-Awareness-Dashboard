@@ -48,7 +48,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
 NAV_ITEMS = [
     {"key": "live", "label": "Live", "href": "/"},
     {"key": "detections", "label": "Rilevazioni", "href": "/thermal-events"},
-    {"key": "log", "label": "Log", "href": "/snapshots"},
+    {"key": "log", "label": "Foto e log", "href": "/snapshots"},
     {"key": "system", "label": "Sistema", "href": "/system-diagnostics"},
 ]
 
@@ -72,4 +72,3 @@ def ensure_runtime_directories() -> None:
 
 
 ensure_runtime_directories()
-

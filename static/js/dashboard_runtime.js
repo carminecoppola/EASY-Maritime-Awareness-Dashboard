@@ -29,9 +29,6 @@ async function snapshot(feed) {
     rgb_right: "RGB RIGHT",
     thermal: "THERMAL",
   };
-  if (dashboardState.page === "live" && feed === "thermal") {
-    return;
-  }
   const overlay = byId(`overlay-${feed}`);
   if (overlay) {
     overlay.textContent = "Saving snapshot...";
@@ -43,9 +40,32 @@ async function snapshot(feed) {
       headers: { Accept: "application/json" },
     });
     const payload = await response.json();
-    if (!response.ok || !payload.ok) throw new Error(payload.error || "Snapshot failed");
+    if (!response.ok || !payload.ok) {
+      const fallbackUrl = payload?.snapshot?.url || payload?.url;
+      const fallbackFilename = payload?.snapshot?.filename || payload?.filename;
+      if (fallbackUrl && fallbackUrl !== "#") {
+        await refreshDashboard();
+        showToast("Foto salvata con sorgente limitata", `${labels[feed] || feed}: ${payload.error || fallbackFilename}`, "info", fallbackUrl);
+        const feedbackTitle = byId(liveActionElementId("captureTitle"));
+        const feedbackLink = byId(liveActionElementId("captureLink"));
+        if (feedbackTitle) feedbackTitle.textContent = `${labels[feed] || feed} · salvata, sorgente non disponibile`;
+        if (feedbackLink) {
+          feedbackLink.href = fallbackUrl;
+          feedbackLink.hidden = false;
+        }
+        return;
+      }
+      throw new Error(payload.error || "Snapshot failed");
+    }
     await refreshDashboard();
     showToast("Snapshot saved", `${labels[feed] || feed}: ${payload.filename}`, "success", payload.url);
+    const feedbackTitle = byId(liveActionElementId("captureTitle"));
+    const feedbackLink = byId(liveActionElementId("captureLink"));
+    if (feedbackTitle) feedbackTitle.textContent = `${labels[feed] || feed} · salvata ora`;
+    if (feedbackLink) {
+      feedbackLink.href = payload.url || "/snapshots";
+      feedbackLink.hidden = false;
+    }
     if (overlay) {
       overlay.textContent = "Snapshot saved";
       window.setTimeout(() => setFeedOverlay(feed, false, ""), 1500);
@@ -337,6 +357,9 @@ function setupLivePage() {
   const liveSnapshotButton = byId(liveActionElementId("snapshot"));
   if (liveSnapshotButton) {
     liveSnapshotButton.addEventListener("click", async () => {
+      liveSnapshotButton.disabled = true;
+      const originalLabel = liveSnapshotButton.textContent;
+      liveSnapshotButton.textContent = "Salvataggio…";
       const health = dashboardState.health || {};
       const thermal = health.thermal || {};
       const cameras = health.cameras || {};
@@ -352,18 +375,37 @@ function setupLivePage() {
             : rgbRight.state && !String(rgbRight.state).toUpperCase().includes("OFFLINE")
               ? "rgb_right"
               : "thermal";
-      await snapshot(preferredFeed);
+      try {
+        await snapshot(preferredFeed);
+      } finally {
+        liveSnapshotButton.disabled = false;
+        liveSnapshotButton.textContent = originalLabel;
+      }
     });
   }
 
   const liveRecordButton = byId(liveActionElementId("record"));
   if (liveRecordButton) {
-    liveRecordButton.addEventListener("click", () => {
-      const recording = dashboardState.health?.operations?.pipeline?.recording || {};
-      if (recording.supported) {
-        showToast("Recording", "Recording actions are not wired in this phase.", "info");
-      } else {
-        liveRecordButton.disabled = true;
+    liveRecordButton.addEventListener("click", async () => {
+      liveRecordButton.disabled = true;
+      const sessionStatus = dashboardState.sessionStatus || {};
+      const session = sessionStatus.current || sessionStatus.session || null;
+      const running = Boolean(sessionStatus.running || session?.status === "RUNNING");
+      try {
+        if (running) {
+          await callInferenceAction("/api/session/stop");
+          showToast("Missione archiviata", "Rilevazioni, eventi e metriche sono stati salvati sulla Raspberry.", "success");
+        } else {
+          const payload = await callInferenceAction("/api/session/start", { mode: "live", operator: "dashboard" });
+          const sessionId = payload?.session?.session_id;
+          showToast("Missione avviata", sessionId ? `Archivio attivo: ${sessionId}` : "Il salvataggio operativo è attivo.", "success");
+        }
+        await refreshDashboard();
+      } catch (error) {
+        console.error(error);
+        showToast("Operazione non riuscita", error.message || "Impossibile aggiornare la missione", "error");
+      } finally {
+        liveRecordButton.disabled = false;
       }
     });
   }
@@ -547,7 +589,7 @@ function setupDetectionsPage() {
       sessionStartButton.disabled = true;
       try {
         await callInferenceAction("/api/session/start", { mode: "replay", operator: "dashboard" });
-        showToast("Session started", "A new EASY acquisition session is now active.", "success");
+        showToast("Missione avviata", "Rilevazioni, eventi e metriche vengono ora salvati sulla Raspberry.", "success");
         await refreshDashboard();
       } catch (error) {
         console.error(error);
@@ -564,7 +606,7 @@ function setupDetectionsPage() {
       sessionStopButton.disabled = true;
       try {
         await callInferenceAction("/api/session/stop");
-        showToast("Session stopped", "The current EASY session has been archived.", "success");
+        showToast("Missione archiviata", "La missione è terminata e i dati restano disponibili sulla Raspberry.", "success");
         await refreshDashboard();
       } catch (error) {
         console.error(error);
