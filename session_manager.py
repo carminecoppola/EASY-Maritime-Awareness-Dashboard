@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-import json
 import socket
 import threading
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+from runtime_support import atomic_write_json, parse_utc_ts, read_json, utc_now_iso
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -13,45 +14,13 @@ RUNTIME_ROOT = PROJECT_ROOT / "runtime"
 SESSIONS_ROOT = RUNTIME_ROOT / "sessions"
 SESSION_STATUSES = {"CREATED", "RUNNING", "STOPPED"}
 SESSION_SUBDIRS = ("snapshots", "replay", "rgb_left", "rgb_right", "thermal")
-
-
-def utc_now_iso() -> str:
-    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-
-
 def session_timestamp() -> str:
     return time.strftime("%Y%m%d_%H%M%S", time.gmtime())
 
 
-def parse_utc_ts(value: str | None) -> Optional[float]:
-    if not value:
-        return None
-    try:
-        return time.mktime(time.strptime(value, "%Y-%m-%dT%H:%M:%SZ"))
-    except Exception:
-        return None
-
-
-def _atomic_write_json(path: Path, payload: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_name(path.name + ".tmp")
-    with temp_path.open("w", encoding="utf-8") as handle:
-        json.dump(payload, handle, indent=2, sort_keys=True)
-        handle.write("\n")
-    temp_path.replace(path)
-
-
-def _read_json(path: Path, default: dict | None = None) -> dict:
-    if not path.exists():
-        return default or {}
-    try:
-        with path.open("r", encoding="utf-8") as handle:
-            return json.load(handle)
-    except Exception:
-        return default or {}
-
-
 class SessionManager:
+    """Owns lifecycle and metadata for acquisition sessions on disk."""
+
     def __init__(
         self,
         sessions_root: Path | str = SESSIONS_ROOT,
@@ -73,17 +42,17 @@ class SessionManager:
         self._index: List[Dict[str, Any]] = []
         self._current: Dict[str, Any] | None = None
         self.sessions_root.mkdir(parents=True, exist_ok=True)
-        self._load_index()
-        self._load_open_session()
+        self._load_session_index()
+        self._restore_running_session()
 
-    def _load_index(self) -> None:
-        payload = _read_json(self.index_path, {"sessions": []})
+    def _load_session_index(self) -> None:
+        payload = read_json(self.index_path, {"sessions": []})
         sessions = payload.get("sessions", [])
         self._index = sessions if isinstance(sessions, list) else []
-        self._persist_index()
+        self._persist_session_index()
 
-    def _persist_index(self) -> None:
-        _atomic_write_json(
+    def _persist_session_index(self) -> None:
+        atomic_write_json(
             self.index_path,
             {
                 "ok": True,
@@ -93,12 +62,12 @@ class SessionManager:
             },
         )
 
-    def _load_open_session(self) -> None:
+    def _restore_running_session(self) -> None:
         for item in reversed(self._index):
             if str(item.get("status") or "").upper() != "RUNNING":
                 continue
             session_dir = Path(str(item.get("path") or ""))
-            metadata = _read_json(session_dir / "metadata.json", {})
+            metadata = read_json(session_dir / "metadata.json", {})
             if metadata.get("status") == "RUNNING":
                 self._current = metadata
                 return
@@ -122,14 +91,14 @@ class SessionManager:
         for folder in SESSION_SUBDIRS:
             (paths["root"] / folder).mkdir(parents=True, exist_ok=True)
         if not paths["detections"].exists():
-            _atomic_write_json(paths["detections"], {"ok": True, "session_id": session_id, "count": 0, "detections": []})
+            atomic_write_json(paths["detections"], {"ok": True, "session_id": session_id, "count": 0, "detections": []})
         if not paths["events"].exists():
-            _atomic_write_json(
+            atomic_write_json(
                 paths["events"],
                 {"ok": True, "session_id": session_id, "count": 0, "active_count": 0, "events": [], "current_events": [], "activity_log": []},
             )
         if not paths["metrics"].exists():
-            _atomic_write_json(paths["metrics"], self._empty_metrics(session_id))
+            atomic_write_json(paths["metrics"], self._empty_metrics(session_id))
 
     def _empty_metrics(self, session_id: str) -> Dict[str, Any]:
         return {
@@ -201,11 +170,11 @@ class SessionManager:
         }
         self._index = [item for item in self._index if item.get("session_id") != session_id]
         self._index.append(summary)
-        self._persist_index()
+        self._persist_session_index()
 
     def _write_metadata(self, metadata: Dict[str, Any]) -> None:
         session_id = str(metadata["session_id"])
-        _atomic_write_json(self._paths(session_id)["metadata"], metadata)
+        atomic_write_json(self._paths(session_id)["metadata"], metadata)
         self._update_index_item(metadata)
 
     def _current_id(self) -> str | None:
@@ -313,7 +282,7 @@ class SessionManager:
             sessions = []
             for item in reversed(self._index):
                 session_dir = Path(str(item.get("path") or ""))
-                metadata = _read_json(session_dir / "metadata.json", item)
+                metadata = read_json(session_dir / "metadata.json", item)
                 sessions.append(self._session_payload(metadata))
             return {"ok": True, "count": len(sessions), "sessions": sessions, "index_path": str(self.index_path)}
 
@@ -324,7 +293,7 @@ class SessionManager:
         if not session_id:
             return
         detections_path = self._paths(session_id)["detections"]
-        payload = _read_json(detections_path, {"ok": True, "session_id": session_id, "detections": []})
+        payload = read_json(detections_path, {"ok": True, "session_id": session_id, "detections": []})
         existing = payload.get("detections", [])
         if not isinstance(existing, list):
             existing = []
@@ -338,7 +307,7 @@ class SessionManager:
                 "updated_at": utc_now_iso(),
             }
         )
-        _atomic_write_json(detections_path, payload)
+        atomic_write_json(detections_path, payload)
         self._append_session_event(
             session_id,
             "INFERENCE_RESULT",
@@ -353,12 +322,12 @@ class SessionManager:
 
     def _refresh_metrics(self, session_id: str, inference_time_ms: Any | None = None) -> Dict[str, Any]:
         paths = self._paths(session_id)
-        detections_payload = _read_json(paths["detections"], {"detections": []})
+        detections_payload = read_json(paths["detections"], {"detections": []})
         detections = detections_payload.get("detections", [])
         if not isinstance(detections, list):
             detections = []
-        previous = _read_json(paths["metrics"], self._empty_metrics(session_id))
-        events_payload = _read_json(paths["events"], {"events": [], "current_events": []})
+        previous = read_json(paths["metrics"], self._empty_metrics(session_id))
+        events_payload = read_json(paths["events"], {"events": [], "current_events": []})
         stored_events = events_payload.get("events", [])
         current_events = events_payload.get("current_events", [])
         if not isinstance(stored_events, list):
@@ -374,7 +343,7 @@ class SessionManager:
                 inference_calls += 1
             except Exception:
                 pass
-        metadata = _read_json(paths["metadata"], {})
+        metadata = read_json(paths["metadata"], {})
         start_ts = parse_utc_ts(metadata.get("start_time"))
         end_ts = parse_utc_ts(metadata.get("end_time")) if metadata.get("end_time") else time.time()
         duration = round(max(0.0, (end_ts or 0.0) - (start_ts or end_ts or 0.0)), 2)
@@ -392,13 +361,13 @@ class SessionManager:
             "average_inference_time": round(float(average), 2) if average is not None else None,
             "updated_at": utc_now_iso(),
         }
-        _atomic_write_json(paths["metrics"], metrics)
+        atomic_write_json(paths["metrics"], metrics)
         return metrics
 
     def _session_payload(self, metadata: Dict[str, Any]) -> Dict[str, Any]:
         session_id = str(metadata.get("session_id") or "")
         paths = self._paths(session_id)
-        metrics = _read_json(paths["metrics"], self._empty_metrics(session_id))
+        metrics = read_json(paths["metrics"], self._empty_metrics(session_id))
         return {
             **metadata,
             "metrics": metrics,
@@ -407,7 +376,7 @@ class SessionManager:
 
     def _append_session_event(self, session_id: str, event_type: str, meta: Dict[str, Any]) -> None:
         path = self._paths(session_id)["events"]
-        payload = _read_json(path, {"ok": True, "session_id": session_id, "events": [], "current_events": [], "activity_log": []})
+        payload = read_json(path, {"ok": True, "session_id": session_id, "events": [], "current_events": [], "activity_log": []})
         activity_log = payload.get("activity_log", [])
         if not isinstance(activity_log, list):
             activity_log = []
@@ -426,7 +395,7 @@ class SessionManager:
             payload["current_events"] = []
         payload["count"] = len(payload["events"])
         payload["active_count"] = len(payload["current_events"])
-        _atomic_write_json(path, payload)
+        atomic_write_json(path, payload)
 
     def _emit(self, event_type: str, description: str, severity: str, meta: Dict[str, Any]) -> None:
         if not self.events:

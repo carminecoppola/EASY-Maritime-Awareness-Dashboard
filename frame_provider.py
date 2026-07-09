@@ -40,7 +40,7 @@ def utc_now_iso() -> str:
 
 def _atomic_write_json(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_name(path.name + ".tmp")
+    temp_path = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
     with temp_path.open("w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2, sort_keys=True)
         handle.write("\n")

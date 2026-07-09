@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import json
 import threading
-import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+from runtime_support import atomic_write_json, parse_utc_ts, read_json, utc_now_iso
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -20,40 +20,6 @@ DETECTION_EVENT_MAP = {
     "ship": {"type": "ShipDetected", "severity": "LOW"},
     "buoy": {"type": "BuoyDetected", "severity": "INFO"},
 }
-
-
-def utc_now_iso() -> str:
-    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-
-
-def parse_utc_ts(value: str | None) -> float | None:
-    if not value:
-        return None
-    try:
-        return time.mktime(time.strptime(value, "%Y-%m-%dT%H:%M:%SZ"))
-    except Exception:
-        return None
-
-
-def _atomic_write_json(path: Path, payload: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_name(path.name + ".tmp")
-    with temp_path.open("w", encoding="utf-8") as handle:
-        json.dump(payload, handle, indent=2, sort_keys=True)
-        handle.write("\n")
-    temp_path.replace(path)
-
-
-def _read_json(path: Path, default: dict | None = None) -> dict:
-    if not path.exists():
-        return default or {}
-    try:
-        with path.open("r", encoding="utf-8") as handle:
-            return json.load(handle)
-    except Exception:
-        return default or {}
-
-
 @dataclass
 class EventRecord:
     event_id: str
@@ -88,6 +54,8 @@ class EventRecord:
 
 
 class EventManager:
+    """Builds higher-level mission events from detections and session context."""
+
     def __init__(
         self,
         sessions_dir: Path | str = SESSIONS_DIR,
@@ -106,8 +74,8 @@ class EventManager:
         self._history_ids: List[str] = []
         self._active_keys: Dict[str, str] = {}
         self.sessions_dir.mkdir(parents=True, exist_ok=True)
-        self._load_history()
-        self._load_current()
+        self._load_history_snapshot()
+        self._load_current_snapshot()
         self._persist()
 
     def _session_events_path(self, session_id: str) -> Path:
@@ -152,8 +120,8 @@ class EventManager:
         except Exception:
             return None
 
-    def _load_history(self) -> None:
-        payload = _read_json(self.history_path, {"events": []})
+    def _load_history_snapshot(self) -> None:
+        payload = read_json(self.history_path, {"events": []})
         for item in payload.get("events", []):
             record = self._record_from_item(item)
             if record is None:
@@ -163,8 +131,8 @@ class EventManager:
             if record.status in {"NEW", "ACTIVE"} and record.event_key:
                 self._active_keys[record.event_key] = record.event_id
 
-    def _load_current(self) -> None:
-        payload = _read_json(self.current_path, {"events": []})
+    def _load_current_snapshot(self) -> None:
+        payload = read_json(self.current_path, {"events": []})
         current_ids: List[str] = []
         for item in payload.get("events", []) or payload.get("current_events", []):
             record = self._record_from_item(item)
@@ -195,7 +163,7 @@ class EventManager:
         if not session_id:
             return
         path = self._session_events_path(session_id)
-        payload = _read_json(
+        payload = read_json(
             path,
             {"ok": True, "session_id": session_id, "count": 0, "events": [], "current_events": [], "activity_log": []},
         )
@@ -222,11 +190,11 @@ class EventManager:
         )
         if not isinstance(payload.get("activity_log"), list):
             payload["activity_log"] = []
-        _atomic_write_json(path, payload)
+        atomic_write_json(path, payload)
 
     def _persist(self) -> None:
-        _atomic_write_json(self.current_path, self._event_payload(current_only=True))
-        _atomic_write_json(self.history_path, self._event_payload(current_only=False))
+        atomic_write_json(self.current_path, self._event_payload(current_only=True))
+        atomic_write_json(self.history_path, self._event_payload(current_only=False))
         session_ids = {
             self._records[item_id].session_id
             for item_id in self._history_ids

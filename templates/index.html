@@ -4,32 +4,55 @@
   <section class="live-page">
     <div class="live-statusbar" role="status" aria-label="Stato live">
       <div class="live-statusbar-group">
-        <div class="live-status-pill" id="status-pill-rgb-left">
-          <span class="live-status-dot" id="rgb_left_dot" aria-hidden="true"></span>
+        <div class="live-status-pill" id="live-status-pill-rgb-left">
+          <span class="live-status-dot" id="live-feed-rgb-left-dot" aria-hidden="true"></span>
           <span class="live-status-label">RGB-L:</span>
-          <strong id="rgb_left_status">LIVE 10fps</strong>
+          <strong id="live-feed-rgb-left-statusline">LIVE 10fps</strong>
         </div>
-        <div class="live-status-pill" id="status-pill-thermal">
-          <span class="live-status-dot" id="thermal_dot" aria-hidden="true"></span>
+        <div class="live-status-pill" id="live-status-pill-thermal">
+          <span class="live-status-dot" id="live-feed-thermal-dot" aria-hidden="true"></span>
           <span class="live-status-label">Thermal:</span>
-          <strong id="thermal_status">REALE</strong>
+          <strong id="live-feed-thermal-statusline">REALE</strong>
         </div>
-        <div class="live-status-pill" id="status-pill-rgb-right">
-          <span class="live-status-dot" id="rgb_right_dot" aria-hidden="true"></span>
+        <div class="live-status-pill" id="live-status-pill-rgb-right">
+          <span class="live-status-dot" id="live-feed-rgb-right-dot" aria-hidden="true"></span>
           <span class="live-status-label">RGB-R:</span>
-          <strong id="rgb_right_status">LIVE 10fps</strong>
+          <strong id="live-feed-rgb-right-statusline">LIVE 10fps</strong>
         </div>
       </div>
       <div class="live-statusbar-actions">
-        <div class="live-status-pill live-status-pill-ai" id="status-pill-ai">
-          <span class="live-status-dot live-status-dot-ai" id="ai_status_dot" aria-hidden="true"></span>
+        <div class="live-status-pill live-status-pill-ai" id="live-status-pill-ai">
+          <span class="live-status-dot live-status-dot-ai" id="live-ai-status-dot" aria-hidden="true"></span>
           <span class="live-status-label">AI ·</span>
-          <strong id="ai_status_compact">—</strong>
+          <strong id="live-ai-status-label">—</strong>
         </div>
-        <button class="btn btn-secondary btn-small" id="live-snapshot-button" type="button">Snapshot</button>
-        <button class="btn btn-primary btn-small" id="live-record-button" type="button">Registra</button>
+        <button class="btn btn-secondary btn-small" id="button-live-save-snapshot" type="button">Snapshot</button>
+        <button class="btn btn-primary btn-small" id="button-live-toggle-recording" type="button">Registra</button>
       </div>
     </div>
+
+    <section class="live-summary-grid" aria-label="Operational summary">
+      <article class="panel live-summary-card">
+        <span class="panel-kicker">Mission health</span>
+        <h2 class="live-summary-title" id="live-summary-health-title">Loading</h2>
+        <p class="live-summary-copy" id="live-summary-health-copy">Sto raccogliendo lo stato operativo del sistema.</p>
+      </article>
+      <article class="panel live-summary-card">
+        <span class="panel-kicker">Frame provider</span>
+        <h2 class="live-summary-title" id="live-summary-source-title">--</h2>
+        <p class="live-summary-copy" id="live-summary-source-copy">Nessuna sorgente selezionata.</p>
+      </article>
+      <article class="panel live-summary-card">
+        <span class="panel-kicker">Sessione</span>
+        <h2 class="live-summary-title" id="live-summary-session-title">--</h2>
+        <p class="live-summary-copy" id="live-summary-session-copy">La sessione operativa non è ancora disponibile.</p>
+      </article>
+      <article class="panel live-summary-card">
+        <span class="panel-kicker">AI detections</span>
+        <h2 class="live-summary-title" id="live-summary-detections-count">0</h2>
+        <p class="live-summary-copy" id="live-summary-detections-copy">Le detection compariranno qui appena il replay produce risultati.</p>
+      </article>
+    </section>
 
     <section class="panel mission-sources-panel" aria-label="Mission Sources">
       <div class="panel-head">
@@ -39,18 +62,18 @@
           <p class="panel-copy">Seleziona la sorgente del Frame Provider senza riavviare la dashboard. Replay resta la modalità operativa valida in questa fase.</p>
         </div>
         <div class="panel-head-actions">
-          <span class="badge badge-muted" id="sources-selected-badge">Selected: --</span>
-          <button class="btn btn-ghost btn-small" id="sources-refresh-button" type="button">Refresh</button>
+          <span class="badge badge-muted" id="live-source-selected-badge">Selected: --</span>
+          <button class="btn btn-ghost btn-small" id="button-live-refresh-sources" type="button">Refresh</button>
         </div>
       </div>
-      <div class="sources-grid" id="sources-grid"></div>
+      <div class="sources-grid" id="live-source-grid"></div>
     </section>
 
     <section class="live-grid">
       <article class="panel live-feed-card" data-feed="rgb_left">
         <div class="live-feed-head">
           <span class="live-feed-name">RGB LEFT</span>
-          <span class="badge badge-muted" id="rgb_left_state">Loading</span>
+          <span class="badge badge-muted" id="live-feed-rgb-left-badge">Loading</span>
         </div>
         <div class="live-feed-body">
           <img
@@ -59,52 +82,52 @@
             {% if not request.args.get("lite") %}src="/video/rgb_left"{% endif %}
             alt="RGB left live preview"
           >
-          <div class="live-offline-card" id="rgb_left_offline" hidden>
+          <div class="live-offline-card" id="live-feed-rgb-left-offline" hidden>
             <svg class="live-offline-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 7.5h2.8l1.6-2h3.2l1.6 2H18a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9.5a2 2 0 0 1 2-2Z"></path>
               <path d="M8 12.5a4 4 0 0 1 6.2-3.3"></path>
               <path d="M13.8 14.8a4 4 0 0 1-5.6 0"></path>
             </svg>
-            <strong id="rgb_left_device_name">Arducam UC-517 LEFT</strong>
+            <strong id="live-feed-rgb-left-device-name">Arducam UC-517 LEFT</strong>
           </div>
         </div>
         <div class="live-feed-foot">
-          <span class="live-feed-fps" id="rgb_left_fps">--</span>
-          <span class="live-feed-time" id="rgb_left_last">--</span>
+          <span class="live-feed-fps" id="live-feed-rgb-left-fps">--</span>
+          <span class="live-feed-time" id="live-feed-rgb-left-last-frame">--</span>
         </div>
       </article>
 
       <article class="panel live-feed-card live-feed-card-thermal" data-feed="thermal">
         <div class="live-feed-head">
           <span class="live-feed-name">THERMAL</span>
-          <span class="badge badge-muted" id="thermal_state">Loading</span>
+          <span class="badge badge-muted" id="live-feed-thermal-badge">Loading</span>
         </div>
         <div class="live-feed-body">
           <img
             class="feed-image live-feed-image thermal-image"
-            id="thermal-frame"
+            id="live-feed-thermal-image"
             {% if not request.args.get("lite") %}src="/thermal/frame"{% endif %}
             alt="Thermal preview"
           >
-          <div class="live-offline-card" id="thermal_offline" hidden>
+          <div class="live-offline-card" id="live-feed-thermal-offline" hidden>
             <svg class="live-offline-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M10 4.5a2 2 0 0 1 4 0v7.1a4.5 4.5 0 1 1-4 0Z"></path>
               <path d="M12 9.8v4.7"></path>
               <path d="M12 14.5c-1.3 0-2.4 1-2.4 2.3s1.1 2.2 2.4 2.2 2.4-1 2.4-2.2S13.3 14.5 12 14.5Z"></path>
             </svg>
-            <strong id="thermal_device_name">FLIR Lepton</strong>
+            <strong id="live-feed-thermal-device-name">FLIR Lepton</strong>
           </div>
         </div>
         <div class="live-feed-foot">
-          <span class="live-feed-fps" id="thermal_fps">--</span>
-          <span class="live-feed-time" id="thermal_last">--</span>
+          <span class="live-feed-fps" id="live-feed-thermal-fps">--</span>
+          <span class="live-feed-time" id="live-feed-thermal-last-frame">--</span>
         </div>
       </article>
 
       <article class="panel live-feed-card" data-feed="rgb_right">
         <div class="live-feed-head">
           <span class="live-feed-name">RGB RIGHT</span>
-          <span class="badge badge-muted" id="rgb_right_state">Loading</span>
+          <span class="badge badge-muted" id="live-feed-rgb-right-badge">Loading</span>
         </div>
         <div class="live-feed-body">
           <img
@@ -113,18 +136,18 @@
             {% if not request.args.get("lite") %}src="/video/rgb_right"{% endif %}
             alt="RGB right live preview"
           >
-          <div class="live-offline-card" id="rgb_right_offline" hidden>
+          <div class="live-offline-card" id="live-feed-rgb-right-offline" hidden>
             <svg class="live-offline-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 7.5h2.8l1.6-2h3.2l1.6 2H18a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9.5a2 2 0 0 1 2-2Z"></path>
               <path d="M8 12.5a4 4 0 0 1 6.2-3.3"></path>
               <path d="M13.8 14.8a4 4 0 0 1-5.6 0"></path>
             </svg>
-            <strong id="rgb_right_device_name">Arducam UC-517 RIGHT</strong>
+            <strong id="live-feed-rgb-right-device-name">Arducam UC-517 RIGHT</strong>
           </div>
         </div>
         <div class="live-feed-foot">
-          <span class="live-feed-fps" id="rgb_right_fps">--</span>
-          <span class="live-feed-time" id="rgb_right_last">--</span>
+          <span class="live-feed-fps" id="live-feed-rgb-right-fps">--</span>
+          <span class="live-feed-time" id="live-feed-rgb-right-last-frame">--</span>
         </div>
       </article>
     </section>

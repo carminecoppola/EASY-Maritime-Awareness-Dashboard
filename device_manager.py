@@ -1,14 +1,14 @@
 from __future__ import annotations
 
+"""Runtime-facing registry for physical or simulated EASY devices."""
+
 import threading
-import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
-
-def utc_now_iso() -> str:
-    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+from runtime_catalog import build_runtime_endpoint_catalog
+from runtime_support import directory_has_frames, utc_now_iso
 
 
 class DeviceStatus:
@@ -53,11 +53,11 @@ class DeviceRecord:
     status: str = DeviceStatus.UNKNOWN
     health: str = "UNKNOWN"
     fps: float = 0.0
-    temperature: Optional[float] = None
+    temperature: float | None = None
     last_seen: str = ""
-    configuration: Dict[str, Any] = field(default_factory=dict)
+    configuration: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "device_id": self.device_id,
             "device_type": self.device_type,
@@ -74,6 +74,8 @@ class DeviceRecord:
 
 
 class ManagedDevice:
+    """Base wrapper around a device record plus event/log side effects."""
+
     def __init__(self, record: DeviceRecord, *, events: Any | None = None, logger: Any | None = None) -> None:
         self.record = record
         self.events = events
@@ -104,28 +106,6 @@ class ManagedDevice:
             )
         except Exception:
             pass
-
-    def _transition(
-        self,
-        *,
-        status: str | None = None,
-        fps: float | None = None,
-        temperature: float | None = None,
-        emit: bool = True,
-    ) -> Dict[str, Any]:
-        previous_status = self.record.status
-        new_status = status if status in VALID_DEVICE_STATUSES else previous_status
-        if new_status:
-            self.record.status = new_status
-            self.record.health = status_to_health(new_status)
-        if fps is not None:
-            self.record.fps = max(0.0, float(fps))
-        if temperature is not None:
-            self.record.temperature = float(temperature)
-        self.record.last_seen = utc_now_iso()
-        if emit and previous_status != self.record.status:
-            self._emit_state_change(previous_status, self.record.status)
-        return self.get_status()
 
     def _emit_state_change(self, previous_status: str, new_status: str) -> None:
         name = self.record.device_name
@@ -162,23 +142,44 @@ class ManagedDevice:
         self._emit(event_type, description, severity)
         self._log("info", f"{name}: {previous_status} -> {new_status}")
 
-    def connect(self) -> Dict[str, Any]:
-        with self._lock:
-            return self._transition(status=DeviceStatus.CONNECTED)
+    def _apply_transition(
+        self,
+        *,
+        status: str | None = None,
+        fps: float | None = None,
+        temperature: float | None = None,
+        emit_event: bool = True,
+    ) -> dict[str, Any]:
+        previous_status = self.record.status
+        resolved_status = status if status in VALID_DEVICE_STATUSES else previous_status
+        self.record.status = resolved_status
+        self.record.health = status_to_health(resolved_status)
+        if fps is not None:
+            self.record.fps = max(0.0, float(fps))
+        if temperature is not None:
+            self.record.temperature = float(temperature)
+        self.record.last_seen = utc_now_iso()
+        if emit_event and previous_status != resolved_status:
+            self._emit_state_change(previous_status, resolved_status)
+        return self.serialize()
 
-    def disconnect(self) -> Dict[str, Any]:
+    def connect(self) -> dict[str, Any]:
         with self._lock:
-            return self._transition(status=DeviceStatus.DISCONNECTED)
+            return self._apply_transition(status=DeviceStatus.CONNECTED)
 
-    def check_health(self) -> Dict[str, Any]:
+    def disconnect(self) -> dict[str, Any]:
         with self._lock:
-            return self.get_status()
+            return self._apply_transition(status=DeviceStatus.DISCONNECTED)
 
-    def refresh(self) -> Dict[str, Any]:
+    def check_health(self) -> dict[str, Any]:
+        with self._lock:
+            return self.serialize()
+
+    def refresh(self) -> dict[str, Any]:
         with self._lock:
             return self.check_health()
 
-    def get_status(self) -> Dict[str, Any]:
+    def serialize(self) -> dict[str, Any]:
         return self.record.to_dict()
 
 
@@ -187,50 +188,42 @@ class ReplayDevice(ManagedDevice):
         super().__init__(record, events=events, logger=logger)
         self.replay_root = Path(replay_root)
 
-    def _has_replay_frames(self) -> bool:
-        if not self.replay_root.exists():
-            return False
-        for path in self.replay_root.rglob("*"):
-            if path.is_file() and path.suffix.lower() in {".jpg", ".jpeg", ".png", ".bmp", ".webp"}:
-                return True
-        return False
-
-    def connect(self) -> Dict[str, Any]:
+    def connect(self) -> dict[str, Any]:
         with self._lock:
-            return self._transition(status=DeviceStatus.CONNECTED, fps=self.record.configuration.get("fps", self.record.fps))
+            return self._apply_transition(status=DeviceStatus.CONNECTED, fps=self.record.configuration.get("fps", self.record.fps))
 
-    def check_health(self) -> Dict[str, Any]:
+    def check_health(self) -> dict[str, Any]:
         with self._lock:
-            has_frames = self._has_replay_frames()
+            has_frames = directory_has_frames(self.replay_root)
             status = DeviceStatus.STREAMING if has_frames else DeviceStatus.CONNECTED
             fps = self.record.configuration.get("fps")
             if fps is None:
                 fps = 0.0 if not has_frames else self.record.fps or 0.0
-            temperature = self.record.temperature
-            return self._transition(status=status, fps=fps, temperature=temperature, emit=True)
-
-    def refresh(self) -> Dict[str, Any]:
-        return self.check_health()
+            return self._apply_transition(
+                status=status,
+                fps=fps,
+                temperature=self.record.temperature,
+                emit_event=True,
+            )
 
 
 class PlaceholderDevice(ManagedDevice):
-    def connect(self) -> Dict[str, Any]:
+    def connect(self) -> dict[str, Any]:
         with self._lock:
-            return self._transition(status=DeviceStatus.NOT_PRESENT, emit=True)
+            return self._apply_transition(status=DeviceStatus.NOT_PRESENT, emit_event=True)
 
-    def disconnect(self) -> Dict[str, Any]:
+    def disconnect(self) -> dict[str, Any]:
         with self._lock:
-            return self._transition(status=DeviceStatus.DISCONNECTED)
+            return self._apply_transition(status=DeviceStatus.DISCONNECTED)
 
-    def check_health(self) -> Dict[str, Any]:
+    def check_health(self) -> dict[str, Any]:
         with self._lock:
-            return self._transition(status=DeviceStatus.NOT_PRESENT, fps=0.0, temperature=None, emit=True)
-
-    def refresh(self) -> Dict[str, Any]:
-        return self.check_health()
+            return self._apply_transition(status=DeviceStatus.NOT_PRESENT, fps=0.0, temperature=None, emit_event=True)
 
 
 class DeviceManager:
+    """Owns the runtime device registry exposed to health and diagnostics APIs."""
+
     def __init__(
         self,
         *,
@@ -244,10 +237,10 @@ class DeviceManager:
         self.events = events
         self.logger = logger
         self._lock = threading.RLock()
-        self._devices: Dict[str, ManagedDevice] = {}
+        self._devices: dict[str, ManagedDevice] = {}
         self.runtime_root.mkdir(parents=True, exist_ok=True)
         self.replay_root.mkdir(parents=True, exist_ok=True)
-        self._register_defaults()
+        self._register_default_devices()
         self.refresh()
 
     def _log(self, level: str, message: str) -> None:
@@ -257,120 +250,40 @@ class DeviceManager:
         if callable(log_fn):
             log_fn(message)
 
-    def _register_device(self, device: ManagedDevice) -> ManagedDevice:
+    def _store_device(self, device: ManagedDevice) -> ManagedDevice:
         self._devices[device.record.device_id] = device
         return device
 
-    def _register_defaults(self) -> None:
-        self._register_device(
-            ReplayDevice(
-                DeviceRecord(
-                    device_id="replay",
-                    device_type="replay",
-                    device_name="Replay Device",
-                    serial_number="replay-local",
-                    driver="folder-frame-provider",
-                    status=DeviceStatus.CONNECTED,
-                    health="GOOD",
-                    fps=0.0,
-                    last_seen=utc_now_iso(),
-                    configuration={
-                        "replay_root": str(self.replay_root),
-                        "role": "replay",
-                        "always_available": True,
-                    },
-                ),
-                self.replay_root,
-                events=self.events,
-                logger=self.logger,
+    def _register_default_devices(self) -> None:
+        for endpoint in build_runtime_endpoint_catalog(self.runtime_root, self.replay_root):
+            record = DeviceRecord(
+                device_id=endpoint.endpoint_id,
+                device_type=endpoint.device_type,
+                device_name=endpoint.display_name,
+                serial_number=endpoint.serial_number,
+                driver=endpoint.driver,
+                status=endpoint.device_status,
+                health=endpoint.device_health,
+                fps=float(endpoint.device_configuration.get("fps", 0.0)),
+                last_seen=utc_now_iso(),
+                configuration=dict(endpoint.device_configuration),
             )
-        )
-        self._register_device(
-            PlaceholderDevice(
-                DeviceRecord(
-                    device_id="rgb_left",
-                    device_type="rgb",
-                    device_name="RGB LEFT",
-                    serial_number="rgb-left-placeholder",
-                    driver="placeholder",
-                    status=DeviceStatus.NOT_PRESENT,
-                    health="OFFLINE",
-                    fps=0.0,
-                    last_seen=utc_now_iso(),
-                    configuration={
-                        "side": "left",
-                        "transport": "libcamera",
-                        "present": False,
-                    },
-                ),
-                events=self.events,
-                logger=self.logger,
-            )
-        )
-        self._register_device(
-            PlaceholderDevice(
-                DeviceRecord(
-                    device_id="rgb_right",
-                    device_type="rgb",
-                    device_name="RGB RIGHT",
-                    serial_number="rgb-right-placeholder",
-                    driver="placeholder",
-                    status=DeviceStatus.NOT_PRESENT,
-                    health="OFFLINE",
-                    fps=0.0,
-                    last_seen=utc_now_iso(),
-                    configuration={
-                        "side": "right",
-                        "transport": "libcamera",
-                        "present": False,
-                    },
-                ),
-                events=self.events,
-                logger=self.logger,
-            )
-        )
-        self._register_device(
-            PlaceholderDevice(
-                DeviceRecord(
-                    device_id="thermal",
-                    device_type="thermal",
-                    device_name="THERMAL",
-                    serial_number="thermal-placeholder",
-                    driver="placeholder",
-                    status=DeviceStatus.NOT_PRESENT,
-                    health="OFFLINE",
-                    fps=0.0,
-                    last_seen=utc_now_iso(),
-                    configuration={
-                        "transport": "flir",
-                        "present": False,
-                    },
-                ),
-                events=self.events,
-                logger=self.logger,
-            )
-        )
+            if endpoint.endpoint_id == "replay":
+                self._store_device(
+                    ReplayDevice(
+                        record,
+                        self.replay_root,
+                        events=self.events,
+                        logger=self.logger,
+                    )
+                )
+            else:
+                self._store_device(PlaceholderDevice(record, events=self.events, logger=self.logger))
 
-    def _device_payload(self, device: ManagedDevice) -> Dict[str, Any]:
-        return device.get_status()
+    def _serialize_device(self, device: ManagedDevice) -> dict[str, Any]:
+        return device.serialize()
 
-    def list_devices(self) -> list[Dict[str, Any]]:
-        with self._lock:
-            return [self._device_payload(device) for device in self._devices.values()]
-
-    def get_device(self, device_id: str | None) -> Optional[Dict[str, Any]]:
-        if not device_id:
-            return None
-        with self._lock:
-            device = self._devices.get(device_id)
-            if not device:
-                return None
-            return self._device_payload(device)
-
-    def get_device_status(self, device_id: str | None) -> Optional[Dict[str, Any]]:
-        return self.get_device(device_id)
-
-    def _refresh_device(self, device: ManagedDevice) -> Dict[str, Any]:
+    def _refresh_managed_device(self, device: ManagedDevice) -> dict[str, Any]:
         try:
             return device.refresh()
         except Exception as exc:  # pragma: no cover - defensive
@@ -378,25 +291,41 @@ class DeviceManager:
             device.record.health = "OFFLINE"
             device.record.last_seen = utc_now_iso()
             self._log("warning", f"Device refresh failed for {device.record.device_id}: {exc}")
-            return device.get_status()
+            return device.serialize()
 
-    def refresh(self, device_id: str | None = None) -> Dict[str, Any]:
+    def list_devices(self) -> list[dict[str, Any]]:
+        with self._lock:
+            return [self._serialize_device(device) for device in self._devices.values()]
+
+    def get_device(self, device_id: str | None) -> dict[str, Any] | None:
+        if not device_id:
+            return None
+        with self._lock:
+            device = self._devices.get(device_id)
+            return self._serialize_device(device) if device else None
+
+    def get_device_status(self, device_id: str | None) -> dict[str, Any] | None:
+        return self.get_device(device_id)
+
+    def refresh(self, device_id: str | None = None) -> dict[str, Any]:
         with self._lock:
             if device_id:
                 device = self._devices.get(device_id)
                 if not device:
                     return {"ok": False, "error": f"Device not found: {device_id}"}
-                return {"ok": True, "device": self._refresh_device(device)}
-            devices = [self._refresh_device(device) for device in self._devices.values()]
+                return {"ok": True, "device": self._refresh_managed_device(device)}
+
+            devices = [self._refresh_managed_device(device) for device in self._devices.values()]
+            connected_count = sum(1 for item in devices if str(item.get("status")) in {DeviceStatus.CONNECTED, DeviceStatus.STREAMING})
             return {
                 "ok": True,
                 "count": len(devices),
-                "connected_count": sum(1 for item in devices if str(item.get("status")) in {DeviceStatus.CONNECTED, DeviceStatus.STREAMING}),
+                "connected_count": connected_count,
                 "devices": devices,
                 "updated_at": utc_now_iso(),
             }
 
-    def get_status(self, device_id: str | None = None) -> Dict[str, Any]:
+    def get_status(self, device_id: str | None = None) -> dict[str, Any]:
         with self._lock:
             if device_id:
                 device = self.get_device(device_id)
@@ -408,11 +337,13 @@ class DeviceManager:
                     "device": device,
                     "updated_at": utc_now_iso(),
                 }
+
             devices = self.list_devices()
+            connected_count = sum(1 for item in devices if str(item.get("status")) in {DeviceStatus.CONNECTED, DeviceStatus.STREAMING})
             return {
                 "ok": True,
                 "count": len(devices),
-                "connected_count": sum(1 for item in devices if str(item.get("status")) in {DeviceStatus.CONNECTED, DeviceStatus.STREAMING}),
+                "connected_count": connected_count,
                 "devices": devices,
                 "updated_at": utc_now_iso(),
             }

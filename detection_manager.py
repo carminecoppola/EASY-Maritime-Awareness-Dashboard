@@ -8,28 +8,12 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from runtime_support import atomic_write_json, read_json, utc_now_iso
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 RUNTIME_ROOT = PROJECT_ROOT / "runtime"
 SESSIONS_DIR = RUNTIME_ROOT / "sessions"
-
-
-def utc_now_iso() -> str:
-    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-
-
-def _atomic_write_json(path: Path, payload: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_name(path.name + ".tmp")
-    with temp_path.open("w", encoding="utf-8") as handle:
-        json.dump(payload, handle, indent=2, sort_keys=True)
-        handle.write("\n")
-    temp_path.replace(path)
-
-
-def _read_json(path: Path) -> dict:
-    with path.open("r", encoding="utf-8") as handle:
-        return json.load(handle)
 
 
 @dataclass
@@ -73,6 +57,8 @@ class DetectionRecord:
 
 
 class DetectionManager:
+    """Tracks current detections plus the persisted cross-session history."""
+
     def __init__(
         self,
         sessions_dir: Path | str = SESSIONS_DIR,
@@ -102,15 +88,15 @@ class DetectionManager:
         self._last_run_ts: str | None = None
         self._last_error = ""
         self.sessions_dir.mkdir(parents=True, exist_ok=True)
-        self._load_previous_history()
-        self._load_previous_current()
+        self._load_history_snapshot()
+        self._load_current_snapshot()
         self._persist()
 
-    def _load_previous_history(self) -> None:
+    def _load_history_snapshot(self) -> None:
         if not self.history_path.exists():
             return
         try:
-            payload = _read_json(self.history_path)
+            payload = read_json(self.history_path)
         except Exception:
             return
         for item in payload.get("detections", []):
@@ -180,11 +166,11 @@ class DetectionManager:
         except Exception:
             return None
 
-    def _load_previous_current(self) -> None:
+    def _load_current_snapshot(self) -> None:
         if not self.current_path.exists():
             return
         try:
-            payload = _read_json(self.current_path)
+            payload = read_json(self.current_path)
         except Exception:
             return
         current_ids: List[str] = []
@@ -283,8 +269,8 @@ class DetectionManager:
         }
 
     def _persist(self) -> None:
-        _atomic_write_json(self.current_path, self._payload(current_only=True))
-        _atomic_write_json(self.history_path, self._payload(current_only=False))
+        atomic_write_json(self.current_path, self._payload(current_only=True))
+        atomic_write_json(self.history_path, self._payload(current_only=False))
 
     def add_detection(
         self,

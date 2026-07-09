@@ -7,16 +7,16 @@
     <section class="ai-control-bar" aria-label="Controlli AI">
       <div class="ai-control-meta">
         <span class="ai-control-badge">AI</span>
-        <code id="ai-analysis-model">easy_v1_best_rgb.onnx</code>
+        <code id="detections-ai-model-name">easy_v1_best_rgb.onnx</code>
         <span class="ai-control-separator">·</span>
-        <strong class="ai-control-state" id="ai-analysis-badge">—</strong>
-        <span class="ai-control-timing" id="ai-analysis-timing">--</span>
+        <strong class="ai-control-state" id="detections-ai-status-badge">—</strong>
+        <span class="ai-control-timing" id="detections-ai-last-run">--</span>
       </div>
       <div class="ai-control-actions">
-        <button class="btn btn-ghost btn-small" id="ai-start-button" type="button">Start AI</button>
-        <button class="btn btn-ghost btn-small" id="ai-stop-button" type="button" hidden>Stop AI</button>
-        <button class="btn btn-ghost btn-small" id="ai-run-demo-button" type="button" hidden>Run Demo</button>
-        <button class="btn btn-ghost btn-small" id="ai-refresh-button" type="button" hidden>Refresh</button>
+        <button class="btn btn-ghost btn-small" id="button-ai-start" type="button">Start AI</button>
+        <button class="btn btn-ghost btn-small" id="button-ai-stop" type="button" hidden>Stop AI</button>
+        <button class="btn btn-ghost btn-small" id="button-ai-run-demo" type="button" hidden>Run Demo</button>
+        <button class="btn btn-ghost btn-small" id="button-ai-refresh" type="button" hidden>Refresh</button>
       </div>
     </section>
 
@@ -24,41 +24,41 @@
       <div class="frame-source-head">
         <div>
           <span class="ai-section-label">Frame Source</span>
-          <h2 id="frame-source-title">Unified Frame Provider</h2>
-          <p id="frame-source-helper">La pipeline AI riceve frame standardizzati, indipendenti dalla sorgente reale.</p>
+          <h2 id="frame-provider-title">Unified Frame Provider</h2>
+          <p id="frame-provider-helper-copy">La pipeline AI riceve frame standardizzati, indipendenti dalla sorgente reale.</p>
         </div>
         <div class="frame-source-actions">
-          <button class="btn btn-ghost btn-small" id="frame-provider-configure-button" type="button">Configure replay folder</button>
-          <button class="btn btn-ghost btn-small" id="frame-provider-next-button" type="button">Next frame</button>
-          <button class="btn btn-ghost btn-small" id="frame-provider-run-button" type="button">Run inference on next frame</button>
-          <button class="btn btn-ghost btn-small" id="frame-provider-reset-button" type="button">Reset provider</button>
+          <button class="btn btn-ghost btn-small" id="button-frame-provider-configure" type="button">Configure replay folder</button>
+          <button class="btn btn-ghost btn-small" id="button-frame-provider-next" type="button">Next frame</button>
+          <button class="btn btn-ghost btn-small" id="button-frame-provider-run" type="button">Run inference on next frame</button>
+          <button class="btn btn-ghost btn-small" id="button-frame-provider-reset" type="button">Reset provider</button>
         </div>
       </div>
 
       <div class="frame-source-grid">
         <article class="session-info-item">
           <span>Source Type</span>
-          <strong id="frame-source-type">—</strong>
+          <strong id="frame-provider-source-type">—</strong>
         </article>
         <article class="session-info-item">
           <span>Source Path</span>
-          <strong id="frame-source-path">—</strong>
+          <strong id="frame-provider-source-path">—</strong>
         </article>
         <article class="session-info-item">
           <span>Status</span>
-          <strong id="frame-source-status">—</strong>
+          <strong id="frame-provider-status">—</strong>
         </article>
         <article class="session-info-item">
           <span>Current Frame ID</span>
-          <strong id="frame-current-id">—</strong>
+          <strong id="frame-provider-current-frame-id">—</strong>
         </article>
         <article class="session-info-item">
           <span>Frame Index</span>
-          <strong id="frame-current-index">—</strong>
+          <strong id="frame-provider-current-frame-index">—</strong>
         </article>
         <article class="session-info-item">
           <span>Total Frames</span>
-          <strong id="frame-total-frames">—</strong>
+          <strong id="frame-provider-total-frames">—</strong>
         </article>
       </div>
     </section>
@@ -67,63 +67,63 @@
       <div class="session-panel-head">
         <div>
           <span class="ai-section-label">Current Session</span>
-          <h2 id="session-title">Nessuna sessione attiva</h2>
-          <p id="session-helper">Avvia una sessione per archiviare eventi, rilevazioni, metriche e futuri sviluppi EASY.</p>
+          <h2 id="session-summary-title">Nessuna sessione attiva</h2>
+          <p id="session-summary-helper-copy">Avvia una sessione per archiviare eventi, rilevazioni, metriche e futuri sviluppi EASY.</p>
         </div>
         <div class="session-actions">
-          <button class="btn btn-ghost btn-small" id="session-start-button" type="button">Start Session</button>
-          <button class="btn btn-ghost btn-small" id="session-stop-button" type="button" hidden>Stop Session</button>
+          <button class="btn btn-ghost btn-small" id="button-session-start" type="button">Start Session</button>
+          <button class="btn btn-ghost btn-small" id="button-session-stop" type="button" hidden>Stop Session</button>
         </div>
       </div>
 
       <div class="session-info-grid" id="session-info-grid">
         <article class="session-info-item">
           <span>Session ID</span>
-          <strong id="session-id">—</strong>
+          <strong id="session-info-id">—</strong>
         </article>
         <article class="session-info-item">
           <span>Status</span>
-          <strong id="session-status">—</strong>
+          <strong id="session-info-status">—</strong>
         </article>
         <article class="session-info-item">
           <span>Start Time</span>
-          <strong id="session-start-time">—</strong>
+          <strong id="session-info-start-time">—</strong>
         </article>
         <article class="session-info-item">
           <span>Duration</span>
-          <strong id="session-duration">—</strong>
+          <strong id="session-info-duration">—</strong>
         </article>
         <article class="session-info-item">
           <span>Model</span>
-          <strong id="session-model">—</strong>
+          <strong id="session-info-model">—</strong>
         </article>
         <article class="session-info-item">
           <span>Mode</span>
-          <strong id="session-mode">—</strong>
+          <strong id="session-info-mode">—</strong>
         </article>
         <article class="session-info-item">
           <span>Total</span>
-          <strong id="session-total-detections">0</strong>
+          <strong id="session-metric-total-detections">0</strong>
         </article>
         <article class="session-info-item">
           <span>Eventi</span>
-          <strong id="session-total-events">0</strong>
+          <strong id="session-metric-total-events">0</strong>
         </article>
         <article class="session-info-item">
           <span>Attivi</span>
-          <strong id="session-active-events">0</strong>
+          <strong id="session-metric-active-events">0</strong>
         </article>
         <article class="session-info-item">
           <span>Boat</span>
-          <strong id="session-boat-count">0</strong>
+          <strong id="session-metric-boat-count">0</strong>
         </article>
         <article class="session-info-item">
           <span>Ship</span>
-          <strong id="session-ship-count">0</strong>
+          <strong id="session-metric-ship-count">0</strong>
         </article>
         <article class="session-info-item">
           <span>Buoy</span>
-          <strong id="session-buoy-count">0</strong>
+          <strong id="session-metric-buoy-count">0</strong>
         </article>
       </div>
     </section>
@@ -135,10 +135,10 @@
           <h2>Eventi correnti</h2>
           <p>Il monitoraggio EASY espone prima gli eventi operativi e lascia le detection in modalità debug.</p>
         </div>
-        <span class="badge badge-muted detections-count-badge" id="events-count-badge">0 eventi</span>
+        <span class="badge badge-muted detections-count-badge" id="events-current-count-badge">0 eventi</span>
       </div>
-      <div class="events-grid" id="current-events-grid" hidden></div>
-      <div class="detections-empty-state" id="current-events-empty-state">
+      <div class="events-grid" id="events-current-grid" hidden></div>
+      <div class="detections-empty-state" id="events-current-empty-state">
         <svg class="detections-empty-icon" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M12 4.2 20.2 12 12 19.8 3.8 12 12 4.2Z"></path>
           <path d="M12 8v8"></path>
@@ -157,8 +157,8 @@
           <p>Gli eventi vengono ordinati temporalmente e aggiornati quando il motore rileva ricorrenze equivalenti.</p>
         </div>
       </div>
-      <div class="events-timeline" id="events-timeline" hidden></div>
-      <div class="detections-empty-state" id="events-timeline-empty-state">
+      <div class="events-timeline" id="events-timeline-list" hidden></div>
+      <div class="detections-empty-state" id="events-timeline-empty">
         <svg class="detections-empty-icon" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M12 4.2 20.2 12 12 19.8 3.8 12 12 4.2Z"></path>
           <path d="M12 8v8"></path>
@@ -185,11 +185,11 @@
           <button class="detections-filter" type="button" data-detection-filter="buoy">Boe</button>
           <button class="detections-filter" type="button" data-detection-filter="person">Persone</button>
           <button class="detections-filter" type="button" data-detection-filter="object">Oggetti</button>
-          <span class="badge badge-muted detections-count-badge" id="detections-count-badge">0 oggetti</span>
+          <span class="badge badge-muted detections-count-badge" id="detections-summary-count-badge">0 oggetti</span>
         </section>
 
         <section class="detections-table-panel panel">
-          <div class="table-shell detections-table-shell" id="detections-table-shell" hidden>
+          <div class="table-shell detections-table-shell" id="detections-table-container" hidden>
             <table class="detections-table">
               <thead>
                 <tr>
@@ -201,11 +201,11 @@
                   <th>Fonte</th>
                 </tr>
               </thead>
-              <tbody id="detections-table-body"></tbody>
+              <tbody id="detections-table-rows"></tbody>
             </table>
           </div>
 
-          <div class="detections-empty-state" id="detections-empty-state">
+          <div class="detections-empty-state" id="detections-table-empty-state">
             <svg class="detections-empty-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 4.2 20.2 12 12 19.8 3.8 12 12 4.2Z"></path>
               <path d="M12 8v8"></path>
@@ -216,20 +216,20 @@
           </div>
         </section>
 
-        <section class="ai-preview-panel panel" id="ai-preview-panel" hidden>
+        <section class="ai-preview-panel panel" id="detections-ai-preview-panel" hidden>
           <span class="ai-section-label">Ultimo frame analizzato</span>
           <div class="ai-preview-grid">
             <article class="ai-preview-details">
               <div class="ai-preview-details-head">
                 <h3>Rilevazioni correnti</h3>
-                <span class="badge badge-muted" id="ai-preview-count">0</span>
+                <span class="badge badge-muted" id="detections-ai-preview-count">0</span>
               </div>
-              <div class="ai-detections-list" id="ai-detections-list"></div>
+              <div class="ai-detections-list" id="detections-ai-list"></div>
             </article>
 
             <article class="ai-preview-media">
-              <img id="ai-preview-image" class="ai-preview-image" alt="Ultimo frame AI annotato" hidden>
-              <div class="ai-empty-state ai-preview-empty" id="ai-preview-empty">
+              <img id="detections-ai-preview-image" class="ai-preview-image" alt="Ultimo frame AI annotato" hidden>
+              <div class="ai-empty-state ai-preview-empty" id="detections-ai-preview-empty">
                 <svg class="detections-empty-icon" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M12 4.2 20.2 12 12 19.8 3.8 12 12 4.2Z"></path>
                   <path d="M12 8v8"></path>
@@ -245,15 +245,15 @@
           <div class="detections-session-grid">
             <article class="metric">
               <span>Rilevazioni totali</span>
-              <strong id="detections-total-count">0</strong>
+              <strong id="detections-metric-total">0</strong>
             </article>
             <article class="metric">
               <span>Confidenza media</span>
-              <strong id="detections-avg-confidence">—</strong>
+              <strong id="detections-metric-average-confidence">—</strong>
             </article>
             <article class="metric">
               <span>Ultima rilevazione</span>
-              <strong id="detections-latest-time">—</strong>
+              <strong id="detections-metric-latest">—</strong>
             </article>
           </div>
         </section>
