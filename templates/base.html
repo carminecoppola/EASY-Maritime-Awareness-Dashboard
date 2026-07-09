@@ -89,6 +89,12 @@
         </div>
       </footer>
     </main>
-    <script src="{{ url_for('static', filename='js/dashboard.js') }}?v={{ asset_version }}"></script>
+    <script src="{{ url_for('static', filename='js/dashboard_utils.js') }}?v={{ asset_version }}"></script>
+    <script src="{{ url_for('static', filename='js/dashboard_shared.js') }}?v={{ asset_version }}"></script>
+    <script src="{{ url_for('static', filename='js/dashboard_live.js') }}?v={{ asset_version }}"></script>
+    <script src="{{ url_for('static', filename='js/dashboard_detections.js') }}?v={{ asset_version }}"></script>
+    <script src="{{ url_for('static', filename='js/dashboard_log.js') }}?v={{ asset_version }}"></script>
+    <script src="{{ url_for('static', filename='js/dashboard_system.js') }}?v={{ asset_version }}"></script>
+    <script src="{{ url_for('static', filename='js/dashboard_runtime.js') }}?v={{ asset_version }}"></script>
   </body>
 </html>

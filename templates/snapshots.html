@@ -20,7 +20,7 @@
       <button type="button" class="log-count-chip" data-log-severity="warning">
         <span>Warning</span><strong id="log-count-warning">0</strong>
       </button>
-      <button class="btn btn-ghost btn-small btn-icon log-export-button" id="log-export-csv" type="button">
+      <button class="btn btn-ghost btn-small btn-icon log-export-button" id="button-log-export-csv" type="button">
         <svg class="icon-svg" viewBox="0 0 16 16" aria-hidden="true">
           <path d="M8 2.5v7"></path>
           <path d="m5.2 7.8 2.8 2.8 2.8-2.8"></path>
@@ -33,11 +33,11 @@
     <section class="log-toolbar panel">
       <label class="log-search">
         <span>Ricerca</span>
-        <input type="search" id="log-search" placeholder="Filtra per sorgente, messaggio...">
+        <input type="search" id="log-search-input" placeholder="Filtra per sorgente, messaggio...">
       </label>
       <label class="log-select">
         <span>Sorgente</span>
-        <select id="log-source-select">
+        <select id="log-source-filter">
           <option value="all">Tutte</option>
           <option value="thermal">THERMAL</option>
           <option value="rgb_left">RGB LEFT</option>
@@ -53,7 +53,7 @@
       <div class="log-empty-state" id="log-empty-state" hidden>
         Nessun evento corrisponde ai filtri attivi.
       </div>
-      <button class="btn btn-secondary btn-small log-load-more" id="log-load-more" type="button">Carica altri 100</button>
+      <button class="btn btn-secondary btn-small log-load-more" id="button-log-load-more" type="button">Carica altri 100</button>
     </section>
   </section>
 {% endblock %}

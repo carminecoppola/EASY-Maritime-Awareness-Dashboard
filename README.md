@@ -2,6 +2,25 @@
 
 Browser-based local dashboard for Raspberry Pi camera monitoring.
 
+## Project structure
+
+The codebase is now organized so the Flask entrypoint stays small and the core
+responsibilities are easy to find:
+
+- `app.py` — Flask entrypoint and route wiring only
+- `easy_dashboard/config.py` — config loading and merge logic
+- `easy_dashboard/constants.py` — shared paths, defaults, and folder bootstrap
+- `easy_dashboard/stores.py` — event log and snapshot persistence
+- `easy_dashboard/media.py` — placeholder image and stream helpers
+- `easy_dashboard/hardware.py` — Raspberry probe, RGB source, and thermal source
+- `easy_dashboard/presentation.py` — UI payload builders and page context helpers
+- `system_orchestrator.py` — lifecycle and health coordination of the runtime managers
+- `runtime/` — session data, replay data, runtime configs, and models
+- `docs/embedded/` — delivery notes and phase-by-phase implementation reports
+
+This split is intentional: app boot, storage, hardware, and UI payload shaping
+now evolve independently instead of accumulating inside one monolithic file.
+
 ## Install
 
 ```bash
