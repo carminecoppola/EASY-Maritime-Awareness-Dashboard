@@ -12,33 +12,33 @@ function humanStateLabel(state) {
   const map = {
     ONLINE: "Live",
     DETECTED: "Detected",
-    READY: "Ready",
-    OK: "Ready",
+    READY: "Pronto",
+    OK: "Pronto",
     BUSY: "Recovering",
     WARNING: "Needs check",
     WARN: "Needs check",
-    OFFLINE: "Offline",
-    ERROR: "Error",
-    FAILED: "Error",
+    OFFLINE: "Non disponibile",
+    ERROR: "Errore",
+    FAILED: "Errore",
     DISABLED: "Disabled",
-    STARTING: "Starting",
-    LOADING: "Loading",
+    STARTING: "Avvio",
+    LOADING: "Caricamento",
     WAITING: "Waiting",
     CHECKING: "Checking",
     INITIALIZING: "Initializing",
     PAUSED: "Paused",
-    STREAMING: "Streaming",
+    STREAMING: "In esecuzione",
     CONNECTED: "Connected",
     DISCONNECTED: "Disconnected",
-    NOT_AVAILABLE: "Not available",
-    NOT_PRESENT: "Not present",
+    NOT_AVAILABLE: "Non disponibile",
+    NOT_PRESENT: "Non collegato",
     UNKNOWN: "Unknown",
     REAL: "Live",
     MOCK: "Simulation",
     NOT_DETECTED: "Not detected",
-    PENDING: "Starting",
-    RUNNING: "Running",
-    STOPPED: "Stopped",
+    PENDING: "Avvio",
+    RUNNING: "In esecuzione",
+    STOPPED: "Fermo",
   };
   return map[value] || (state || "--");
 }
@@ -149,13 +149,13 @@ function renderSourcePanel(payload) {
   if (!grid || !selectedBadge) return;
   const sources = Array.isArray(payload?.sources) ? payload.sources : [];
   const selected = payload?.selected_source || null;
-  selectedBadge.textContent = selected?.name ? `Selected: ${selected.name}` : "Selected: --";
+  selectedBadge.textContent = selected?.name ? `Attiva: ${selected.name}` : "Attiva: --";
 
   if (!sources.length) {
     grid.innerHTML = `
       <div class="placeholder-item">
-        <strong>No sources registered</strong>
-        <p>The Source Manager will list Replay, RGB LEFT, RGB RIGHT and THERMAL here.</p>
+        <strong>Nessuna sorgente registrata</strong>
+        <p>Le sorgenti video disponibili compariranno qui.</p>
       </div>
     `;
     return;
@@ -182,22 +182,22 @@ function renderSourcePanel(payload) {
         <div class="source-card-body">
           <div class="source-status-line">
             <span class="state-dot ${tone.dot}"></span>
-            <span>${escapeHtml(source.enabled ? "Enabled" : "Disabled")}</span>
+            <span>${escapeHtml(source.enabled ? "Abilitata" : "Disabilitata")}</span>
           </div>
           <div class="source-card-meta">
-            <span>Last update</span>
+            <span>Ultimo aggiornamento</span>
             <strong>${escapeHtml(updated)}</strong>
           </div>
           <div class="source-card-meta">
-            <span>Type</span>
+            <span>Tipo</span>
             <strong>${escapeHtml(source.type || "--")}</strong>
           </div>
         </div>
         <div class="source-card-actions">
           <button class="btn btn-small ${isSelected ? "btn-primary" : "btn-ghost"}" type="button" data-source-select="${escapeHtml(source.id || "")}" ${isSelected ? "disabled" : ""}>
-            ${escapeHtml(isSelected ? "Selected" : "Select")}
+            ${escapeHtml(isSelected ? "Attiva" : "Seleziona")}
           </button>
-          ${isSelected ? '<span class="source-selected-badge">Current source</span>' : ""}
+          ${isSelected ? '<span class="source-selected-badge">Sorgente in uso</span>' : ""}
         </div>
       </article>
     `;

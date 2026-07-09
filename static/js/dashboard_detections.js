@@ -200,7 +200,7 @@ function renderFrameSourcePanel(status) {
   const sourcePath = payload.source_path || payload.default_source_path || "—";
   const totalFrames = payload.total_frames;
   const frameIndex = lastFrame.frame_index ?? payload.current_frame_index;
-  const state = payload.error ? "ERROR" : payload.ok === false ? "DEGRADED" : "READY";
+  const state = payload.error ? "ERRORE" : payload.ok === false ? "LIMITATO" : "PRONTA";
 
   setText(detectionsElementId("frameProviderSourceType"), sourceType);
   setText(detectionsElementId("frameProviderSourcePath"), sourcePath ? compactPath(String(sourcePath)) : "—");
@@ -213,7 +213,7 @@ function renderFrameSourcePanel(status) {
   if (helper) {
     helper.textContent = payload.error
       ? payload.error
-      : `Source ${sourceType} pronto. Il frame corrente verra' inoltrato all'inference worker con metadata unificati.`;
+      : `Sorgente ${sourceType} pronta. Il prossimo frame può essere inviato all’analisi AI.`;
   }
 }
 
@@ -243,8 +243,8 @@ function renderCurrentEventsPanel() {
         <span class="badge badge-muted">${escapeHtml(eventSourceLabel(event))}</span>
       </div>
       <div class="event-card-times">
-        <span>Created ${escapeHtml(formatRomeTimeOnly(event?.created_at || event?.timestamp))}</span>
-        <span>Updated ${escapeHtml(formatRomeTimeOnly(event?.updated_at || event?.last_timestamp))}</span>
+        <span>Creato ${escapeHtml(formatRomeTimeOnly(event?.created_at || event?.timestamp))}</span>
+        <span>Aggiornato ${escapeHtml(formatRomeTimeOnly(event?.updated_at || event?.last_timestamp))}</span>
       </div>
       <div class="event-card-updates">${escapeHtml(eventUpdateLabel(event))}</div>
     `;
