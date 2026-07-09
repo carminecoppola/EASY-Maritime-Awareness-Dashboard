@@ -5,20 +5,20 @@
 {% block content %}
   <section class="log-page">
     <section class="log-count-bar" aria-label="Filtri rapidi log">
-      <button type="button" class="log-count-chip" data-log-severity="all">
+      <button type="button" class="log-count-chip is-active" data-log-severity="all">
         <span>Tutti</span><strong id="log-count-all">0</strong>
       </button>
-      <button type="button" class="log-count-chip is-active" data-log-severity="error">
+      <button type="button" class="log-count-chip" data-log-severity="error">
         <span>Errori</span><strong id="log-count-error">0</strong>
       </button>
       <button type="button" class="log-count-chip" data-log-severity="info">
-        <span>Info</span><strong id="log-count-info">0</strong>
+        <span>Informazioni</span><strong id="log-count-info">0</strong>
       </button>
       <button type="button" class="log-count-chip" data-log-severity="detection">
         <span>Rilevazioni</span><strong id="log-count-detection">0</strong>
       </button>
       <button type="button" class="log-count-chip" data-log-severity="warning">
-        <span>Warning</span><strong id="log-count-warning">0</strong>
+        <span>Avvisi</span><strong id="log-count-warning">0</strong>
       </button>
       <button class="btn btn-ghost btn-small btn-icon log-export-button" id="button-log-export-csv" type="button">
         <svg class="icon-svg" viewBox="0 0 16 16" aria-hidden="true">

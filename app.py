@@ -189,8 +189,8 @@ def create_app() -> Flask:
     def index() -> str:
         return dashboard_context(
             "live",
-            "Monitor",
-            "Streaming live",
+            "Vista operativa",
+            "Flussi video e stato della missione",
             template_name="index.html",
             hostname=probe.hostname(),
             ip_address=probe.ip_address(),
@@ -211,8 +211,8 @@ def create_app() -> Flask:
     def thermal_events_page() -> str:
         return dashboard_context(
             "detections",
-            "Eventi",
-            "Eventi correnti e timeline operativa",
+            "Rilevazioni",
+            "Eventi rilevati e analisi AI",
             template_name="thermal_events.html",
             hostname=probe.hostname(),
             ip_address=probe.ip_address(),
@@ -381,8 +381,8 @@ def create_app() -> Flask:
     def snapshots_gallery():
         return dashboard_context(
             "log",
-            "Log di sistema",
-            "Errori e attività di sistema",
+            "Registro attività",
+            "Cronologia, rilevazioni ed errori",
             template_name="snapshots.html",
             hostname=probe.hostname(),
             ip_address=probe.ip_address(),
