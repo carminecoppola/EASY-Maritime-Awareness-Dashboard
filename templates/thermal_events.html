@@ -4,6 +4,12 @@
 
 {% block content %}
   <section class="detections-page">
+    <section class="analysis-guide" aria-label="Come funziona l'analisi">
+      <div><span>1</span><strong>Avvia</strong><p>Si apre una missione e parte il motore AI.</p></div>
+      <div><span>2</span><strong>Osserva</strong><p>I frame vengono analizzati in sequenza.</p></div>
+      <div><span>3</span><strong>Archivia</strong><p>Rilevazioni ed eventi restano salvati sulla Raspberry.</p></div>
+    </section>
+
     <section class="ai-control-bar" aria-label="Controlli AI">
       <div class="ai-control-meta">
         <span class="ai-control-badge">AI</span>
@@ -18,6 +24,46 @@
         <button class="btn btn-ghost btn-small" id="button-ai-run-demo" type="button" hidden>Analizza frame</button>
         <button class="btn btn-ghost btn-small" id="button-ai-refresh" type="button" hidden>Aggiorna</button>
       </div>
+    </section>
+
+    <section class="analysis-monitor panel" id="analysis-monitor" aria-live="polite">
+      <div class="analysis-monitor-head">
+        <div>
+          <span class="ai-section-label">Monitor analisi</span>
+          <h2 id="analysis-monitor-title">Analisi ferma</h2>
+          <p id="analysis-monitor-copy">Premi “Avvia analisi”: la pagina mostrerà qui avanzamento e risultati.</p>
+        </div>
+        <span class="analysis-monitor-indicator" id="analysis-monitor-indicator">IN ATTESA</span>
+      </div>
+      <div class="analysis-progress" id="analysis-progress">
+        <span id="analysis-progress-bar"></span>
+      </div>
+      <div class="analysis-monitor-metrics">
+        <div><span>Sorgente</span><strong id="analysis-monitor-source">—</strong></div>
+        <div><span>Avanzamento</span><strong id="analysis-monitor-progress">—</strong></div>
+        <div><span>Ultimo frame</span><strong id="analysis-monitor-last-frame">—</strong></div>
+        <div><span>Risultati correnti</span><strong id="analysis-monitor-results">0</strong></div>
+      </div>
+      <section class="ai-preview-panel analysis-preview" id="detections-ai-preview-panel">
+        <span class="ai-section-label">Ultimo frame analizzato</span>
+        <div class="ai-preview-grid">
+          <article class="ai-preview-details">
+            <div class="ai-preview-details-head">
+              <h3>Oggetti riconosciuti</h3>
+              <span class="badge badge-muted" id="detections-ai-preview-count">0</span>
+            </div>
+            <div class="ai-detections-list" id="detections-ai-list"></div>
+          </article>
+          <article class="ai-preview-media">
+            <img id="detections-ai-preview-image" class="ai-preview-image" alt="Ultimo frame AI annotato" hidden>
+            <div class="ai-empty-state ai-preview-empty" id="detections-ai-preview-empty">
+              <svg class="detections-empty-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.2 20.2 12 12 19.8 3.8 12 12 4.2Z"></path><path d="M12 8v8"></path><path d="M8 12h8"></path></svg>
+              <strong>In attesa del primo frame</strong>
+              <p>Dopo l’avvio, l’anteprima e gli oggetti riconosciuti compariranno qui.</p>
+            </div>
+          </article>
+        </div>
+      </section>
     </section>
 
     <section class="session-panel panel session-panel-primary" aria-label="Sessione corrente">
@@ -189,31 +235,6 @@
             </svg>
             <strong>Nessuna rilevazione attiva</strong>
             <p>Le rilevazioni appariranno qui non appena il sistema identificherà oggetti nel campo visivo.</p>
-          </div>
-        </section>
-
-        <section class="ai-preview-panel panel" id="detections-ai-preview-panel" hidden>
-          <span class="ai-section-label">Ultimo frame analizzato</span>
-          <div class="ai-preview-grid">
-            <article class="ai-preview-details">
-              <div class="ai-preview-details-head">
-                <h3>Rilevazioni correnti</h3>
-                <span class="badge badge-muted" id="detections-ai-preview-count">0</span>
-              </div>
-              <div class="ai-detections-list" id="detections-ai-list"></div>
-            </article>
-
-            <article class="ai-preview-media">
-              <img id="detections-ai-preview-image" class="ai-preview-image" alt="Ultimo frame AI annotato" hidden>
-              <div class="ai-empty-state ai-preview-empty" id="detections-ai-preview-empty">
-                <svg class="detections-empty-icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M12 4.2 20.2 12 12 19.8 3.8 12 12 4.2Z"></path>
-                  <path d="M12 8v8"></path>
-                  <path d="M8 12h8"></path>
-                </svg>
-                <strong>Avvia l'AI per vedere le rilevazioni annotate</strong>
-              </div>
-            </article>
           </div>
         </section>
 

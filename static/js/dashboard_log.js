@@ -128,11 +128,19 @@ function getVisibleLogEvents(events) {
 function renderSnapshots(snapshots, summary) {
   const grid = byId("snapshot-grid");
   if (!grid) return;
+  const selectedFeed = dashboardState.filters.snapshotFeed || "all";
+  const visibleSnapshots = selectedFeed === "all"
+    ? snapshots
+    : snapshots.filter((item) => item.feed === selectedFeed);
+  setText("snapshot-filter-count-all", `${snapshots.length}`);
+  setText("snapshot-filter-count-thermal", `${snapshots.filter((item) => item.feed === "thermal").length}`);
+  setText("snapshot-filter-count-rgb-left", `${snapshots.filter((item) => item.feed === "rgb_left").length}`);
+  setText("snapshot-filter-count-rgb-right", `${snapshots.filter((item) => item.feed === "rgb_right").length}`);
   grid.innerHTML = "";
-  if (!snapshots.length) {
-    grid.innerHTML = `<div class="empty-state">No snapshots captured in this session.</div>`;
+  if (!visibleSnapshots.length) {
+    grid.innerHTML = `<div class="empty-state">Nessuna foto disponibile per questa camera.</div>`;
   }
-  snapshots.forEach((item) => {
+  visibleSnapshots.forEach((item) => {
     const card = document.createElement("article");
     card.className = `snapshot-card snapshot-card-${item.feed || "generic"}`;
     const feedLabel = item.feed_label || item.feed || "--";
@@ -160,7 +168,7 @@ function renderSnapshots(snapshots, summary) {
           </div>
         </div>
         <p class="snapshot-meta-line">${escapeHtml(formatBytes(item.size_bytes))} · Roma ${escapeHtml(formatRomeDateTime(item.created))}</p>
-        <p class="snapshot-path" title="${escapeHtml(item.path || "")}">${escapeHtml(item.path || "")}</p>
+        <p class="snapshot-path">Archivio ${escapeHtml(feedLabel)} · ${escapeHtml(formatAgeIt(item.created_ts))}</p>
         <div class="button-row snapshot-actions">
           <a class="btn btn-secondary btn-small btn-icon" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">${openIcon}<span>Apri</span></a>
           <a class="btn btn-ghost btn-small btn-icon" href="${escapeHtml(item.download_url)}" download="${escapeHtml(item.filename)}">${downloadIcon}<span>Scarica</span></a>

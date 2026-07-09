@@ -21,6 +21,8 @@
         </div>
       </div>
       <div class="live-statusbar-actions">
+        <span class="live-refresh-status"><span class="live-refresh-dot"></span><span id="live-refresh-status-text">Aggiornamento automatico</span></span>
+        <button class="btn btn-ghost btn-small" id="button-live-refresh" type="button">Aggiorna stato</button>
         <div class="live-status-pill live-status-pill-ai" id="live-status-pill-ai">
           <span class="live-status-dot live-status-dot-ai" id="live-ai-status-dot" aria-hidden="true"></span>
           <span class="live-status-label">AI ·</span>
@@ -29,6 +31,11 @@
         <button class="btn btn-secondary btn-small" id="button-live-save-snapshot" type="button">Salva foto</button>
         <button class="btn btn-primary btn-small" id="button-live-toggle-recording" type="button">Avvia missione</button>
       </div>
+    </div>
+
+    <div class="live-explainer">
+      <strong>Questa pagina è sempre in diretta.</strong>
+      <span>I video scorrono continuamente; stato, FPS e missione si aggiornano automaticamente ogni 2,5 secondi.</span>
     </div>
 
     <section class="mission-command-bar" id="live-mission-command-bar" aria-live="polite">

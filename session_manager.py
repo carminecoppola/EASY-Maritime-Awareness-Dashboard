@@ -267,10 +267,13 @@ class SessionManager:
 
     def status(self) -> Dict[str, Any]:
         current = self.get_current_session()
+        recent_sessions = self.list_sessions().get("sessions", [])[:3]
         return {
             "ok": True,
             "running": bool(current and current.get("status") == "RUNNING"),
             "current": current,
+            "latest": recent_sessions[0] if recent_sessions else None,
+            "recent": recent_sessions,
             "count": len(self._index),
             "index_path": str(self.index_path),
             "sessions_root": str(self.sessions_root),
