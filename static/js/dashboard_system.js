@@ -28,7 +28,7 @@ function renderSystemDevices(payload) {
   const connectedCount = Number(payload?.connected_count ?? devices.filter((item) => ["CONNECTED", "STREAMING"].includes(String(item?.status || "").toUpperCase())).length);
   if (countNode) countNode.textContent = `${connectedCount}/${devices.length || 4}`;
   if (!devices.length) {
-    node.innerHTML = `<div class="placeholder-item"><strong>Hardware status is being loaded</strong><p>The Device Manager will list Replay, RGB LEFT, RGB RIGHT and THERMAL here.</p></div>`;
+    node.innerHTML = `<div class="placeholder-item"><strong>Caricamento dispositivi</strong><p>Le sorgenti video compariranno qui appena disponibili.</p></div>`;
     return;
   }
   devices.forEach((item) => {
@@ -39,13 +39,13 @@ function renderSystemDevices(payload) {
     row.innerHTML = `
       <div class="system-device-main">
         <strong class="system-device-name">${escapeHtml(item.device_name || item.name || item.device_id || "--")}</strong>
-        <span class="system-device-desc">${escapeHtml([item.device_type, item.driver, item.configuration?.side].filter(Boolean).join(" · ") || "No configuration")}</span>
+        <span class="system-device-desc">${escapeHtml([item.device_type, item.driver, item.configuration?.side].filter(Boolean).join(" · ") || "Nessuna configurazione")}</span>
       </div>
       <div class="system-device-main">
         <span class="system-device-desc">${escapeHtml(`FPS ${item.fps != null ? Number(item.fps).toFixed(1) : "--"} · ${item.temperature != null ? `${Number(item.temperature).toFixed(1)}°C` : "--"}`)}</span>
         <span class="system-device-desc">${escapeHtml(updated)}</span>
       </div>
-      <span class="badge badge-${tone.badge || "muted"} system-device-state">${escapeHtml(item.status || "--")}</span>
+      <span class="badge badge-${tone.badge || "muted"} system-device-state">${escapeHtml(humanStateLabel(item.status || "--"))}</span>
     `;
     node.appendChild(row);
   });
@@ -71,21 +71,21 @@ function renderSystemStatus(payload) {
   setText(systemElementId("orchestratorErrorCount"), `${errorCount}`);
   setText(systemElementId("orchestratorUptime"), status.uptime || formatUptimeShort(status.uptime_seconds));
   if (!components.length) {
-    node.innerHTML = `<div class="placeholder-item"><strong>System orchestrator is loading</strong><p>The component registry will appear here after the backend has initialized.</p></div>`;
+    node.innerHTML = `<div class="placeholder-item"><strong>Caricamento servizi</strong><p>I componenti compariranno qui dopo l’avvio della dashboard.</p></div>`;
     return;
   }
   components.forEach((item) => {
     const row = document.createElement("div");
     row.className = "system-device-row system-component-row";
     const componentTone = stateTone(item.status || item.health);
-    const errorText = item.error ? cleanLogText(item.error) : "No errors";
+    const errorText = item.error ? cleanLogText(item.error) : "Nessun errore";
     row.innerHTML = `
       <div class="system-device-main">
         <strong class="system-device-name">${escapeHtml(item.label || item.id || "--")}</strong>
         <span class="system-device-desc">${escapeHtml([item.kind, item.id].filter(Boolean).join(" · "))}</span>
       </div>
       <div class="system-device-main">
-        <span class="system-device-desc">${escapeHtml(`Health ${item.health || "--"} · Uptime ${item.uptime || "--"}`)}</span>
+        <span class="system-device-desc">${escapeHtml(`Stato ${humanStateLabel(item.health || "--")} · Attivo da ${item.uptime || "--"}`)}</span>
         <span class="system-device-desc">${escapeHtml(errorText)}</span>
       </div>
       <span class="badge badge-${componentTone.badge || "muted"} system-device-state">${escapeHtml(humanStateLabel(item.status || item.health || "--"))}</span>
@@ -143,7 +143,7 @@ function updateNavIndicators(health, eventsPayload) {
     const key = link.getAttribute("data-nav-key");
     const badge = link.querySelector(".nav-alert-badge");
     if (!badge) return;
-    const showBadge = (key === "log" || key === "system") && errorCount > 0;
+    const showBadge = key === "log" && errorCount > 0;
     badge.hidden = !showBadge;
     badge.classList.remove("is-online", "is-warning", "is-error", "is-muted");
     if (showBadge) {
