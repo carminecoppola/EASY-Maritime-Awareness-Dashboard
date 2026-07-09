@@ -23,11 +23,8 @@ from flask import Flask, Response, jsonify, redirect, render_template, request, 
 from PIL import Image, ImageDraw
 import numpy as np
 
-from detection_manager import DetectionManager
-from event_manager import EventManager
-from inference_worker import InferenceWorker, find_first_image
-from session_manager import SessionManager
-from source_manager import SourceManager
+from inference_worker import find_first_image
+from system_orchestrator import SystemOrchestrator
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -1758,11 +1755,21 @@ def create_app() -> Flask:
     probe = SystemProbe()
     thermal = ThermalState(config, events)
     rgb = RgbMasterSource(config, events, probe)
-    source_manager = SourceManager(runtime_root=PROJECT_ROOT / "runtime", replay_root=PROJECT_ROOT / "runtime" / "replay", events=events, logger=LOGGER)
-    session_manager = SessionManager(events=events, hostname=probe.hostname())
-    event_manager = EventManager(events=events, session_manager=session_manager)
-    detection_manager = DetectionManager(events=events, session_manager=session_manager, event_manager=event_manager)
-    inference = InferenceWorker(events=events, detection_manager=detection_manager, source_manager=source_manager)
+    orchestrator = SystemOrchestrator(
+        runtime_root=PROJECT_ROOT / "runtime",
+        replay_root=PROJECT_ROOT / "runtime" / "replay",
+        events=events,
+        logger=LOGGER,
+        probe=probe,
+        rgb=rgb,
+        thermal=thermal,
+    )
+    device_manager = orchestrator.device_manager
+    source_manager = orchestrator.source_manager
+    session_manager = orchestrator.session_manager
+    event_manager = orchestrator.event_manager
+    detection_manager = orchestrator.detection_manager
+    inference = orchestrator.inference
 
     run_preflight_script()
     append_startup_notice(events, probe, config)
@@ -1771,9 +1778,7 @@ def create_app() -> Flask:
         events.add("THERMAL_FLIR", "DETECTED", "Thermal sensor or PureThermal device detected", "info")
     else:
         events.add("THERMAL_FLIR", "NOT_DETECTED", "Thermal sensor not detected; using mock mode", "warning")
-    thermal.start()
-
-    rgb.ensure_running()
+    orchestrator.start()
 
     @app.context_processor
     def inject_asset_version() -> Dict[str, str]:
@@ -1782,7 +1787,7 @@ def create_app() -> Flask:
     def _rgb_keepalive() -> None:
         while True:
             time.sleep(5.0)
-            rgb.ensure_running()
+            orchestrator.ensure_running()
 
     threading.Thread(target=_rgb_keepalive, daemon=True, name="rgb-keepalive").start()
     events.add("UC512_MULTIPLEXER", "STREAM_AUTOSTART", "RGB stream started on application boot", "info")
@@ -1847,6 +1852,7 @@ def create_app() -> Flask:
         sources_state = source_manager.get_status()
         detection_state = detection_manager.get_current_detections()
         session_state = session_manager.status()
+        device_state = device_manager.get_status()
         operations_inference_state = dict(inference_state)
         operations_inference_state.update(
             {
@@ -1874,6 +1880,8 @@ def create_app() -> Flask:
                 "service": "easy-dashboard",
                 "timestamp": utc_now_iso(),
                 "system": system_payload,
+                "system_orchestrator": orchestrator.health(),
+                "system_components": orchestrator.components(),
                 "cameras": camera_inventory,
                 "sources": sources_state,
                 "rgb": rgb_state,
@@ -1881,6 +1889,7 @@ def create_app() -> Flask:
                 "inference": inference_state,
                 "detection_manager": detection_state,
                 "session": session_state,
+                "devices": device_state,
                 "operations": operations_payload,
                 "events_count": len(events.list(9999)),
             }
@@ -1927,6 +1936,41 @@ def create_app() -> Flask:
         if result.get("ok") is False:
             return jsonify(result), 404
         return jsonify(result)
+
+    @app.route("/api/devices", methods=["GET"])
+    def api_devices():
+        return jsonify(device_manager.get_status())
+
+    @app.route("/api/devices/status", methods=["GET"])
+    def api_devices_status():
+        return jsonify(device_manager.get_status())
+
+    @app.route("/api/devices/<device_id>", methods=["GET"])
+    def api_device_detail(device_id: str):
+        device = device_manager.get_device(device_id)
+        if not device:
+            return jsonify({"ok": False, "error": "Device not found", "id": device_id}), 404
+        return jsonify({"ok": True, "device": device})
+
+    @app.route("/api/devices/refresh", methods=["POST"])
+    def api_devices_refresh():
+        payload = request.get_json(force=True, silent=True) or {}
+        device_id = payload.get("device_id") or payload.get("id")
+        if device_id:
+            return jsonify(device_manager.refresh(str(device_id)))
+        return jsonify(device_manager.refresh())
+
+    @app.route("/api/system/status", methods=["GET"])
+    def api_system_status():
+        return jsonify(orchestrator.health())
+
+    @app.route("/api/system/components", methods=["GET"])
+    def api_system_components():
+        return jsonify(orchestrator.components())
+
+    @app.route("/api/system/restart", methods=["POST"])
+    def api_system_restart():
+        return jsonify(orchestrator.restart())
 
     @app.route("/events")
     def events_endpoint():
@@ -2354,9 +2398,8 @@ def create_app() -> Flask:
         # make sure the camera process is not orphaned.
         pass
 
-    atexit.register(rgb.stop)
     atexit.register(thermal.stop)
-    atexit.register(inference.stop)
+    atexit.register(orchestrator.stop)
 
     return app
 

@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
+from device_manager import DeviceManager, DeviceStatus
+
 
 def utc_now_iso() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
@@ -61,11 +63,13 @@ class SourceManager:
         *,
         runtime_root: Path | str,
         replay_root: Path | str,
+        device_manager: DeviceManager | None = None,
         events: Any | None = None,
         logger: Any | None = None,
     ) -> None:
         self.runtime_root = Path(runtime_root)
         self.replay_root = Path(replay_root)
+        self.device_manager = device_manager
         self.events = events
         self.logger = logger
         self._lock = threading.RLock()
@@ -165,6 +169,19 @@ class SourceManager:
     def _is_replay_source(self, record: SourceRecord) -> bool:
         return record.type == "replay_folder" or "replay_dir" in record.configuration
 
+    def _device_status_to_source_status(self, status: str | None) -> str:
+        value = str(status or DeviceStatus.UNKNOWN).upper()
+        mapping = {
+            DeviceStatus.CONNECTED: SourceStatus.ONLINE,
+            DeviceStatus.STREAMING: SourceStatus.STREAMING,
+            DeviceStatus.DISCONNECTED: SourceStatus.OFFLINE,
+            DeviceStatus.INITIALIZING: SourceStatus.INITIALIZING,
+            DeviceStatus.ERROR: SourceStatus.ERROR,
+            DeviceStatus.NOT_PRESENT: SourceStatus.NOT_AVAILABLE,
+            DeviceStatus.UNKNOWN: SourceStatus.UNKNOWN,
+        }
+        return mapping.get(value, SourceStatus.UNKNOWN)
+
     def _has_replay_frames(self, replay_dir: Path) -> bool:
         if not replay_dir.exists():
             return False
@@ -178,13 +195,34 @@ class SourceManager:
             return SourceStatus.NOT_AVAILABLE
         if record.type == "replay_folder":
             replay_dir = Path(str(record.configuration.get("replay_dir") or self.replay_root))
+            replay_ready = replay_dir.exists() and self._has_replay_frames(replay_dir)
+            if self.device_manager is not None:
+                device = self.device_manager.get_device_status("replay")
+                if device:
+                    device_status = self._device_status_to_source_status(device.get("status"))
+                    if device_status == SourceStatus.STREAMING and replay_ready:
+                        return SourceStatus.STREAMING if record.id == self._selected_source_id else SourceStatus.ONLINE
+                    if device_status in {SourceStatus.ONLINE, SourceStatus.STREAMING} and replay_ready:
+                        return SourceStatus.STREAMING if record.id == self._selected_source_id else SourceStatus.ONLINE
+                    if not replay_ready:
+                        return SourceStatus.NOT_AVAILABLE if not replay_dir.exists() else SourceStatus.OFFLINE
+                    if device_status in {SourceStatus.ERROR, SourceStatus.OFFLINE, SourceStatus.NOT_AVAILABLE}:
+                        return device_status
             if not replay_dir.exists():
                 return SourceStatus.NOT_AVAILABLE
             if self._has_replay_frames(replay_dir):
                 return SourceStatus.STREAMING if record.id == self._selected_source_id else SourceStatus.ONLINE
             return SourceStatus.OFFLINE
         if record.type.endswith("_placeholder"):
+            if self.device_manager is not None:
+                device = self.device_manager.get_device_status(record.id)
+                if device:
+                    return self._device_status_to_source_status(device.get("status"))
             return SourceStatus.NOT_AVAILABLE
+        if self.device_manager is not None:
+            device = self.device_manager.get_device_status(record.id)
+            if device:
+                return self._device_status_to_source_status(device.get("status"))
         return SourceStatus.UNKNOWN
 
     def _touch(self, record: SourceRecord, status: Optional[str] = None) -> SourceRecord:
@@ -265,10 +303,20 @@ class SourceManager:
     def refresh_status(self, source_id: str | None = None) -> Dict[str, Any]:
         with self._lock:
             if source_id:
+                if self.device_manager is not None:
+                    try:
+                        self.device_manager.refresh(source_id)
+                    except Exception:
+                        pass
                 result = self.check_health(source_id)
                 if result.get("ok"):
                     self._emit("SOURCE_MANAGER", "SOURCE_REFRESH", f"{source_id} refreshed", "info", meta={"source_id": source_id})
                 return result
+            if self.device_manager is not None:
+                try:
+                    self.device_manager.refresh()
+                except Exception:
+                    pass
             refreshed = []
             for record in self._sources.values():
                 refreshed.append(self.check_health(record.id)["source"])

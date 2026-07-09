@@ -29,8 +29,45 @@
       </div>
     </section>
 
-    <section class="system-devices panel">
-      <span class="badge badge-muted system-device-count" id="system-device-count">0/3</span>
+    <section class="system-status panel">
+      <div class="panel-head">
+        <div>
+          <span class="panel-kicker">System Status</span>
+          <h2 class="panel-title">System Orchestrator</h2>
+          <p class="panel-copy">Stato centrale della piattaforma EASY: componenti registrati, uptime e segnali di errore raccolti dall'orchestratore.</p>
+        </div>
+        <span class="badge badge-muted" id="system-status-badge">Loading</span>
+      </div>
+      <div class="system-metric-row system-status-grid">
+        <article class="metric system-metric">
+          <span>Componenti attivi</span>
+          <strong id="system-active-count" class="system-metric-value">--</strong>
+        </article>
+        <article class="metric system-metric">
+          <span>Componenti totali</span>
+          <strong id="system-component-count" class="system-metric-value">--</strong>
+        </article>
+        <article class="metric system-metric">
+          <span>Uptime orchestratore</span>
+          <strong id="system-uptime" class="system-metric-value">--</strong>
+        </article>
+        <article class="metric system-metric">
+          <span>Errori</span>
+          <strong id="system-error-count" class="system-metric-value">--</strong>
+        </article>
+      </div>
+      <div class="system-device-list system-component-list" id="system-component-list"></div>
+    </section>
+
+    <section class="system-hardware system-devices panel">
+      <div class="panel-head">
+        <div>
+          <span class="panel-kicker">Hardware</span>
+          <h2 class="panel-title">Device Manager</h2>
+          <p class="panel-copy">Stato dei device fisici astratti: Replay, RGB LEFT, RGB RIGHT e THERMAL. I device placeholder possono restare non presenti senza interrompere la dashboard.</p>
+        </div>
+        <span class="badge badge-muted system-device-count" id="system-device-count">0/4</span>
+      </div>
       <div class="system-device-list" id="device-list"></div>
     </section>
 
