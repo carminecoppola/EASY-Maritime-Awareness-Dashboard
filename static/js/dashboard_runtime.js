@@ -141,6 +141,7 @@ const dashboardState = {
     logSeverity: new URLSearchParams(window.location.search).get("severity") || "all",
     logSource: "all",
     logQuery: "",
+    snapshotFeed: "all",
   },
 };
 
@@ -337,6 +338,21 @@ function setupSharedInteractions() {
 }
 
 function setupLivePage() {
+  const liveRefreshButton = byId(liveActionElementId("liveRefreshButton"));
+  if (liveRefreshButton) {
+    liveRefreshButton.addEventListener("click", async () => {
+      liveRefreshButton.disabled = true;
+      liveRefreshButton.textContent = "Aggiornamento…";
+      await refreshDashboard();
+      reloadThermalFrame();
+      setText(liveActionElementId("liveRefreshText"), `Stato aggiornato alle ${formatRomeTimeOnly(Date.now())}`);
+      window.setTimeout(() => {
+        liveRefreshButton.disabled = false;
+        liveRefreshButton.textContent = "Aggiorna stato";
+      }, 350);
+    });
+  }
+
   const sourcesRefreshButton = byId(liveActionElementId("sourceRefreshButton"));
   if (sourcesRefreshButton) {
     sourcesRefreshButton.addEventListener("click", async () => {
@@ -446,15 +462,30 @@ function setupDetectionsPage() {
   if (aiStartButton) {
     aiStartButton.addEventListener("click", async () => {
       aiStartButton.disabled = true;
+      aiStartButton.textContent = "Avvio in corso…";
+      let openedSession = false;
       try {
+        if (!dashboardState.sessionStatus?.running) {
+          await callInferenceAction("/api/session/start", { mode: "replay", operator: "dashboard" });
+          openedSession = true;
+        }
         await callInferenceAction("/api/inference/start", { mode: "replay" });
-        showToast("AI started", "Replay/Demo inference is now running.", "success");
+        showToast("Analisi avviata", "Missione aperta: i frame vengono elaborati e salvati automaticamente.", "success");
         await refreshDashboard();
       } catch (error) {
         console.error(error);
-        showToast("AI start failed", error.message || "Unable to start AI worker", "error");
+        if (openedSession) {
+          try {
+            await callInferenceAction("/api/session/stop");
+          } catch (cleanupError) {
+            console.error(cleanupError);
+          }
+        }
+        showToast("Analisi non avviata", error.message || "Il motore AI non è disponibile", "error");
+        await refreshDashboard();
       } finally {
         aiStartButton.disabled = false;
+        aiStartButton.textContent = "Avvia analisi";
       }
     });
   }
@@ -619,6 +650,29 @@ function setupDetectionsPage() {
 }
 
 function setupLogPage() {
+  const initialArchiveTab = new URLSearchParams(window.location.search).get("view") === "log" ? "events" : "photos";
+  const selectArchiveTab = (tab) => {
+    document.querySelectorAll("[data-archive-tab]").forEach((button) => {
+      const active = button.dataset.archiveTab === tab;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    document.querySelectorAll("[data-archive-panel]").forEach((panel) => {
+      panel.hidden = panel.dataset.archivePanel !== tab;
+    });
+  };
+  document.querySelectorAll("[data-archive-tab]").forEach((button) => {
+    button.addEventListener("click", () => selectArchiveTab(button.dataset.archiveTab));
+  });
+  document.querySelectorAll("[data-snapshot-feed]").forEach((button) => {
+    button.addEventListener("click", () => {
+      dashboardState.filters.snapshotFeed = button.dataset.snapshotFeed || "all";
+      document.querySelectorAll("[data-snapshot-feed]").forEach((item) => item.classList.toggle("is-active", item === button));
+      renderSnapshots(dashboardState.snapshots, dashboardState.snapshotSummary);
+    });
+  });
+  selectArchiveTab(initialArchiveTab);
+
   const logExportButton = byId(logElementId("exportButton"));
   if (logExportButton) {
     logExportButton.addEventListener("click", () => {

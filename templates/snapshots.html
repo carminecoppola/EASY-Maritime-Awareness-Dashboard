@@ -4,7 +4,12 @@
 
 {% block content %}
   <section class="log-page">
-    <section class="snapshot-library panel" aria-label="Foto salvate">
+    <nav class="archive-tabs" aria-label="Sezioni archivio">
+      <button class="archive-tab is-active" type="button" data-archive-tab="photos">Foto salvate</button>
+      <button class="archive-tab" type="button" data-archive-tab="events">Registro attività</button>
+    </nav>
+
+    <section class="snapshot-library panel" id="archive-panel-photos" data-archive-panel="photos" aria-label="Foto salvate">
       <div class="panel-head">
         <div>
           <span class="panel-kicker">Archivio locale</span>
@@ -17,15 +22,22 @@
           <span id="snapshot-latest-time">—</span>
         </div>
       </div>
+      <div class="snapshot-filters" aria-label="Filtra foto per camera">
+        <button class="snapshot-filter is-active" type="button" data-snapshot-feed="all">Tutte <strong id="snapshot-filter-count-all">0</strong></button>
+        <button class="snapshot-filter" type="button" data-snapshot-feed="thermal">Termica <strong id="snapshot-filter-count-thermal">0</strong></button>
+        <button class="snapshot-filter" type="button" data-snapshot-feed="rgb_left">Camera sinistra <strong id="snapshot-filter-count-rgb-left">0</strong></button>
+        <button class="snapshot-filter" type="button" data-snapshot-feed="rgb_right">Camera destra <strong id="snapshot-filter-count-rgb-right">0</strong></button>
+      </div>
       <div class="snapshot-grid" id="snapshot-grid"></div>
     </section>
 
-    <div class="section-divider">
-      <span>Registro attività</span>
-      <p>Eventi tecnici, rilevazioni e avvisi prodotti dal sistema.</p>
-    </div>
+    <section id="archive-panel-events" data-archive-panel="events" hidden>
+      <div class="section-divider">
+        <span>Registro attività</span>
+        <p>Eventi tecnici, rilevazioni e avvisi prodotti dal sistema.</p>
+      </div>
 
-    <section class="log-count-bar" aria-label="Filtri rapidi log">
+      <section class="log-count-bar" aria-label="Filtri rapidi log">
       <button type="button" class="log-count-chip is-active" data-log-severity="all">
         <span>Tutti</span><strong id="log-count-all">0</strong>
       </button>
@@ -49,9 +61,9 @@
         </svg>
         <span>Esporta CSV</span>
       </button>
-    </section>
+      </section>
 
-    <section class="log-toolbar panel">
+      <section class="log-toolbar panel">
       <label class="log-search">
         <span>Ricerca</span>
         <input type="search" id="log-search-input" placeholder="Filtra per sorgente, messaggio...">
@@ -67,14 +79,15 @@
           <option value="uc512">UC512</option>
         </select>
       </label>
-    </section>
+      </section>
 
-    <section class="log-list-panel panel">
+      <section class="log-list-panel panel">
       <div class="log-list" id="log-list"></div>
       <div class="log-empty-state" id="log-empty-state" hidden>
         Nessun evento corrisponde ai filtri attivi.
       </div>
       <button class="btn btn-secondary btn-small log-load-more" id="button-log-load-more" type="button">Carica altri 100</button>
+      </section>
     </section>
   </section>
 {% endblock %}

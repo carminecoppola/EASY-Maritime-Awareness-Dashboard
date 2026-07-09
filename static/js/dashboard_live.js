@@ -36,6 +36,8 @@ function liveActionElementId(action) {
     sourceGrid: "live-source-grid",
     sourceSelectedBadge: "live-source-selected-badge",
     sourceRefreshButton: "button-live-refresh-sources",
+    liveRefreshButton: "button-live-refresh",
+    liveRefreshText: "live-refresh-status-text",
     thermalImage: "live-feed-thermal-image",
     missionBar: "live-mission-command-bar",
     missionIndicator: "live-mission-state-indicator",

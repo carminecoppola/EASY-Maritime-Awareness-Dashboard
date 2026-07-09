@@ -47,6 +47,14 @@ function detectionsElementId(part) {
     aiDetectionList: "detections-ai-list",
     aiPreviewImage: "detections-ai-preview-image",
     aiPreviewEmpty: "detections-ai-preview-empty",
+    monitorTitle: "analysis-monitor-title",
+    monitorCopy: "analysis-monitor-copy",
+    monitorIndicator: "analysis-monitor-indicator",
+    monitorSource: "analysis-monitor-source",
+    monitorProgress: "analysis-monitor-progress",
+    monitorProgressBar: "analysis-progress-bar",
+    monitorLastFrame: "analysis-monitor-last-frame",
+    monitorResults: "analysis-monitor-results",
   };
   return mapping[part];
 }
@@ -151,11 +159,64 @@ function renderAiPanel(status, current) {
   renderAiControlButtons(effectiveStatus, effectiveCurrent);
   renderAiDetections(effectiveStatus, effectiveCurrent);
   renderAiPreview(effectiveStatus, effectiveCurrent);
+  renderAnalysisMonitor(effectiveStatus, effectiveCurrent);
+}
+
+function renderAnalysisMonitor(status, current) {
+  const running = Boolean(status?.running);
+  const error = current?.error || status?.error || status?.config_error || "";
+  const provider = status?.frame_provider || dashboardState.frameProviderStatus || {};
+  const lastFrame = provider.last_frame || status?.last_frame || {};
+  const rawFrameIndex = lastFrame.frame_index ?? provider.current_frame_index;
+  const frameIndex = rawFrameIndex == null ? Number.NaN : Number(rawFrameIndex);
+  const totalFrames = Number(provider.total_frames ?? status?.available_images);
+  const resultCount = Number(current?.count ?? status?.count ?? 0);
+  const source = status?.source_label || provider.source_type || "—";
+  const hasProgress = Number.isFinite(frameIndex) && Number.isFinite(totalFrames) && totalFrames > 0;
+  const progress = hasProgress ? Math.min(100, Math.max(0, ((frameIndex + 1) / totalFrames) * 100)) : 0;
+
+  let title = "Analisi ferma";
+  let copy = "Premi “Avvia analisi”: verrà aperta una missione e i frame saranno elaborati in sequenza.";
+  let indicator = "IN ATTESA";
+  if (error) {
+    title = "Analisi non disponibile";
+    copy = error;
+    indicator = "ERRORE";
+  } else if (running) {
+    title = "Analisi in esecuzione";
+    copy = resultCount
+      ? `Il motore AI sta continuando: ${resultCount} oggetti nell’ultimo frame elaborato.`
+      : "Il motore AI è attivo e sta cercando oggetti. Zero risultati è un esito valido.";
+    indicator = "ATTIVA";
+  } else if (status?.last_run_ts) {
+    title = "Analisi completata o in pausa";
+    copy = `Ultimo frame elaborato ${formatAgeIt(parseDateValue(status.last_run_ts) / 1000)}. Puoi riavviare l’analisi quando vuoi.`;
+    indicator = "PAUSA";
+  }
+
+  setText(detectionsElementId("monitorTitle"), title);
+  setText(detectionsElementId("monitorCopy"), copy);
+  setText(detectionsElementId("monitorIndicator"), indicator);
+  setText(detectionsElementId("monitorSource"), source);
+  setText(detectionsElementId("monitorProgress"), hasProgress ? `${frameIndex + 1} di ${totalFrames}` : running ? "Flusso continuo" : "—");
+  setText(detectionsElementId("monitorLastFrame"), status?.last_run_ts ? formatRomeTimeOnly(status.last_run_ts) : "Non ancora analizzato");
+  setText(detectionsElementId("monitorResults"), `${resultCount}`);
+
+  const indicatorNode = byId(detectionsElementId("monitorIndicator"));
+  if (indicatorNode) {
+    indicatorNode.classList.toggle("is-running", running && !error);
+    indicatorNode.classList.toggle("is-error", Boolean(error));
+  }
+  const bar = byId(detectionsElementId("monitorProgressBar"));
+  if (bar) {
+    bar.style.width = `${running && !hasProgress ? 100 : progress}%`;
+    bar.classList.toggle("is-indeterminate", running && !hasProgress);
+  }
 }
 
 function renderSessionPanel(status) {
   const payload = status || {};
-  const session = payload.current || payload.session || null;
+  const session = payload.current || payload.session || payload.latest || null;
   const running = Boolean(payload.running || session?.status === "RUNNING");
   const metrics = session?.metrics || {};
   const title = byId(detectionsElementId("sessionTitle"));
