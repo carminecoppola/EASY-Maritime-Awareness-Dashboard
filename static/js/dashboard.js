@@ -162,6 +162,7 @@ function formatUptimeShort(seconds) {
 function friendlySource(value) {
   const map = {
     SYSTEM: "Sistema",
+    SYSTEM_ORCHESTRATOR: "System Orchestrator",
     UC512_MULTIPLEXER: "UC512",
     RGB_CAM_LEFT: "RGB LEFT",
     RGB_CAM_RIGHT: "RGB RIGHT",
@@ -212,16 +213,27 @@ function friendlyEventType(value) {
     SOURCE_SELECT_FAILED: "Selezione fallita",
     SOURCE_REFRESH: "Aggiorna sorgenti",
     SOURCE_CHANGED: "Sorgente cambiata",
+    DEVICE_STATE_CHANGED: "Stato device",
+    CAMERA_CONNECTED: "Camera connessa",
+    CAMERA_LOST: "Camera persa",
+    THERMAL_CONNECTED: "Thermal connesso",
+    THERMAL_OFFLINE: "Thermal offline",
+    REPLAY_ACTIVE: "Replay attivo",
+    REPLAY_IDLE: "Replay inattivo",
+    SYSTEM_START: "Sistema avviato",
+    SYSTEM_STOP: "Sistema fermato",
+    SYSTEM_RESTART: "Sistema riavviato",
   };
   return map[String(value || "").toUpperCase()] || String(value || "--");
 }
 
 function sourceTone(state) {
   const value = String(state || "--").toUpperCase();
-  if (["ONLINE", "STREAMING"].includes(value)) return { badge: "online", dot: "state-dot-online" };
+  if (["ONLINE", "STREAMING", "CONNECTED"].includes(value)) return { badge: "online", dot: "state-dot-online" };
   if (["INITIALIZING", "STARTING", "LOADING"].includes(value)) return { badge: "loading", dot: "state-dot-loading" };
   if (["WARNING", "WARN"].includes(value)) return { badge: "warning", dot: "state-dot-warning" };
-  if (["OFFLINE", "ERROR", "FAILED"].includes(value)) return { badge: "error", dot: "state-dot-error" };
+  if (["OFFLINE", "ERROR", "FAILED", "DISCONNECTED", "DISABLED"].includes(value)) return { badge: "error", dot: "state-dot-error" };
+  if (["NOT_AVAILABLE", "NOT_PRESENT", "UNKNOWN"].includes(value)) return { badge: "muted", dot: "state-dot-muted" };
   return { badge: "muted", dot: "state-dot-muted" };
 }
 
@@ -237,19 +249,22 @@ function eventCategory(event) {
   const type = String(event?.type || "").toUpperCase();
   if (type.includes("DETECTED") || type.includes("ANOMALY") || type.includes("HOTSPOT")) return "detection";
   if (type.includes("SNAPSHOT")) return "snapshot";
+  if (source.includes("SYSTEM")) return "system";
   if (source.includes("THERMAL")) return "thermal";
+  if (source.includes("DEVICE_MANAGER")) return "device";
   if (source.includes("RGB_CAM") || source.includes("UC512")) return "camera";
-  if (source === "SYSTEM") return "system";
   return "other";
 }
 
 function logSourceKey(event) {
   const source = String(event?.source || "").toUpperCase();
+  if (source.includes("SYSTEM")) return "system";
   if (source.includes("THERMAL")) return "thermal";
+  if (source.includes("FRAME_PROVIDER")) return "frame_provider";
+  if (source.includes("INFERENCE")) return "inference_worker";
   if (source.includes("RGB_CAM_LEFT") || source.includes("RGB_LEFT")) return "rgb_left";
   if (source.includes("RGB_CAM_RIGHT") || source.includes("RGB_RIGHT")) return "rgb_right";
   if (source.includes("UC512")) return "uc512";
-  if (source === "SYSTEM") return "system";
   return "all";
 }
 
@@ -259,7 +274,10 @@ function logSourceLabel(event) {
     thermal: "THERMAL",
     rgb_left: "RGB LEFT",
     rgb_right: "RGB RIGHT",
+    device: "DEVICE MANAGER",
     system: "SISTEMA",
+    frame_provider: "FRAME PROVIDER",
+    inference_worker: "INFERENCE",
     uc512: "UC512",
     all: "Tutte",
   };
@@ -427,9 +445,9 @@ function setBadge(id, text, severity) {
 
 function stateTone(state) {
   const value = String(state || "--").toUpperCase();
-  if (["ONLINE", "DETECTED", "READY", "OK", "STREAMING"].includes(value)) return { badge: "online", dot: "state-dot-online" };
+  if (["ONLINE", "DETECTED", "READY", "OK", "STREAMING", "RUNNING", "CONNECTED"].includes(value)) return { badge: "online", dot: "state-dot-online" };
   if (["BUSY", "WARNING", "WARN"].includes(value)) return { badge: "warning", dot: "state-dot-warning" };
-  if (["OFFLINE", "ERROR", "FAILED", "DISABLED"].includes(value)) return { badge: "error", dot: "state-dot-error" };
+  if (["OFFLINE", "ERROR", "FAILED", "DISABLED", "STOPPED"].includes(value)) return { badge: "error", dot: "state-dot-error" };
   if (["STARTING", "LOADING", "WAITING", "CHECKING", "INITIALIZING"].includes(value)) return { badge: "loading", dot: "state-dot-loading" };
   if (value === "PAUSED") return { badge: "muted", dot: "state-dot-muted" };
   if (["NOT_AVAILABLE", "UNKNOWN"].includes(value)) return { badge: "muted", dot: "state-dot-muted" };
@@ -457,12 +475,17 @@ function humanStateLabel(state) {
     INITIALIZING: "Initializing",
     PAUSED: "Paused",
     STREAMING: "Streaming",
+    CONNECTED: "Connected",
+    DISCONNECTED: "Disconnected",
     NOT_AVAILABLE: "Not available",
+    NOT_PRESENT: "Not present",
     UNKNOWN: "Unknown",
     REAL: "Live",
     MOCK: "Simulation",
     NOT_DETECTED: "Not detected",
     PENDING: "Starting",
+    RUNNING: "Running",
+    STOPPED: "Stopped",
   };
   return map[value] || (state || "--");
 }
@@ -1165,21 +1188,88 @@ function setMetricValue(id, text, tone) {
   node.classList.add(`is-${tone || "neutral"}`);
 }
 
-function renderSystemDevices(items, onlineCount = 0, totalCount = 3) {
+function renderSystemDevices(payload) {
   const node = byId("device-list");
   const countNode = byId("system-device-count");
   if (!node) return;
   node.innerHTML = "";
-  if (countNode) countNode.textContent = `${onlineCount}/${totalCount}`;
-  (items || []).forEach((item) => {
+  const devices = Array.isArray(payload?.devices) ? payload.devices : [];
+  const connectedCount = Number(
+    payload?.connected_count ?? devices.filter((item) => ["CONNECTED", "STREAMING"].includes(String(item?.status || "").toUpperCase())).length,
+  );
+  if (countNode) countNode.textContent = `${connectedCount}/${devices.length || 4}`;
+  if (!devices.length) {
+    node.innerHTML = `
+      <div class="placeholder-item">
+        <strong>Hardware status is being loaded</strong>
+        <p>The Device Manager will list Replay, RGB LEFT, RGB RIGHT and THERMAL here.</p>
+      </div>
+    `;
+    return;
+  }
+  devices.forEach((item) => {
+    const tone = stateTone(item.status);
+    const updated = item.last_seen ? formatRomeDateTime(item.last_seen) : "--";
     const row = document.createElement("div");
     row.className = "system-device-row";
     row.innerHTML = `
       <div class="system-device-main">
-        <strong class="system-device-name">${escapeHtml(item.name)}</strong>
-        <span class="system-device-desc">${escapeHtml(item.desc)}</span>
+        <strong class="system-device-name">${escapeHtml(item.device_name || item.name || item.device_id || "--")}</strong>
+        <span class="system-device-desc">${escapeHtml([item.device_type, item.driver, item.configuration?.side].filter(Boolean).join(" · ") || "No configuration")}</span>
       </div>
-      <span class="badge badge-${item.tone || "muted"} system-device-state">${escapeHtml(item.state)}</span>
+      <div class="system-device-main">
+        <span class="system-device-desc">${escapeHtml(`FPS ${item.fps != null ? Number(item.fps).toFixed(1) : "--"} · ${item.temperature != null ? `${Number(item.temperature).toFixed(1)}°C` : "--"}`)}</span>
+        <span class="system-device-desc">${escapeHtml(updated)}</span>
+      </div>
+      <span class="badge badge-${tone.badge || "muted"} system-device-state">${escapeHtml(item.status || "--")}</span>
+    `;
+    node.appendChild(row);
+  });
+}
+
+function renderSystemStatus(payload) {
+  const status = payload || {};
+  const node = byId("system-component-list");
+  const badge = byId("system-status-badge");
+  if (!node) return;
+  node.innerHTML = "";
+  const components = Array.isArray(status.components) ? status.components : [];
+  const activeCount = Number(status.active_count ?? components.filter((item) => Boolean(item?.active)).length);
+  const errorCount = Number(status.error_count ?? components.filter((item) => Boolean(item?.error)).length);
+  const overallState = String(status.status || (status.ok ? "RUNNING" : "DEGRADED")).toUpperCase();
+  const tone = stateTone(overallState);
+  if (badge) {
+    badge.textContent = humanStateLabel(overallState);
+    badge.className = `badge badge-${tone.badge || "muted"}`;
+  }
+  setText("system-active-count", `${activeCount}`);
+  setText("system-component-count", `${components.length || 0}`);
+  setText("system-error-count", `${errorCount}`);
+  setText("system-uptime", status.uptime || formatUptimeShort(status.uptime_seconds));
+  if (!components.length) {
+    node.innerHTML = `
+      <div class="placeholder-item">
+        <strong>System orchestrator is loading</strong>
+        <p>The component registry will appear here after the backend has initialized.</p>
+      </div>
+    `;
+    return;
+  }
+  components.forEach((item) => {
+    const row = document.createElement("div");
+    row.className = "system-device-row system-component-row";
+    const componentTone = stateTone(item.status || item.health);
+    const errorText = item.error ? cleanLogText(item.error) : "No errors";
+    row.innerHTML = `
+      <div class="system-device-main">
+        <strong class="system-device-name">${escapeHtml(item.label || item.id || "--")}</strong>
+        <span class="system-device-desc">${escapeHtml([item.kind, item.id].filter(Boolean).join(" · "))}</span>
+      </div>
+      <div class="system-device-main">
+        <span class="system-device-desc">${escapeHtml(`Health ${item.health || "--"} · Uptime ${item.uptime || "--"}`)}</span>
+        <span class="system-device-desc">${escapeHtml(errorText)}</span>
+      </div>
+      <span class="badge badge-${componentTone.badge || "muted"} system-device-state">${escapeHtml(humanStateLabel(item.status || item.health || "--"))}</span>
     `;
     node.appendChild(row);
   });
@@ -1911,15 +2001,6 @@ function renderThermalPage(health, eventsPayload) {
 
 function renderSystemPage(health) {
   const system = health.system || {};
-  const cameras = health.cameras || {};
-  const operations = health.operations || {};
-  const sensorHealth = operations.sensor_health || {};
-  const rgbCams = cameras.rgb_cameras || [];
-  const thermalCam = cameras.thermal_camera || {};
-  const uc512 = cameras.uc512_multiplexer || {};
-  const rgbLeftLive = sensorHealth.rgb_left || {};
-  const rgbRightLive = sensorHealth.rgb_right || {};
-  const thermalLive = sensorHealth.thermal || {};
   const cpu = Number(system.cpu_percent ?? 0);
   const ram = Number(system.ram?.percent ?? 0);
   const disk = Number(system.disk?.percent ?? 0);
@@ -1930,18 +2011,9 @@ function renderSystemPage(health) {
   setMetricValue("disk-percent", `${disk.toFixed(1)}%`, cpuTone(disk));
   setMetricValue("cpu-temp", temp ? `${temp.toFixed(1)}°C` : "--", tempTone(temp));
   setMetricValue("uptime", uptime, "neutral");
-
-  const devices = [
-    { name: "UC512_MULTIPLEXER", desc: "Arducam CamArray UC-512", state: uc512.state || "UNKNOWN", tone: stateTone(uc512.state).badge },
-    { name: "RGB_CAM_LEFT", desc: `Arducam UC-517 LEFT · ${rgbCams[0]?.fps != null ? `${Number(rgbCams[0].fps).toFixed(1)} fps` : "-- fps"}`, state: rgbLeftLive.state || "NOT_DETECTED", tone: stateTone(rgbLeftLive.state).badge },
-    { name: "RGB_CAM_RIGHT", desc: `Arducam UC-517 RIGHT · ${rgbCams[1]?.fps != null ? `${Number(rgbCams[1].fps).toFixed(1)} fps` : "-- fps"}`, state: rgbRightLive.state || "NOT_DETECTED", tone: stateTone(rgbRightLive.state).badge },
-    { name: "THERMAL_FLIR", desc: `FLIR/Lepton · ${thermalCam.mode || "real"}`, state: thermalLive.state || "NOT_DETECTED", tone: stateTone(thermalLive.state).badge },
-    { name: "Sensors online", desc: `${sensorHealth.online_count ?? 0}/3`, state: sensorHealth.online_count != null && sensorHealth.online_count > 0 ? "DETECTED" : "NOT_DETECTED", tone: stateTone(sensorHealth.online_count > 0 ? "ONLINE" : "NOT_DETECTED").badge },
-  ];
-  renderSystemDevices(devices, sensorHealth.online_count ?? 0, sensorHealth.total_count ?? 3);
-
-  const recentErrors = recentErrorEvents(dashboardState.events, 5);
-  renderSystemErrors(recentErrors);
+  renderSystemStatus(dashboardState.systemComponents || dashboardState.systemStatus || health.system_orchestrator || health.system_components);
+  renderSystemDevices(dashboardState.devices);
+  renderSystemErrors(recentErrorEvents(dashboardState.events, 5));
 }
 
 function updateNavIndicators(health, eventsPayload, snapshots) {
@@ -2066,9 +2138,12 @@ const dashboardState = {
   inferenceCurrent: null,
   frameProviderStatus: null,
   sessionStatus: null,
+  systemStatus: null,
+  systemComponents: null,
   snapshots: [],
   snapshotSummary: null,
   sources: null,
+  devices: null,
   eventSummary: null,
   eventCount: 0,
   logLimit: 100,
@@ -2087,28 +2162,34 @@ const dashboardState = {
 
 async function refreshDashboard() {
   try {
-    const [healthRes, eventsRes, snapshotsRes, sourcesRes, inferenceStatusRes, inferenceCurrentRes, sessionStatusRes, currentEventsRes, eventHistoryRes, frameProviderRes] = await Promise.all([
+    const [healthRes, eventsRes, snapshotsRes, sourcesRes, devicesRes, inferenceStatusRes, inferenceCurrentRes, sessionStatusRes, currentEventsRes, eventHistoryRes, frameProviderRes, systemStatusRes, systemComponentsRes] = await Promise.all([
       fetchJson("/health"),
       fetchJson("/events?limit=9999"),
       fetchJson("/api/snapshots/recent?limit=12"),
       fetchJson("/api/sources/status"),
+      fetchJson("/api/devices/status"),
       fetchJson("/api/inference/status"),
       fetchJson("/api/detection/current"),
       fetchJson("/api/session/status"),
       fetchJson("/api/events/current"),
       fetchJson("/api/events/history"),
       fetchJson("/api/frame-provider/status"),
+      fetchJson("/api/system/status"),
+      fetchJson("/api/system/components"),
     ]);
     const health = healthRes.data || dashboardState.health || {};
     const eventsPayload = eventsRes.data || { events: [], summary: {} };
     const snapshotsPayload = snapshotsRes.data || { items: [], summary: null };
     const sourcesPayload = sourcesRes.data || { sources: [] };
+    const devicesPayload = devicesRes.data || { devices: [] };
     const inferenceStatus = inferenceStatusRes.data || {};
     const inferenceCurrent = inferenceCurrentRes.data || {};
     const sessionStatus = sessionStatusRes.data || health.session || {};
     const currentEvents = currentEventsRes.data || { events: [] };
     const eventHistory = eventHistoryRes.data || { events: [] };
     const frameProviderStatus = frameProviderRes.data || inferenceStatus?.frame_provider || {};
+    const systemStatus = systemStatusRes.data || health.system_orchestrator || {};
+    const systemComponents = systemComponentsRes.data || health.system_components || {};
 
     dashboardState.health = health;
     dashboardState.events = eventsPayload?.events || [];
@@ -2121,9 +2202,12 @@ async function refreshDashboard() {
     dashboardState.inferenceCurrent = inferenceCurrent;
     dashboardState.frameProviderStatus = frameProviderStatus;
     dashboardState.sessionStatus = sessionStatus;
+    dashboardState.systemStatus = systemStatus;
+    dashboardState.systemComponents = systemComponents;
     dashboardState.snapshots = snapshotsPayload?.items || [];
     dashboardState.snapshotSummary = snapshotsPayload?.summary || null;
     dashboardState.sources = sourcesPayload || null;
+    dashboardState.devices = devicesPayload || health.devices || null;
 
     const rgb = health.rgb || {};
     const thermal = health.thermal || {};
