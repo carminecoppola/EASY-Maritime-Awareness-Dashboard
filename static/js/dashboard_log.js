@@ -162,8 +162,8 @@ function renderSnapshots(snapshots, summary) {
         <p class="snapshot-meta-line">${escapeHtml(formatBytes(item.size_bytes))} · Roma ${escapeHtml(formatRomeDateTime(item.created))}</p>
         <p class="snapshot-path" title="${escapeHtml(item.path || "")}">${escapeHtml(item.path || "")}</p>
         <div class="button-row snapshot-actions">
-          <a class="btn btn-secondary btn-small btn-icon" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">${openIcon}<span>Open preview</span></a>
-          <a class="btn btn-ghost btn-small btn-icon" href="${escapeHtml(item.download_url)}" download="${escapeHtml(item.filename)}">${downloadIcon}<span>Download file</span></a>
+          <a class="btn btn-secondary btn-small btn-icon" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">${openIcon}<span>Apri</span></a>
+          <a class="btn btn-ghost btn-small btn-icon" href="${escapeHtml(item.download_url)}" download="${escapeHtml(item.filename)}">${downloadIcon}<span>Scarica</span></a>
         </div>
       </div>
     `;

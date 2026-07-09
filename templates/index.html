@@ -26,10 +26,27 @@
           <span class="live-status-label">AI ·</span>
           <strong id="live-ai-status-label">—</strong>
         </div>
-        <button class="btn btn-secondary btn-small" id="button-live-save-snapshot" type="button">Snapshot</button>
-        <button class="btn btn-primary btn-small" id="button-live-toggle-recording" type="button">Registra</button>
+        <button class="btn btn-secondary btn-small" id="button-live-save-snapshot" type="button">Salva foto</button>
+        <button class="btn btn-primary btn-small" id="button-live-toggle-recording" type="button">Avvia missione</button>
       </div>
     </div>
+
+    <section class="mission-command-bar" id="live-mission-command-bar" aria-live="polite">
+      <div class="mission-command-state">
+        <span class="mission-state-indicator" id="live-mission-state-indicator" aria-hidden="true"></span>
+        <div>
+          <span class="panel-kicker">Registrazione missione</span>
+          <strong id="live-mission-state-title">Nessuna missione attiva</strong>
+          <p id="live-mission-state-copy">Avvia una missione per salvare rilevazioni, eventi e metriche sulla Raspberry.</p>
+        </div>
+      </div>
+      <div class="mission-command-feedback" id="live-capture-feedback">
+        <span>Ultima foto</span>
+        <strong id="live-capture-feedback-title">Non ancora acquisita</strong>
+        <a id="live-capture-feedback-link" href="/snapshots" hidden>Apri la foto</a>
+      </div>
+      <a class="btn btn-ghost btn-small" href="/snapshots">Archivio foto</a>
+    </section>
 
     <section class="live-grid" aria-label="Flussi video in tempo reale">
       <article class="panel live-feed-card" data-feed="rgb_left">
