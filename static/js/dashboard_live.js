@@ -112,7 +112,7 @@ function renderLivePage(health) {
 
   setText(liveSummaryElementId("healthTitle"), mission.title || "Needs attention");
   setText(liveSummaryElementId("healthCopy"), mission.copy || "Controlla lo stato delle sorgenti live.");
-  setText(liveSummaryElementId("sourceTitle"), selectedSource.label || selectedSource.id || "Not selected");
+  setText(liveSummaryElementId("sourceTitle"), selectedSource.label || selectedSource.id || "Non selezionata");
   setText(liveSummaryElementId("sourceCopy"), selectedSource.description || selectedSource.state || "Seleziona la sorgente attiva del Frame Provider dal pannello qui sotto.");
   setText(liveSummaryElementId("sessionTitle"), session.running ? "In corso" : "Standby");
   setText(
@@ -162,7 +162,7 @@ function renderLivePage(health) {
       tone.dot = cardInfo.detected ? "state-dot-error" : "state-dot-muted";
       tone.badge = cardInfo.detected ? "error" : "muted";
     }
-    const label = tone.offline ? (cardInfo.detected ? "Offline" : "Not detected") : humanStateLabel(cardInfo.state);
+    const label = tone.offline ? (cardInfo.detected ? "Non disponibile" : "Non rilevata") : humanStateLabel(cardInfo.state);
     const statusText = liveStatusText(cardInfo.key, cardInfo.state, cardInfo.fps, cardInfo.last, cardInfo.detected);
     const card = document.querySelector(`[data-feed="${cardInfo.key}"]`);
     const badgeTone = tone.badge === "loading" ? "loading" : tone.badge;

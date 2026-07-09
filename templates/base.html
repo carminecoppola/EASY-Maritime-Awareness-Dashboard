@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ page_title }}</title>
+    <link rel="icon" href="{{ url_for('static', filename='img/easy-logo.svg') }}" type="image/svg+xml">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ asset_version }}">
   </head>
   <body class="dashboard-shell view-simple" data-page="{{ page_key }}">
@@ -78,14 +79,10 @@
       <footer class="app-footer" aria-label="Informazioni dashboard">
         <div class="app-footer-brand">
           <span class="app-footer-mark">EASY</span>
-          <span>Environmental Awareness by the Sea and beYond</span>
+          <span>Monitoraggio marittimo locale</span>
         </div>
         <div class="app-footer-meta">
-          <span>Runtime locale</span>
-          <span aria-hidden="true">·</span>
-          <span>Raspberry dashboard</span>
-          <span aria-hidden="true">·</span>
-          <span>AI Replay/Demo ready</span>
+          <span>Elaborazione sul dispositivo</span>
         </div>
       </footer>
     </main>

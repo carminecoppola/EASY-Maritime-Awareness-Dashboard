@@ -31,56 +31,18 @@
       </div>
     </div>
 
-    <section class="live-summary-grid" aria-label="Operational summary">
-      <article class="panel live-summary-card">
-        <span class="panel-kicker">Mission health</span>
-        <h2 class="live-summary-title" id="live-summary-health-title">Loading</h2>
-        <p class="live-summary-copy" id="live-summary-health-copy">Sto raccogliendo lo stato operativo del sistema.</p>
-      </article>
-      <article class="panel live-summary-card">
-        <span class="panel-kicker">Frame provider</span>
-        <h2 class="live-summary-title" id="live-summary-source-title">--</h2>
-        <p class="live-summary-copy" id="live-summary-source-copy">Nessuna sorgente selezionata.</p>
-      </article>
-      <article class="panel live-summary-card">
-        <span class="panel-kicker">Sessione</span>
-        <h2 class="live-summary-title" id="live-summary-session-title">--</h2>
-        <p class="live-summary-copy" id="live-summary-session-copy">La sessione operativa non è ancora disponibile.</p>
-      </article>
-      <article class="panel live-summary-card">
-        <span class="panel-kicker">AI detections</span>
-        <h2 class="live-summary-title" id="live-summary-detections-count">0</h2>
-        <p class="live-summary-copy" id="live-summary-detections-copy">Le detection compariranno qui appena il replay produce risultati.</p>
-      </article>
-    </section>
-
-    <section class="panel mission-sources-panel" aria-label="Mission Sources">
-      <div class="panel-head">
-        <div>
-          <span class="panel-kicker">Mission Sources</span>
-          <h2 class="panel-title">Sorgenti disponibili</h2>
-          <p class="panel-copy">Seleziona la sorgente del Frame Provider senza riavviare la dashboard. Replay resta la modalità operativa valida in questa fase.</p>
-        </div>
-        <div class="panel-head-actions">
-          <span class="badge badge-muted" id="live-source-selected-badge">Selected: --</span>
-          <button class="btn btn-ghost btn-small" id="button-live-refresh-sources" type="button">Refresh</button>
-        </div>
-      </div>
-      <div class="sources-grid" id="live-source-grid"></div>
-    </section>
-
-    <section class="live-grid">
+    <section class="live-grid" aria-label="Flussi video in tempo reale">
       <article class="panel live-feed-card" data-feed="rgb_left">
         <div class="live-feed-head">
-          <span class="live-feed-name">RGB LEFT</span>
-          <span class="badge badge-muted" id="live-feed-rgb-left-badge">Loading</span>
+          <span class="live-feed-name">Camera sinistra</span>
+          <span class="badge badge-muted" id="live-feed-rgb-left-badge">Caricamento</span>
         </div>
         <div class="live-feed-body">
           <img
             class="feed-image live-feed-image"
             data-feed-image="rgb_left"
             {% if not request.args.get("lite") %}src="/video/rgb_left"{% endif %}
-            alt="RGB left live preview"
+            alt="Video in diretta dalla camera sinistra"
           >
           <div class="live-offline-card" id="live-feed-rgb-left-offline" hidden>
             <svg class="live-offline-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -88,7 +50,7 @@
               <path d="M8 12.5a4 4 0 0 1 6.2-3.3"></path>
               <path d="M13.8 14.8a4 4 0 0 1-5.6 0"></path>
             </svg>
-            <strong id="live-feed-rgb-left-device-name">Arducam UC-517 LEFT</strong>
+            <strong id="live-feed-rgb-left-device-name">Camera sinistra non disponibile</strong>
           </div>
         </div>
         <div class="live-feed-foot">
@@ -99,15 +61,15 @@
 
       <article class="panel live-feed-card live-feed-card-thermal" data-feed="thermal">
         <div class="live-feed-head">
-          <span class="live-feed-name">THERMAL</span>
-          <span class="badge badge-muted" id="live-feed-thermal-badge">Loading</span>
+          <span class="live-feed-name">Camera termica</span>
+          <span class="badge badge-muted" id="live-feed-thermal-badge">Caricamento</span>
         </div>
         <div class="live-feed-body">
           <img
             class="feed-image live-feed-image thermal-image"
             id="live-feed-thermal-image"
             {% if not request.args.get("lite") %}src="/thermal/frame"{% endif %}
-            alt="Thermal preview"
+            alt="Video termico in diretta"
           >
           <div class="live-offline-card" id="live-feed-thermal-offline" hidden>
             <svg class="live-offline-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -115,7 +77,7 @@
               <path d="M12 9.8v4.7"></path>
               <path d="M12 14.5c-1.3 0-2.4 1-2.4 2.3s1.1 2.2 2.4 2.2 2.4-1 2.4-2.2S13.3 14.5 12 14.5Z"></path>
             </svg>
-            <strong id="live-feed-thermal-device-name">FLIR Lepton</strong>
+            <strong id="live-feed-thermal-device-name">Camera termica non disponibile</strong>
           </div>
         </div>
         <div class="live-feed-foot">
@@ -126,15 +88,15 @@
 
       <article class="panel live-feed-card" data-feed="rgb_right">
         <div class="live-feed-head">
-          <span class="live-feed-name">RGB RIGHT</span>
-          <span class="badge badge-muted" id="live-feed-rgb-right-badge">Loading</span>
+          <span class="live-feed-name">Camera destra</span>
+          <span class="badge badge-muted" id="live-feed-rgb-right-badge">Caricamento</span>
         </div>
         <div class="live-feed-body">
           <img
             class="feed-image live-feed-image"
             data-feed-image="rgb_right"
             {% if not request.args.get("lite") %}src="/video/rgb_right"{% endif %}
-            alt="RGB right live preview"
+            alt="Video in diretta dalla camera destra"
           >
           <div class="live-offline-card" id="live-feed-rgb-right-offline" hidden>
             <svg class="live-offline-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -142,7 +104,7 @@
               <path d="M8 12.5a4 4 0 0 1 6.2-3.3"></path>
               <path d="M13.8 14.8a4 4 0 0 1-5.6 0"></path>
             </svg>
-            <strong id="live-feed-rgb-right-device-name">Arducam UC-517 RIGHT</strong>
+            <strong id="live-feed-rgb-right-device-name">Camera destra non disponibile</strong>
           </div>
         </div>
         <div class="live-feed-foot">
@@ -151,5 +113,44 @@
         </div>
       </article>
     </section>
+
+    <section class="live-summary-grid" aria-label="Riepilogo operativo">
+      <article class="panel live-summary-card">
+        <span class="panel-kicker">Sistema</span>
+        <h2 class="live-summary-title" id="live-summary-health-title">Verifica in corso</h2>
+        <p class="live-summary-copy" id="live-summary-health-copy">Sto raccogliendo lo stato operativo del sistema.</p>
+      </article>
+      <article class="panel live-summary-card">
+        <span class="panel-kicker">Sorgente attiva</span>
+        <h2 class="live-summary-title" id="live-summary-source-title">--</h2>
+        <p class="live-summary-copy" id="live-summary-source-copy">Nessuna sorgente selezionata.</p>
+      </article>
+      <article class="panel live-summary-card">
+        <span class="panel-kicker">Sessione</span>
+        <h2 class="live-summary-title" id="live-summary-session-title">--</h2>
+        <p class="live-summary-copy" id="live-summary-session-copy">La sessione operativa non è ancora disponibile.</p>
+      </article>
+      <article class="panel live-summary-card">
+        <span class="panel-kicker">Rilevazioni AI</span>
+        <h2 class="live-summary-title" id="live-summary-detections-count">0</h2>
+        <p class="live-summary-copy" id="live-summary-detections-copy">Le detection compariranno qui appena il replay produce risultati.</p>
+      </article>
+    </section>
+
+    <section class="panel mission-sources-panel" aria-label="Mission Sources">
+      <div class="panel-head">
+        <div>
+          <span class="panel-kicker">Ingresso video</span>
+          <h2 class="panel-title">Scegli la sorgente</h2>
+          <p class="panel-copy">Cambia la sorgente usata dall’analisi AI senza riavviare la dashboard.</p>
+        </div>
+        <div class="panel-head-actions">
+          <span class="badge badge-muted" id="live-source-selected-badge">Attiva: --</span>
+          <button class="btn btn-ghost btn-small" id="button-live-refresh-sources" type="button">Aggiorna</button>
+        </div>
+      </div>
+      <div class="sources-grid" id="live-source-grid"></div>
+    </section>
+
   </section>
 {% endblock %}
