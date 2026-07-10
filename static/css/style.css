@@ -119,6 +119,15 @@ img {
   min-width: 0;
 }
 
+.app-footer-link {
+  color: var(--cta);
+  text-decoration: none;
+}
+
+.app-footer-link:hover {
+  text-decoration: underline;
+}
+
 .app-footer-brand span:last-child,
 .app-footer-meta span {
   overflow: hidden;
@@ -1824,6 +1833,107 @@ body[data-page="live"] .live-page {
 
 .dataset-feed-pill strong {
   color: var(--text);
+}
+
+.help-page {
+  display: grid;
+  gap: 10px;
+}
+
+.help-hero {
+  background:
+    radial-gradient(circle at 10% 10%, rgba(0, 229, 160, 0.12), transparent 26%),
+    linear-gradient(135deg, rgba(0, 180, 216, 0.08), rgba(6, 12, 10, 0.2)),
+    var(--surface);
+}
+
+.help-flow,
+.help-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.help-flow {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 16px;
+}
+
+.help-flow-step,
+.help-card,
+.help-checklist li {
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  background: rgba(6, 12, 10, 0.42);
+}
+
+.help-flow-step {
+  min-height: 118px;
+  padding: 14px;
+}
+
+.help-flow-step strong,
+.help-flow-step span,
+.help-card h3,
+.help-card p {
+  display: block;
+}
+
+.help-flow-step strong {
+  margin-bottom: 8px;
+  color: var(--online);
+}
+
+.help-flow-step span,
+.help-card p {
+  color: var(--text-weak);
+  line-height: 1.45;
+}
+
+.help-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.help-card {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 16px;
+}
+
+.help-card h3 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.help-card .btn {
+  width: fit-content;
+}
+
+.help-checklist {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.help-checklist li {
+  position: relative;
+  min-height: 42px;
+  padding: 11px 12px 11px 38px;
+  color: var(--text);
+}
+
+.help-checklist li::before {
+  content: "";
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--online);
+  box-shadow: 0 0 12px rgba(0, 229, 160, 0.5);
 }
 
 .live-statusbar-group {
@@ -4247,6 +4357,11 @@ body[data-page="log"] .header-meta {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .help-flow,
+  .help-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .dataset-session-layout {
     grid-template-columns: 1fr;
   }
@@ -4440,7 +4555,9 @@ body[data-page="log"] .header-meta {
   }
 
   .operator-guide-steps,
-  .dataset-metrics-grid {
+  .dataset-metrics-grid,
+  .help-flow,
+  .help-grid {
     grid-template-columns: 1fr;
   }
 

@@ -115,6 +115,9 @@ UI.
 See `docs/technical_optimization_plan.md` for the next structural steps toward
 a cleaner acquisition, inference, and dataset pipeline.
 
+For day-to-day usage, see `docs/user_guide.md` or open `/help` from the
+dashboard footer.
+
 ## Notes
 
 - RGB feeds are browser-native MJPEG streams.
