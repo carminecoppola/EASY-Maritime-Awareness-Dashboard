@@ -6,7 +6,6 @@ import logging
 import os
 import threading
 import time
-from pathlib import Path
 from typing import Dict
 
 from flask import Flask
@@ -46,11 +45,33 @@ def build_runtime(*, run_startup_checks: bool = True, start_runtime_services: bo
     if run_startup_checks:
         run_preflight_script()
         append_startup_notice(events, probe, config)
-        thermal.detected = "PureThermal" in probe.lsusb() or Path(thermal.device).exists()
+        thermal.detect_device()
         if thermal.detected:
-            events.add("THERMAL_FLIR", "DETECTED", "Thermal sensor or PureThermal device detected", "info")
+            events.add(
+                "THERMAL_FLIR",
+                "DETECTED",
+                f"PureThermal detected on {thermal.device}",
+                "info",
+                meta={
+                    "device": thermal.device,
+                    "configured_device": thermal.configured_device,
+                    "input_format": thermal.input_format,
+                    "video_size": thermal.video_size,
+                    "discovery_method": thermal.discovery_method,
+                },
+            )
         else:
-            events.add("THERMAL_FLIR", "NOT_DETECTED", "Thermal sensor not detected; using mock mode", "warning")
+            events.add(
+                "THERMAL_FLIR",
+                "NOT_DETECTED",
+                thermal.error or "PureThermal device not detected",
+                "warning",
+                meta={
+                    "configured_device": thermal.configured_device,
+                    "device_candidates": thermal.device_candidates,
+                    "discovery_method": thermal.discovery_method,
+                },
+            )
 
     if start_runtime_services:
         orchestrator.start()

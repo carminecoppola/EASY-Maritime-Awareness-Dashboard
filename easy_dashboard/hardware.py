@@ -513,10 +513,15 @@ class ThermalState:
         self.events = events
         self.mode = str(config["thermal"].get("mode", "mock")).lower()
         self.enabled = bool(config["thermal"].get("enabled", True))
-        self.device = str(os.environ.get("EASY_THERMAL_DEVICE") or config["thermal"].get("device", "/dev/video0"))
+        self.configured_device = str(os.environ.get("EASY_THERMAL_DEVICE") or config["thermal"].get("device", "auto"))
+        self.device = self.configured_device
+        self.input_format = str(os.environ.get("EASY_THERMAL_INPUT_FORMAT") or config["thermal"].get("input_format", "y16")).lower()
+        self.video_size = str(os.environ.get("EASY_THERMAL_VIDEO_SIZE") or config["thermal"].get("video_size", "160x120"))
         self.threshold_celsius = float(config["thermal"].get("threshold_celsius", 35.0))
         self.delta_threshold = float(config["thermal"].get("delta_threshold", 8.0))
         self.detected = False
+        self.discovery_method = "not_checked"
+        self.device_candidates: list[Dict[str, str]] = []
         self.last_stats: Dict[str, Any] = {}
         self.last_frame_bytes: Optional[bytes] = None
         self.last_frame_ts: float = 0.0
@@ -532,6 +537,115 @@ class ThermalState:
         self._worker_started = False
         self._stop_event = threading.Event()
         self._stream_process: Optional[subprocess.Popen[bytes]] = None
+
+    def detect_device(self) -> bool:
+        """Resolve the real PureThermal V4L2 node and update detection state."""
+        self.device_candidates = []
+        if not self.enabled:
+            self.detected = False
+            self.discovery_method = "disabled"
+            return False
+        if self.mode == "mock":
+            self.detected = True
+            self.discovery_method = "mock"
+            return True
+
+        configured = self.configured_device.strip()
+        if configured and configured.lower() not in {"auto", "detect", "purethermal"}:
+            self.device = configured
+            allow_unverified = os.environ.get("EASY_THERMAL_ALLOW_UNVERIFIED_DEVICE") == "1"
+            self.detected = self._is_purethermal_device(configured) or (allow_unverified and Path(configured).exists())
+            self.discovery_method = "configured_device_verified" if self.detected else "configured_device_rejected"
+            if not self.detected:
+                self.error = (
+                    f"Configured thermal device {configured} is not identified as PureThermal/FLIR. "
+                    "Use thermal.device=auto or set EASY_THERMAL_ALLOW_UNVERIFIED_DEVICE=1 only for debugging."
+                )
+            return self.detected
+
+        resolved = self._discover_purethermal_device()
+        if resolved:
+            self.device = resolved
+            self.detected = True
+            return True
+        self.detected = False
+        self.discovery_method = "not_found"
+        self.error = "PureThermal video node not found. Check USB cable and v4l2-ctl --list-devices."
+        return False
+
+    def _discover_purethermal_device(self) -> str | None:
+        candidate = self._discover_with_v4l2_ctl()
+        if candidate:
+            self.discovery_method = "v4l2-ctl"
+            return candidate
+        candidate = self._discover_with_sysfs()
+        if candidate:
+            self.discovery_method = "sysfs"
+            return candidate
+        return None
+
+    def _discover_with_v4l2_ctl(self) -> str | None:
+        if shutil.which("v4l2-ctl") is None:
+            return None
+        result = subprocess.run(["v4l2-ctl", "--list-devices"], capture_output=True, text=True, timeout=4.0, check=False)
+        if result.returncode != 0:
+            return None
+        current_name = ""
+        for raw_line in result.stdout.splitlines():
+            line = raw_line.rstrip()
+            if not line:
+                current_name = ""
+                continue
+            if not line.startswith(("\t", " ")):
+                current_name = line
+                continue
+            device_path = line.strip()
+            if device_path.startswith("/dev/video") and self._name_looks_thermal(current_name):
+                self.device_candidates.append({"path": device_path, "name": current_name, "source": "v4l2-ctl"})
+                return device_path
+        return None
+
+    def _discover_with_sysfs(self) -> str | None:
+        for video_node in sorted(Path("/sys/class/video4linux").glob("video*")):
+            name = read_text_file(video_node / "name")
+            device_path = f"/dev/{video_node.name}"
+            if self._name_looks_thermal(name):
+                self.device_candidates.append({"path": device_path, "name": name, "source": "sysfs"})
+                return device_path
+        return None
+
+    def _is_purethermal_device(self, device_path: str) -> bool:
+        name_path = Path("/sys/class/video4linux") / Path(device_path).name / "name"
+        return self._name_looks_thermal(read_text_file(name_path))
+
+    @staticmethod
+    def _name_looks_thermal(name: str) -> bool:
+        normalized = str(name or "").lower()
+        return any(token in normalized for token in ("purethermal", "pure thermal", "flir", "lepton"))
+
+    def _friendly_thermal_error(self, stderr: str, returncode: int | None = None) -> str:
+        message = (stderr or "").strip()
+        lowered = message.lower()
+        if "device or resource busy" in lowered or "busy" in lowered:
+            return (
+                f"Thermal device busy: {self.device} is already open by another process. "
+                "Close other viewers/ffmpeg/v4l2 tools or restart the dashboard service."
+            )
+        if "ioctl" in lowered and "invalid argument" in lowered:
+            return (
+                f"Thermal capture format rejected on {self.device}. "
+                f"Configured input_format={self.input_format}, video_size={self.video_size}."
+            )
+        if "no such file" in lowered or "cannot open video device" in lowered:
+            return f"Thermal device not available: {self.device}. Run v4l2-ctl --list-devices to verify the PureThermal node."
+        return message or f"thermal ffmpeg exited with code {returncode}"
+
+    def _video_dimensions(self) -> tuple[int, int]:
+        try:
+            width_text, height_text = self.video_size.lower().split("x", 1)
+            return int(width_text), int(height_text)
+        except Exception:
+            return 160, 120
 
     def start(self) -> None:
         if self._worker_started or not self.enabled or self.mode != "real" or not self.detected:
@@ -623,25 +737,27 @@ class ThermalState:
     def _capture_y16_matrix(self) -> np.ndarray:
         ffmpeg = shutil.which("ffmpeg") or "ffmpeg"
         command = [
-            ffmpeg, "-hide_banner", "-loglevel", "error", "-f", "v4l2", "-input_format", "gray16le",
-            "-video_size", "160x120", "-i", self.device, "-frames:v", "1", "-f", "rawvideo", "pipe:1",
+            ffmpeg, "-hide_banner", "-loglevel", "error", "-f", "v4l2", "-input_format", self.input_format,
+            "-video_size", self.video_size, "-i", self.device, "-frames:v", "1", "-f", "rawvideo",
+            "-pix_fmt", "gray16le", "pipe:1",
         ]
         with self._capture_lock:
             result = subprocess.run(command, capture_output=True, timeout=3.0, check=False)
-        expected_bytes = 160 * 120 * 2
+        width, height = self._video_dimensions()
+        expected_bytes = width * height * 2
         if result.returncode != 0:
             stderr = result.stderr.decode("utf-8", errors="replace").strip()
-            raise RuntimeError(stderr or f"ffmpeg exited with code {result.returncode}")
+            raise RuntimeError(self._friendly_thermal_error(stderr, result.returncode))
         if len(result.stdout) < expected_bytes:
             raise RuntimeError(f"incomplete thermal frame: {len(result.stdout)} bytes")
-        raw = np.frombuffer(result.stdout[:expected_bytes], dtype="<u2").reshape((120, 160))
+        raw = np.frombuffer(result.stdout[:expected_bytes], dtype="<u2").reshape((height, width))
         return raw.astype(np.float32)
 
     def _stream_command(self) -> list[str]:
         ffmpeg = shutil.which("ffmpeg") or "ffmpeg"
         return [
             ffmpeg, "-hide_banner", "-loglevel", "error", "-f", "v4l2", "-framerate", "9", "-input_format",
-            "gray16le", "-video_size", "160x120", "-i", self.device, "-f", "rawvideo", "-pix_fmt", "gray16le", "pipe:1",
+            self.input_format, "-video_size", self.video_size, "-i", self.device, "-f", "rawvideo", "-pix_fmt", "gray16le", "pipe:1",
         ]
 
     @staticmethod
@@ -720,7 +836,8 @@ class ThermalState:
         return self._encode_image(image), stats
 
     def _real_worker_loop(self) -> None:
-        frame_size = 160 * 120 * 2
+        width, height = self._video_dimensions()
+        frame_size = width * height * 2
         while not self._stop_event.is_set():
             try:
                 process = subprocess.Popen(self._stream_command(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -731,7 +848,7 @@ class ThermalState:
                     payload = self._read_exact(process.stdout, frame_size)
                     if len(payload) < frame_size:
                         raise RuntimeError("thermal stream ended")
-                    raw_map = np.frombuffer(payload, dtype="<u2").reshape((120, 160)).astype(np.float32)
+                    raw_map = np.frombuffer(payload, dtype="<u2").reshape((height, width)).astype(np.float32)
                     image, extra = self._real_thermal_palette(raw_map)
                     frame = self._encode_image(image)
                     stats = {
@@ -749,7 +866,7 @@ class ThermalState:
                         self.frame_seq += 1
                     self._anomaly_active = bool(extra.get("anomaly_active"))
             except Exception as exc:
-                self.error = str(exc)
+                self.error = self._friendly_thermal_error(str(exc))
                 self.status = "ERROR"
                 time.sleep(1.0)
 
@@ -769,9 +886,30 @@ class ThermalState:
             if self.last_frame_bytes is not None:
                 return self.last_frame_bytes, dict(self.last_stats)
         if not self.detected:
-            stats = {"status": "NOT_DETECTED", "mode": self.mode, "detected": False}
-            return make_placeholder_jpeg("THERMAL OFFLINE", "PureThermal device not detected", "#ff7a7a"), stats
-        stats = {"status": self.status or "STARTING", "mode": self.mode, "detected": self.detected, "error": self.error}
+            stats = {
+                "status": "NOT_DETECTED",
+                "mode": self.mode,
+                "detected": False,
+                "device": self.device,
+                "configured_device": self.configured_device,
+                "input_format": self.input_format,
+                "video_size": self.video_size,
+                "discovery_method": self.discovery_method,
+                "device_candidates": self.device_candidates,
+                "error": self.error,
+            }
+            return make_placeholder_jpeg("THERMAL OFFLINE", self.error or "PureThermal device not detected", "#ff7a7a"), stats
+        stats = {
+            "status": self.status or "STARTING",
+            "mode": self.mode,
+            "detected": self.detected,
+            "device": self.device,
+            "configured_device": self.configured_device,
+            "input_format": self.input_format,
+            "video_size": self.video_size,
+            "discovery_method": self.discovery_method,
+            "error": self.error,
+        }
         return make_placeholder_jpeg("THERMAL STARTING", self.error or "Waiting for thermal stream", "#ffbc56"), stats
 
     def snapshot(self) -> tuple[bytes, Dict[str, Any]]:
@@ -787,6 +925,11 @@ class ThermalState:
             "enabled": self.enabled,
             "detected": self.detected or self.mode == "mock",
             "device": self.device,
+            "configured_device": self.configured_device,
+            "input_format": self.input_format,
+            "video_size": self.video_size,
+            "discovery_method": self.discovery_method,
+            "device_candidates": self.device_candidates,
             "threshold_celsius": self.threshold_celsius,
             "delta_threshold": self.delta_threshold,
             "last_frame_ts": self.last_frame_ts,

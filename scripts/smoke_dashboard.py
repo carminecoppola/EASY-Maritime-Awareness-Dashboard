@@ -97,6 +97,14 @@ def main() -> int:
     assert_ok(isinstance(snapshots, dict), "/api/snapshots/recent did not return JSON")
     require_keys(snapshots, ["count", "items", "feeds", "summary"], "/api/snapshots/recent")
 
+    thermal = client.get("/thermal/status").get_json()
+    assert_ok(isinstance(thermal, dict), "/thermal/status did not return JSON")
+    require_keys(
+        thermal,
+        ["status", "device", "configured_device", "input_format", "video_size", "discovery_method"],
+        "/thermal/status",
+    )
+
     print("Dashboard smoke test: OK")
     return 0
 
