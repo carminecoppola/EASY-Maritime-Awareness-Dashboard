@@ -82,3 +82,18 @@ def system_diagnostics_page() -> str:
         thermal_mode=runtime.config["thermal"].get("mode", "mock"),
     )
 
+
+@pages_bp.route("/help")
+def help_page() -> str:
+    runtime = get_runtime()
+    return dashboard_context(
+        "help",
+        "Guida operativa",
+        "Uso quotidiano, sessioni e controlli rapidi",
+        template_name="help.html",
+        hostname=runtime.probe.hostname(),
+        ip_address=runtime.probe.ip_address(),
+        asset_version=runtime.asset_version(),
+        thermal_device=runtime.thermal.device,
+        thermal_mode=runtime.config["thermal"].get("mode", "mock"),
+    )

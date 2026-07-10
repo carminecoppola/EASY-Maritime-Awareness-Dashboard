@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="help-page">
+    <section class="panel help-hero">
+      <span class="panel-kicker">Prima accensione</span>
+      <h2 class="panel-title">Percorso consigliato</h2>
+      <p class="panel-copy">Questa dashboard serve a controllare i flussi RGB e termico, salvare acquisizioni utili e raccogliere dati ordinati per inferenza e fine-tuning.</p>
+      <div class="help-flow">
+        <div class="help-flow-step">
+          <strong>1 · Live</strong>
+          <span>Verifica che le tre anteprime siano aggiornate e che gli stati non restino in errore.</span>
+        </div>
+        <div class="help-flow-step">
+          <strong>2 · Missione</strong>
+          <span>Avvia una missione prima di salvare dati: il sistema crea un manifest della sessione.</span>
+        </div>
+        <div class="help-flow-step">
+          <strong>3 · Acquisizione</strong>
+          <span>Usa “Salva foto” e la pagina Rilevazioni per produrre campioni e risultati AI.</span>
+        </div>
+        <div class="help-flow-step">
+          <strong>4 · Archivio</strong>
+          <span>Controlla Foto e log per capire cosa è stato salvato e se ci sono errori da correggere.</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="help-grid" aria-label="Guida alle sezioni">
+      <article class="panel help-card">
+        <span class="panel-kicker">Live</span>
+        <h3>Quando è davvero in diretta?</h3>
+        <p>La pagina Live aggiorna automaticamente stato, FPS e missione. Se un riquadro mostra offline, non significa che il server sia fermo: significa che quel feed non sta consegnando frame recenti.</p>
+        <a class="btn btn-ghost btn-small" href="/">Apri Live</a>
+      </article>
+
+      <article class="panel help-card">
+        <span class="panel-kicker">Missione</span>
+        <h3>Perché avviarla?</h3>
+        <p>La missione è il contenitore dei dati raccolti. Snapshot, inferenze e detection vengono indicizzati nel manifest solo quando la sessione è attiva o quando l’inferenza ne apre una automaticamente.</p>
+        <a class="btn btn-ghost btn-small" href="/#dataset-session-state-badge">Vedi dataset</a>
+      </article>
+
+      <article class="panel help-card">
+        <span class="panel-kicker">Rilevazioni</span>
+        <h3>Cosa aspettarsi dall’AI?</h3>
+        <p>“Avvia analisi” fa partire il worker di inferenza. I risultati compaiono come detection correnti, eventi e righe nel manifest. Se non vedi nuove detection, controlla sorgente frame e log.</p>
+        <a class="btn btn-ghost btn-small" href="/thermal-events">Apri Rilevazioni</a>
+      </article>
+
+      <article class="panel help-card">
+        <span class="panel-kicker">Foto e log</span>
+        <h3>Dove finiscono le immagini?</h3>
+        <p>Le foto vengono salvate localmente sulla Raspberry e mostrate nell’archivio. I log aiutano a distinguere un errore hardware da un normale stato di attesa.</p>
+        <a class="btn btn-ghost btn-small" href="/snapshots">Apri archivio</a>
+      </article>
+    </section>
+
+    <section class="panel help-checklist-panel">
+      <div class="panel-head">
+        <div>
+          <span class="panel-kicker">Checklist rapida</span>
+          <h2 class="panel-title">Prima di raccogliere dati importanti</h2>
+          <p class="panel-copy">Questi controlli riducono dataset incompleti o sessioni difficili da interpretare dopo.</p>
+        </div>
+      </div>
+      <ul class="help-checklist">
+        <li>RGB sinistra e RGB destra hanno frame recenti.</li>
+        <li>La termica è in stato reale o chiaramente marcata come non disponibile.</li>
+        <li>La missione è attiva prima degli snapshot da usare per fine-tuning.</li>
+        <li>Il pannello Dataset sessione mostra campioni e coppie RGB/termico coerenti.</li>
+        <li>La pagina Foto e log non mostra errori hardware ripetuti.</li>
+      </ul>
+    </section>
+  </section>
+{% endblock %}

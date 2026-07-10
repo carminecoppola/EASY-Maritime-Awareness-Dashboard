@@ -54,7 +54,7 @@ def main() -> int:
     app.testing = True
     client = app.test_client()
 
-    page_routes = ["/", "/thermal-events", "/snapshots", "/system-diagnostics"]
+    page_routes = ["/", "/thermal-events", "/snapshots", "/system-diagnostics", "/help"]
     for route in page_routes:
         response = client.get(route)
         assert_ok(response.status_code == 200, f"{route} returned {response.status_code}")
