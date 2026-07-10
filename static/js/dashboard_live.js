@@ -45,6 +45,16 @@ function liveActionElementId(action) {
     missionCopy: "live-mission-state-copy",
     captureTitle: "live-capture-feedback-title",
     captureLink: "live-capture-feedback-link",
+    datasetStateBadge: "dataset-session-state-badge",
+    datasetExplanation: "dataset-session-explanation",
+    datasetSessionId: "dataset-session-id",
+    datasetManifestPath: "dataset-manifest-path",
+    datasetSamplesCount: "dataset-samples-count",
+    datasetPairedCount: "dataset-paired-count",
+    datasetSnapshotsCount: "dataset-snapshots-count",
+    datasetInferenceCount: "dataset-inference-count",
+    datasetDetectionsCount: "dataset-detections-count",
+    datasetFeedBreakdown: "dataset-feed-breakdown",
   };
   return mapping[action];
 }
@@ -219,4 +229,51 @@ function renderLivePage(health) {
       ? `${session?.session_id || "Sessione EASY"} · ${formatUptimeShort(session?.metrics?.session_duration ?? session?.duration ?? 0)} · dati salvati sulla Raspberry`
       : "Avvia una missione per salvare rilevazioni, eventi e metriche sulla Raspberry.",
   );
+  renderDatasetSessionPanel();
+}
+
+function renderDatasetSessionPanel() {
+  const acquisition = dashboardState.acquisition || {};
+  const sessionStatus = dashboardState.sessionStatus || {};
+  const current = sessionStatus.current || null;
+  const latest = sessionStatus.latest || null;
+  const activeSession = current || latest || {};
+  const running = Boolean(acquisition.running || sessionStatus.running || current?.status === "RUNNING");
+  const manifestCounts = acquisition.manifest_counts || {};
+  const datasetSummary = acquisition.dataset_summary || {};
+  const byFeed = datasetSummary.by_feed || manifestCounts.by_feed || {};
+  const sessionId = acquisition.session_id || activeSession.session_id || null;
+  const manifestPath = acquisition.manifest_path || activeSession.manifest_path || "";
+
+  setBadge(liveActionElementId("datasetStateBadge"), running ? "Missione attiva" : sessionId ? "Ultima missione" : "Standby", running ? "online" : sessionId ? "warning" : "muted");
+  setText(
+    liveActionElementId("datasetExplanation"),
+    running
+      ? "Ogni acquisizione viene aggiunta al manifest della sessione in corso."
+      : sessionId
+        ? "Questi sono gli ultimi dati archiviati. Avvia una nuova missione per continuare la raccolta."
+        : "Avvia una missione per creare un manifest con foto, inferenze e coppie RGB/termiche.",
+  );
+  setText(liveActionElementId("datasetSessionId"), sessionId || "Nessuna sessione");
+  setText(
+    liveActionElementId("datasetManifestPath"),
+    manifestPath ? `Manifest: ${compactPath(manifestPath)}` : "Il manifest apparirà qui appena la missione salva il primo dato.",
+  );
+  setText(liveActionElementId("datasetSamplesCount"), `${datasetSummary.samples ?? manifestCounts.samples ?? 0}`);
+  setText(liveActionElementId("datasetPairedCount"), `${datasetSummary.paired_items ?? manifestCounts.paired_items ?? 0}`);
+  setText(liveActionElementId("datasetSnapshotsCount"), `${manifestCounts.snapshots ?? 0}`);
+  setText(liveActionElementId("datasetInferenceCount"), `${manifestCounts.inference ?? 0}`);
+  setText(liveActionElementId("datasetDetectionsCount"), `${manifestCounts.detections ?? 0}`);
+
+  const feedLabels = {
+    rgb_left: "RGB sinistra",
+    rgb_right: "RGB destra",
+    thermal: "Termico",
+  };
+  const node = byId(liveActionElementId("datasetFeedBreakdown"));
+  if (node) {
+    node.innerHTML = Object.entries(feedLabels).map(([feed, label]) => `
+      <span class="dataset-feed-pill">${escapeHtml(label)}: <strong>${escapeHtml(String(byFeed[feed] || 0))}</strong></span>
+    `).join("");
+  }
 }

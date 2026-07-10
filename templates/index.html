@@ -38,6 +38,35 @@
       <span>I video scorrono continuamente; stato, FPS e missione si aggiornano automaticamente ogni 2,5 secondi.</span>
     </div>
 
+    <section class="panel operator-guide-panel" aria-label="Guida rapida operatore">
+      <div class="panel-head">
+        <div>
+          <span class="panel-kicker">Guida rapida</span>
+          <h2 class="panel-title">Come usare la dashboard in missione</h2>
+          <p class="panel-copy">Il flusso corretto è sempre lo stesso: controlla il live, apri una missione, acquisisci dati, poi verifica archivio e log.</p>
+        </div>
+        <span class="badge badge-online">Primi passi</span>
+      </div>
+      <ol class="operator-guide-steps">
+        <li>
+          <strong>Controlla il live</strong>
+          <span>Le tre anteprime devono risultare aggiornate. Usa “Aggiorna stato” se vuoi forzare un refresh.</span>
+        </li>
+        <li>
+          <strong>Avvia missione</strong>
+          <span>Da quel momento snapshot, inferenze ed eventi vengono indicizzati nel manifest della sessione.</span>
+        </li>
+        <li>
+          <strong>Acquisisci e analizza</strong>
+          <span>“Salva foto” crea campioni RGB/termici; “Rilevazioni” gestisce l’analisi AI e il replay.</span>
+        </li>
+        <li>
+          <strong>Controlla archivio</strong>
+          <span>Foto e log mostrano cosa è stato salvato; il dataset qui sotto conferma se i campioni sono accoppiati.</span>
+        </li>
+      </ol>
+    </section>
+
     <section class="mission-command-bar" id="live-mission-command-bar" aria-live="polite">
       <div class="mission-command-state">
         <span class="mission-state-indicator" id="live-mission-state-indicator" aria-hidden="true"></span>
@@ -159,6 +188,54 @@
         <h2 class="live-summary-title" id="live-summary-detections-count">0</h2>
         <p class="live-summary-copy" id="live-summary-detections-copy">Le detection compariranno qui appena il replay produce risultati.</p>
       </article>
+    </section>
+
+    <section class="panel dataset-session-panel" aria-label="Dataset della sessione">
+      <div class="panel-head">
+        <div>
+          <span class="panel-kicker">Dataset sessione</span>
+          <h2 class="panel-title">Cosa stai salvando sulla Raspberry</h2>
+          <p class="panel-copy" id="dataset-session-explanation">Avvia una missione per creare un manifest con foto, inferenze e coppie RGB/termiche.</p>
+        </div>
+        <div class="panel-head-actions">
+          <span class="badge badge-muted" id="dataset-session-state-badge">Standby</span>
+          <a class="btn btn-ghost btn-small" href="/snapshots">Apri foto e log</a>
+        </div>
+      </div>
+      <div class="dataset-session-layout">
+        <div class="dataset-session-main">
+          <span class="panel-kicker">Sessione attiva</span>
+          <strong id="dataset-session-id">Nessuna sessione</strong>
+          <p id="dataset-manifest-path">Il manifest apparirà qui appena la missione salva il primo dato.</p>
+        </div>
+        <div class="dataset-metrics-grid">
+          <div class="dataset-metric">
+            <span>Campioni</span>
+            <strong id="dataset-samples-count">0</strong>
+          </div>
+          <div class="dataset-metric">
+            <span>Coppie RGB/termico</span>
+            <strong id="dataset-paired-count">0</strong>
+          </div>
+          <div class="dataset-metric">
+            <span>Foto</span>
+            <strong id="dataset-snapshots-count">0</strong>
+          </div>
+          <div class="dataset-metric">
+            <span>Inferenze</span>
+            <strong id="dataset-inference-count">0</strong>
+          </div>
+          <div class="dataset-metric">
+            <span>Detection</span>
+            <strong id="dataset-detections-count">0</strong>
+          </div>
+        </div>
+      </div>
+      <div class="dataset-feed-breakdown" id="dataset-feed-breakdown">
+        <span class="dataset-feed-pill">RGB sinistra: 0</span>
+        <span class="dataset-feed-pill">RGB destra: 0</span>
+        <span class="dataset-feed-pill">Termico: 0</span>
+      </div>
     </section>
 
     <section class="panel mission-sources-panel" aria-label="Mission Sources">

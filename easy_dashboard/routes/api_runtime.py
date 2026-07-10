@@ -19,6 +19,11 @@ def api_dashboard_state():
     return jsonify(get_runtime().dashboard_state_payload())
 
 
+@api_runtime_bp.route("/api/status/summary", methods=["GET"])
+def api_status_summary():
+    return jsonify(get_runtime().status_summary_payload())
+
+
 @api_runtime_bp.route("/system")
 def system():
     runtime = get_runtime()
@@ -111,4 +116,3 @@ def api_system_components():
 @api_runtime_bp.route("/api/system/restart", methods=["POST"])
 def api_system_restart():
     return jsonify(get_runtime().orchestrator.restart())
-

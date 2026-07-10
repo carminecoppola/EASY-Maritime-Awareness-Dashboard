@@ -145,6 +145,66 @@ class DashboardRuntime:
             "events_count": len(self.events.list(9999)),
         }
 
+    def status_summary_payload(self) -> Dict[str, Any]:
+        """Return a compact operator-facing status payload.
+
+        `/health` is intentionally detailed for diagnostics. This summary is
+        designed for UI cards, smoke checks, and first-level support: it keeps
+        only the fields that answer "can I use the dashboard right now?".
+        """
+        health_payload = self.health_payload()
+        acquisition_state = self.acquisition_manager.status()
+        inference_state = self.inference_status_payload()
+        session_state = self.session_manager.status()
+        thermal_state = health_payload.get("thermal") or {}
+        rgb_state = health_payload.get("rgb") or {}
+        sources_state = health_payload.get("sources") or {}
+        events_payload = self.events_payload(limit=8)
+        dataset_summary = acquisition_state.get("dataset_summary") or {}
+        manifest_counts = acquisition_state.get("manifest_counts") or {}
+        latest_session = session_state.get("current") or session_state.get("latest") or {}
+
+        return {
+            "ok": bool(health_payload.get("ok")),
+            "service": "easy-dashboard",
+            "timestamp": health_payload.get("timestamp") or utc_now_iso(),
+            "operator_state": "ready" if health_payload.get("ok") else "needs_attention",
+            "live": {
+                "rgb_state": rgb_state.get("camera_state"),
+                "thermal_state": thermal_state.get("status") or thermal_state.get("mode"),
+                "thermal_device": thermal_state.get("device"),
+                "thermal_input_format": thermal_state.get("input_format"),
+                "selected_source": (sources_state.get("selected_source") or {}).get("id"),
+            },
+            "mission": {
+                "running": bool(session_state.get("running")),
+                "session_id": latest_session.get("session_id"),
+                "status": latest_session.get("status"),
+                "duration_seconds": latest_session.get("duration_seconds") or latest_session.get("duration"),
+            },
+            "dataset": {
+                "manifest_path": acquisition_state.get("manifest_path"),
+                "samples": dataset_summary.get("samples", 0),
+                "paired_items": dataset_summary.get("paired_items", 0),
+                "snapshots": manifest_counts.get("snapshots", 0),
+                "inference": manifest_counts.get("inference", 0),
+                "detections": manifest_counts.get("detections", 0),
+                "by_feed": dataset_summary.get("by_feed", {}),
+                "pair_window_seconds": dataset_summary.get("pair_window_seconds"),
+            },
+            "ai": {
+                "running": bool(inference_state.get("running")),
+                "backend": inference_state.get("backend"),
+                "detections": inference_state.get("count", 0),
+                "last_run_ts": inference_state.get("last_run_ts"),
+                "error": inference_state.get("error") or inference_state.get("config_error") or "",
+            },
+            "activity": {
+                "events_count": events_payload.get("count", 0),
+                "recent_events": events_payload.get("events", []),
+            },
+        }
+
     def dashboard_state_payload(self) -> Dict[str, Any]:
         health_payload = self.health_payload()
         snapshots_limit = int(request.args.get("snapshots_limit", 12))
