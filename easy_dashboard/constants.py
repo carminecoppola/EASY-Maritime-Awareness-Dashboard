@@ -40,7 +40,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "mode": "real",
         "threshold_celsius": 35.0,
         "delta_threshold": 8.0,
-        "device": "/dev/video0",
+        "device": "auto",
+        "input_format": "y16",
+        "video_size": "160x120",
     },
     "events": {"max_events": 200},
 }
