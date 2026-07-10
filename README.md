@@ -18,6 +18,7 @@ responsibilities are easy to find:
 - `easy_dashboard/hardware.py` — Raspberry probe, RGB source, and thermal source
 - `easy_dashboard/presentation.py` — UI payload builders and page context helpers
 - `system_orchestrator.py` — lifecycle and health coordination of the runtime managers
+- `acquisition_manager.py` — indexes session artifacts for dataset/fine-tuning workflows
 - `runtime/` — session data, replay data, runtime configs, and models
 - `docs/embedded/` — delivery notes and phase-by-phase implementation reports
 
@@ -76,6 +77,8 @@ The two SSH ports have different roles:
 journalctl -u easy-dashboard.service -f
 curl http://127.0.0.1:5000/health
 curl http://127.0.0.1:5000/cameras
+curl http://127.0.0.1:5000/api/acquisition/status
+curl http://127.0.0.1:5000/api/session/manifest
 ```
 
 ## Local smoke test

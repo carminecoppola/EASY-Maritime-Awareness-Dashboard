@@ -46,6 +46,10 @@ class DashboardRuntime:
         return self.orchestrator.event_manager
 
     @property
+    def acquisition_manager(self) -> Any:
+        return self.orchestrator.acquisition_manager
+
+    @property
     def detection_manager(self) -> Any:
         return self.orchestrator.detection_manager
 
@@ -162,6 +166,7 @@ class DashboardRuntime:
             "inference": self.inference_status_payload(),
             "detections": self.detection_manager.get_current_detections(),
             "session": self.session_manager.status(),
+            "acquisition": self.acquisition_manager.status(),
             "events_current": self.event_manager.get_current_events(),
             "events_history": self.event_manager.get_history(),
             "frame_provider": self.inference.frame_provider_status(),
@@ -175,6 +180,10 @@ class DashboardRuntime:
             meta = dict(meta)
             meta["capture_ok"] = ok
             snapshot_info = self.snapshot_store.save(feed, frame, meta=meta)
+            try:
+                self.acquisition_manager.record_snapshot(feed=feed, snapshot=snapshot_info, meta=meta)
+            except Exception:
+                self.logger.exception("Failed to index snapshot in session manifest for %s", feed)
             return frame, ok, snapshot_info, meta
         except Exception as exc:
             self.logger.exception("Failed to save snapshot for %s", feed)
@@ -186,4 +195,3 @@ class DashboardRuntime:
                 meta=meta,
             )
             return None, False, None, meta
-

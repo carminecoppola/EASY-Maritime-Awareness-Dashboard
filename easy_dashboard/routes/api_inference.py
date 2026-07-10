@@ -181,6 +181,18 @@ def api_session_status():
     return jsonify(get_runtime().session_manager.status())
 
 
+@api_inference_bp.route("/api/session/manifest", methods=["GET"])
+def api_session_manifest():
+    runtime = get_runtime()
+    session_id = request.args.get("session_id")
+    return jsonify(runtime.session_manager.read_manifest(session_id))
+
+
+@api_inference_bp.route("/api/acquisition/status", methods=["GET"])
+def api_acquisition_status():
+    return jsonify(get_runtime().acquisition_manager.status())
+
+
 @api_inference_bp.route("/api/session/current", methods=["GET"])
 def api_session_current():
     current = get_runtime().session_manager.get_current_session()
@@ -200,4 +212,3 @@ def api_inference_preview():
     response = send_file(preview_path, mimetype="image/jpeg", as_attachment=False, conditional=True)
     response.headers["Cache-Control"] = "no-store, max-age=0"
     return response
-

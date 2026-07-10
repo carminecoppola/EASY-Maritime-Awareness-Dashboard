@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
+from acquisition_manager import AcquisitionManager
 from detection_manager import DetectionManager
 from device_manager import DeviceManager
 from event_manager import EventManager
@@ -191,6 +192,11 @@ class SystemOrchestrator:
             events=self.events,
             hostname=self._probe_hostname(),
         )
+        self.acquisition_manager = AcquisitionManager(
+            session_manager=self.session_manager,
+            events=self.events,
+            logger=self.logger,
+        )
         self.event_manager = EventManager(
             self.runtime_root / "sessions",
             events=self.events,
@@ -200,6 +206,7 @@ class SystemOrchestrator:
             self.runtime_root / "sessions",
             events=self.events,
             session_manager=self.session_manager,
+            acquisition_manager=self.acquisition_manager,
             event_manager=self.event_manager,
         )
         self.inference = InferenceWorker(
@@ -297,6 +304,13 @@ class SystemOrchestrator:
             "manager",
             self.session_manager,
             status_getter=self.session_manager.status,
+        )
+        self._register_component(
+            "acquisition_manager",
+            "Acquisition Manager",
+            "manager",
+            self.acquisition_manager,
+            status_getter=self.acquisition_manager.status,
         )
         self._register_component(
             "event_manager",

@@ -36,6 +36,8 @@ The dashboard must reliably:
   detection drawing.
 - `detection_manager.py`, `event_manager.py`, and `session_manager.py` persist
   detections, events, metrics, and session metadata.
+- `acquisition_manager.py` indexes saved artifacts into the session manifest
+  that will feed future dataset and fine-tuning workflows.
 - `static/js/dashboard_*.js` keeps frontend behavior split by page.
 
 This is already much cleaner than a monolith. The next improvement is to reduce
@@ -82,8 +84,8 @@ Expected benefit: the UI can show "available", "selected", "streaming",
 
 ### 4. Promote acquisition to a first-class service
 
-Right now snapshots, live streams, and inference are related but still operated
-through separate paths. Add an `AcquisitionManager` that owns:
+First pass done. `AcquisitionManager` now records runtime artifacts into the
+active session manifest. The next evolution is for it to own:
 
 - active session id;
 - selected source;
@@ -115,8 +117,9 @@ runtime/sessions/<session_id>/
 path, width, height, paired thermal/RGB frame id when available, inference
 result id, and labels.
 
-Expected benefit: later fine-tuning can consume a session directly without
-manual file archaeology.
+First pass done. New sessions now include `manifest.json` with snapshot and
+inference entries. Expected benefit: later fine-tuning can consume a session
+directly without manual file archaeology.
 
 ### 6. Separate inference backend from inference worker
 
@@ -171,8 +174,7 @@ curl http://127.0.0.1:5000/api/session/status
 ## Suggested next implementation order
 
 1. Keep the smoke test green.
-2. Add session `manifest.json`.
-3. Add `AcquisitionManager`.
-4. Add a clearer live-source interface for RGB and FLIR.
-5. Add Playwright UI checks for the three operator flows:
+2. Add a clearer live-source interface for RGB and FLIR.
+3. Expand manifest entries with RGB/thermal pairing metadata.
+4. Add Playwright UI checks for the three operator flows:
    live refresh, snapshot capture, start/stop analysis.
