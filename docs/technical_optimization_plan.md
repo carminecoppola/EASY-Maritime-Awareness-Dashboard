@@ -118,7 +118,9 @@ path, width, height, paired thermal/RGB frame id when available, inference
 result id, and labels.
 
 First pass done. New sessions now include `manifest.json` with snapshot and
-inference entries. Expected benefit: later fine-tuning can consume a session
+inference entries. Snapshot entries include `sample_id`, `modality`,
+`dataset_role`, and lightweight RGB/thermal pairing metadata when captures
+happen close together. Expected benefit: later fine-tuning can consume a session
 directly without manual file archaeology.
 
 ### 6. Separate inference backend from inference worker
@@ -175,6 +177,6 @@ curl http://127.0.0.1:5000/api/session/status
 
 1. Keep the smoke test green.
 2. Add a clearer live-source interface for RGB and FLIR.
-3. Expand manifest entries with RGB/thermal pairing metadata.
-4. Add Playwright UI checks for the three operator flows:
+3. Add Playwright UI checks for the three operator flows:
    live refresh, snapshot capture, start/stop analysis.
+4. Add an operator-facing dataset/session summary panel in the UI.

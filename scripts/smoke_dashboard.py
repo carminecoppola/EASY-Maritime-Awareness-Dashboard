@@ -87,7 +87,7 @@ def main() -> int:
 
     acquisition = client.get("/api/acquisition/status").get_json()
     assert_ok(isinstance(acquisition, dict), "/api/acquisition/status did not return JSON")
-    require_keys(acquisition, ["ok", "running", "manifest_counts"], "/api/acquisition/status")
+    require_keys(acquisition, ["ok", "running", "manifest_counts", "dataset_summary"], "/api/acquisition/status")
 
     inference = client.get("/api/inference/status").get_json()
     assert_ok(isinstance(inference, dict), "/api/inference/status did not return JSON")

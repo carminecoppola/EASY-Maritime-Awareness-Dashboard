@@ -81,6 +81,10 @@ curl http://127.0.0.1:5000/api/acquisition/status
 curl http://127.0.0.1:5000/api/session/manifest
 ```
 
+Session manifests index saved artifacts with `sample_id`, feed/modality labels,
+and lightweight RGB/thermal pairing metadata when captures are close enough in
+time to become a useful fine-tuning sample.
+
 ## Local smoke test
 
 Before pushing changes to the Raspberry, run:

@@ -130,6 +130,9 @@ class SessionManager:
                 "snapshots": 0,
                 "inference": 0,
                 "detections": 0,
+                "samples": 0,
+                "paired_items": 0,
+                "by_feed": {},
             },
             "items": [],
             "updated_at": utc_now_iso(),
@@ -318,6 +321,9 @@ class SessionManager:
             self._ensure_structure(resolved_session_id)
             path = self._paths(resolved_session_id)["manifest"]
             payload = read_json(path, self._empty_manifest(resolved_session_id))
+            items = payload.get("items", [])
+            if isinstance(items, list):
+                payload["counts"] = self._manifest_counts(items)
             payload["path"] = str(path)
             return payload
 
@@ -338,16 +344,7 @@ class SessionManager:
                 **item,
             }
             items.append(entry)
-            counts = {
-                "items": len(items),
-                "snapshots": sum(1 for candidate in items if candidate.get("kind") == "snapshot"),
-                "inference": sum(1 for candidate in items if candidate.get("kind") == "inference"),
-                "detections": sum(
-                    int(candidate.get("count") or 0)
-                    for candidate in items
-                    if candidate.get("kind") == "inference"
-                ),
-            }
+            counts = self._manifest_counts(items)
             payload.update(
                 {
                     "ok": True,
@@ -400,6 +397,33 @@ class SessionManager:
             },
         )
         self._refresh_metrics(session_id, inference_time_ms=result.get("inference_time_ms"))
+
+    def _manifest_counts(self, items: List[Dict[str, Any]]) -> Dict[str, Any]:
+        by_feed: Dict[str, int] = {}
+        sample_ids = set()
+        paired_items = 0
+        for item in items:
+            feed = str(item.get("feed") or "")
+            if feed:
+                by_feed[feed] = by_feed.get(feed, 0) + 1
+            sample_id = item.get("sample_id")
+            if sample_id:
+                sample_ids.add(str(sample_id))
+            if item.get("paired_with"):
+                paired_items += 1
+        return {
+            "items": len(items),
+            "snapshots": sum(1 for candidate in items if candidate.get("kind") == "snapshot"),
+            "inference": sum(1 for candidate in items if candidate.get("kind") == "inference"),
+            "detections": sum(
+                int(candidate.get("count") or 0)
+                for candidate in items
+                if candidate.get("kind") == "inference"
+            ),
+            "samples": len(sample_ids),
+            "paired_items": paired_items,
+            "by_feed": by_feed,
+        }
 
     def _refresh_metrics(self, session_id: str, inference_time_ms: Any | None = None) -> Dict[str, Any]:
         paths = self._paths(session_id)
