@@ -66,6 +66,7 @@ class DetectionManager:
         events: Any | None = None,
         session_id: str | None = None,
         session_manager: Any | None = None,
+        acquisition_manager: Any | None = None,
         event_manager: Any | None = None,
     ) -> None:
         self.sessions_dir = Path(sessions_dir)
@@ -73,6 +74,7 @@ class DetectionManager:
         self.history_path = self.sessions_dir / "detection_history.json"
         self.events = events
         self.session_manager = session_manager
+        self.acquisition_manager = acquisition_manager
         self.event_manager = event_manager
         self.session_id = session_id or time.strftime("session-%Y%m%d-%H%M%S", time.gmtime())
         self._lock = threading.Lock()
@@ -360,7 +362,12 @@ class DetectionManager:
         if not added:
             with self._lock:
                 self._persist()
-        if self.session_manager is not None:
+        if self.acquisition_manager is not None:
+            try:
+                self.acquisition_manager.record_inference_result(result, added)
+            except Exception:
+                pass
+        elif self.session_manager is not None:
             try:
                 self.session_manager.record_inference_result(result, added)
             except Exception:

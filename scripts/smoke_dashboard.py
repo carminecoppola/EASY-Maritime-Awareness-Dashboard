@@ -81,6 +81,14 @@ def main() -> int:
     assert_ok(isinstance(session, dict), "/api/session/status did not return JSON")
     require_keys(session, ["running", "current", "latest", "recent", "count"], "/api/session/status")
 
+    manifest = client.get("/api/session/manifest").get_json()
+    assert_ok(isinstance(manifest, dict), "/api/session/manifest did not return JSON")
+    require_keys(manifest, ["ok"], "/api/session/manifest")
+
+    acquisition = client.get("/api/acquisition/status").get_json()
+    assert_ok(isinstance(acquisition, dict), "/api/acquisition/status did not return JSON")
+    require_keys(acquisition, ["ok", "running", "manifest_counts"], "/api/acquisition/status")
+
     inference = client.get("/api/inference/status").get_json()
     assert_ok(isinstance(inference, dict), "/api/inference/status did not return JSON")
     require_keys(inference, ["running", "backend", "model_path", "frame_provider"], "/api/inference/status")

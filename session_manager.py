@@ -3,6 +3,7 @@ from __future__ import annotations
 import socket
 import threading
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -83,6 +84,7 @@ class SessionManager:
             "detections": root / "detections.json",
             "metrics": root / "metrics.json",
             "events": root / "events.json",
+            "manifest": root / "manifest.json",
         }
 
     def _ensure_structure(self, session_id: str) -> None:
@@ -99,6 +101,8 @@ class SessionManager:
             )
         if not paths["metrics"].exists():
             atomic_write_json(paths["metrics"], self._empty_metrics(session_id))
+        if not paths["manifest"].exists():
+            atomic_write_json(paths["manifest"], self._empty_manifest(session_id))
 
     def _empty_metrics(self, session_id: str) -> Dict[str, Any]:
         return {
@@ -113,6 +117,21 @@ class SessionManager:
             "session_duration": 0,
             "inference_calls": 0,
             "average_inference_time": None,
+            "updated_at": utc_now_iso(),
+        }
+
+    def _empty_manifest(self, session_id: str) -> Dict[str, Any]:
+        return {
+            "ok": True,
+            "schema": "easy.session.manifest.v1",
+            "session_id": session_id,
+            "counts": {
+                "items": 0,
+                "snapshots": 0,
+                "inference": 0,
+                "detections": 0,
+            },
+            "items": [],
             "updated_at": utc_now_iso(),
         }
 
@@ -289,6 +308,65 @@ class SessionManager:
                 sessions.append(self._session_payload(metadata))
             return {"ok": True, "count": len(sessions), "sessions": sessions, "index_path": str(self.index_path)}
 
+    def read_manifest(self, session_id: str | None = None) -> Dict[str, Any]:
+        with self._lock:
+            resolved_session_id = session_id or self._current_id()
+            if not resolved_session_id:
+                return {"ok": False, "error": "No session selected", "manifest": None}
+            if not self._session_dir(resolved_session_id).exists():
+                return {"ok": False, "error": f"Session not found: {resolved_session_id}", "manifest": None}
+            self._ensure_structure(resolved_session_id)
+            path = self._paths(resolved_session_id)["manifest"]
+            payload = read_json(path, self._empty_manifest(resolved_session_id))
+            payload["path"] = str(path)
+            return payload
+
+    def append_manifest_item(self, session_id: str, item: Dict[str, Any]) -> Dict[str, Any]:
+        with self._lock:
+            if not session_id:
+                return {"ok": False, "error": "session_id is required"}
+            self._ensure_structure(session_id)
+            path = self._paths(session_id)["manifest"]
+            payload = read_json(path, self._empty_manifest(session_id))
+            items = payload.get("items", [])
+            if not isinstance(items, list):
+                items = []
+            entry = {
+                "id": str(item.get("id") or f"manifest-{uuid.uuid4().hex[:12]}"),
+                "timestamp": str(item.get("timestamp") or utc_now_iso()),
+                "session_id": session_id,
+                **item,
+            }
+            items.append(entry)
+            counts = {
+                "items": len(items),
+                "snapshots": sum(1 for candidate in items if candidate.get("kind") == "snapshot"),
+                "inference": sum(1 for candidate in items if candidate.get("kind") == "inference"),
+                "detections": sum(
+                    int(candidate.get("count") or 0)
+                    for candidate in items
+                    if candidate.get("kind") == "inference"
+                ),
+            }
+            payload.update(
+                {
+                    "ok": True,
+                    "schema": "easy.session.manifest.v1",
+                    "session_id": session_id,
+                    "counts": counts,
+                    "items": items,
+                    "updated_at": utc_now_iso(),
+                }
+            )
+            atomic_write_json(path, payload)
+            return {
+                "ok": True,
+                "recorded": True,
+                "session_id": session_id,
+                "entry": entry,
+                "manifest": {**payload, "path": str(path)},
+            }
+
     def record_inference_result(self, result: Dict[str, Any], detections: List[Dict[str, Any]]) -> None:
         mode = str(result.get("source") or result.get("mode") or "replay")
         session = self.ensure_session(mode=mode, operator="auto")
@@ -371,9 +449,15 @@ class SessionManager:
         session_id = str(metadata.get("session_id") or "")
         paths = self._paths(session_id)
         metrics = read_json(paths["metrics"], self._empty_metrics(session_id))
+        manifest = self.read_manifest(session_id)
         return {
             **metadata,
             "metrics": metrics,
+            "manifest": {
+                "path": manifest.get("path"),
+                "counts": manifest.get("counts", {}),
+                "schema": manifest.get("schema"),
+            },
             "paths": {key: str(path) for key, path in paths.items()},
         }
 

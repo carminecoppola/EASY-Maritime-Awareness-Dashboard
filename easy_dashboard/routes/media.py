@@ -181,6 +181,10 @@ def thermal_snapshot():
         runtime.logger.exception("Failed to save thermal snapshot")
         runtime.events.add("THERMAL_FLIR", "SNAPSHOT_ERROR", f"Snapshot failed: {exc}", "error", meta=meta)
         return _snapshot_error("thermal", "thermal_snapshot.jpg", "Unable to save thermal snapshot", {"url": "#", "download_url": "#"}, 503)
+    try:
+        runtime.acquisition_manager.record_snapshot(feed="thermal", snapshot=snapshot_info, meta=meta)
+    except Exception:
+        runtime.logger.exception("Failed to index thermal snapshot in session manifest")
     runtime.events.add("THERMAL_FLIR", "SNAPSHOT_SAVED", f"Saved {snapshot_info['filename']}", "info", meta=meta)
     if snapshot_info["meta"].get("status") in {"NOT_DETECTED", "DISABLED"}:
         return _snapshot_error("thermal", snapshot_info["filename"], "Thermal feed unavailable", snapshot_info, 503)
@@ -206,4 +210,3 @@ def set_stream_state():
         if feed_name in payload:
             rgb.set_enabled(feed_name, bool(payload[feed_name]))
     return jsonify({"ok": True, "rgb_left": rgb.enabled_feeds["rgb_left"], "rgb_right": rgb.enabled_feeds["rgb_right"]})
-
