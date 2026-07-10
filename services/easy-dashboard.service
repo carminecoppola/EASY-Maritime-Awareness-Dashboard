@@ -8,7 +8,8 @@ Type=simple
 User=pi
 WorkingDirectory=/home/pi/Desktop/carmine/easy-dashboard
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/home/pi/Desktop/carmine/easy-dashboard/start.sh
+Environment=EASY_OPEN_BROWSER=0
+ExecStart=/home/pi/Desktop/carmine/easy-dashboard/scripts/run_service.sh
 Restart=always
 RestartSec=3
 
