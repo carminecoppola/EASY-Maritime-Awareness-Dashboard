@@ -39,6 +39,21 @@ cd ~/Desktop/carmine/easy-dashboard
 ./start.sh
 ```
 
+For systemd/service mode, use:
+
+```bash
+sudo install -m 644 services/easy-dashboard.service /etc/systemd/system/easy-dashboard.service
+sudo systemctl daemon-reload
+sudo systemctl enable easy-dashboard.service
+sudo systemctl restart easy-dashboard.service
+curl http://127.0.0.1:5000/health
+./scripts/validate_raspberry_runtime.sh
+```
+
+`start.sh` is the operator/manual launcher with preflight output and tunnel
+instructions. The systemd unit uses `scripts/run_service.sh`, a minimal
+non-interactive launcher for the Flask process.
+
 ## Access
 
 Open:
