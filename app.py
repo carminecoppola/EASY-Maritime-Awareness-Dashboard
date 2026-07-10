@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import atexit
 import logging
+import os
 import threading
 import time
 from pathlib import Path
@@ -31,7 +32,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 LOGGER = logging.getLogger("easy-dashboard")
 
 
-def create_app() -> Flask:
+def create_app(*, run_startup_checks: bool = True, start_runtime_services: bool = True) -> Flask:
     """Build the Flask app and wire runtime services into dashboard routes."""
     config = load_config()
     app = Flask(__name__)
@@ -60,14 +61,17 @@ def create_app() -> Flask:
     detection_manager = orchestrator.detection_manager
     inference = orchestrator.inference
 
-    run_preflight_script()
-    append_startup_notice(events, probe, config)
-    thermal.detected = "PureThermal" in probe.lsusb() or Path(thermal.device).exists()
-    if thermal.detected:
-        events.add("THERMAL_FLIR", "DETECTED", "Thermal sensor or PureThermal device detected", "info")
-    else:
-        events.add("THERMAL_FLIR", "NOT_DETECTED", "Thermal sensor not detected; using mock mode", "warning")
-    orchestrator.start()
+    if run_startup_checks:
+        run_preflight_script()
+        append_startup_notice(events, probe, config)
+        thermal.detected = "PureThermal" in probe.lsusb() or Path(thermal.device).exists()
+        if thermal.detected:
+            events.add("THERMAL_FLIR", "DETECTED", "Thermal sensor or PureThermal device detected", "info")
+        else:
+            events.add("THERMAL_FLIR", "NOT_DETECTED", "Thermal sensor not detected; using mock mode", "warning")
+
+    if start_runtime_services:
+        orchestrator.start()
 
     @app.context_processor
     def inject_asset_version() -> Dict[str, str]:
@@ -78,8 +82,9 @@ def create_app() -> Flask:
             time.sleep(5.0)
             orchestrator.ensure_running()
 
-    threading.Thread(target=_rgb_keepalive, daemon=True, name="rgb-keepalive").start()
-    events.add("UC512_MULTIPLEXER", "STREAM_AUTOSTART", "RGB stream started on application boot", "info")
+    if start_runtime_services:
+        threading.Thread(target=_rgb_keepalive, daemon=True, name="rgb-keepalive").start()
+        events.add("UC512_MULTIPLEXER", "STREAM_AUTOSTART", "RGB stream started on application boot", "info")
 
     def _events_payload(limit: int = 50) -> Dict[str, Any]:
         all_events = events.list(9999)
@@ -649,7 +654,7 @@ def create_app() -> Flask:
     return app
 
 
-app = create_app()
+app = None if os.environ.get("EASY_DASHBOARD_SKIP_GLOBAL_APP") == "1" else create_app()
 
 
 if __name__ == "__main__":
