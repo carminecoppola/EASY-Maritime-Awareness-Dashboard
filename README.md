@@ -8,6 +8,9 @@ The codebase is now organized so the Flask entrypoint stays small and the core
 responsibilities are easy to find:
 
 - `app.py` — Flask entrypoint and route wiring only
+- `easy_dashboard/runtime.py` — shared runtime context used by all routes
+- `easy_dashboard/routes/` — Flask blueprints split by page, runtime API,
+  media/snapshots, and inference/session APIs
 - `easy_dashboard/config.py` — config loading and merge logic
 - `easy_dashboard/constants.py` — shared paths, defaults, and folder bootstrap
 - `easy_dashboard/stores.py` — event log and snapshot persistence
@@ -18,8 +21,9 @@ responsibilities are easy to find:
 - `runtime/` — session data, replay data, runtime configs, and models
 - `docs/embedded/` — delivery notes and phase-by-phase implementation reports
 
-This split is intentional: app boot, storage, hardware, and UI payload shaping
-now evolve independently instead of accumulating inside one monolithic file.
+This split is intentional: app boot, route ownership, storage, hardware, and UI
+payload shaping now evolve independently instead of accumulating inside one
+monolithic file.
 
 ## Install
 
