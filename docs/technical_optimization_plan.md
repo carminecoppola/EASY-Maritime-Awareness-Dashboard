@@ -19,10 +19,14 @@ The dashboard must reliably:
 
 ## Current architecture
 
-- `app.py` creates the Flask app, owns route wiring, and assembles page/API
-  payloads.
+- `app.py` creates the Flask app, creates the runtime context, and registers
+  blueprints.
 - `create_app(run_startup_checks=..., start_runtime_services=...)` can now be
   instantiated without preflight scripts or background services for smoke tests.
+- `easy_dashboard/routes/` owns route modules for pages, runtime APIs, media,
+  and inference/session APIs.
+- `easy_dashboard/runtime.py` owns shared dashboard payload builders and exposes
+  runtime collaborators to route modules.
 - `system_orchestrator.py` creates and monitors the runtime managers.
 - `device_manager.py` tracks logical hardware endpoints.
 - `source_manager.py` tracks operator-selectable frame sources.
@@ -39,28 +43,28 @@ hidden coupling between app routes, runtime managers, and frontend polling.
 
 ## Highest-value improvements
 
-### 1. Split Flask routes into blueprints
+### 1. Keep Flask route ownership explicit
 
-`app.py` is still the largest coordination point. It should become a small app
-factory that registers:
+Done for the first pass. `app.py` is now a small app factory that registers:
 
 - `routes/pages.py` for HTML pages;
-- `routes/api_dashboard.py` for aggregate dashboard state;
-- `routes/api_runtime.py` for source/device/system/session APIs;
-- `routes/api_media.py` for video streams and snapshots;
-- `routes/api_inference.py` for frame-provider and inference commands.
+- `routes/api_runtime.py` for aggregate dashboard state, sources, devices, and
+  system APIs;
+- `routes/media.py` for video streams, snapshots, and thermal media;
+- `routes/api_inference.py` for frame-provider, inference, detection, event,
+  and session APIs.
 
-Expected benefit: route ownership becomes obvious, merge conflicts drop, and
-API changes can be tested independently.
+Next step: keep these modules thin and move complex payload shaping into typed
+services instead of letting route functions grow again.
 
-### 2. Introduce one runtime context object
+### 2. Harden the runtime context object
 
-Routes currently close over many local variables: events, stores, probe, RGB,
-thermal, orchestrator, and managers. Replace that with a typed context object,
-for example `DashboardRuntime`.
+Done for the first pass. Routes now use `DashboardRuntime` instead of closing
+over many local variables: events, stores, probe, RGB, thermal, orchestrator,
+and managers.
 
-Expected benefit: each route module receives one dependency and the startup path
-becomes easier to reason about.
+Next step: split `DashboardRuntime` payload methods into focused service
+objects once acquisition and dataset manifests become first-class.
 
 ### 3. Make source/device/frame-provider contracts explicit
 
@@ -166,11 +170,9 @@ curl http://127.0.0.1:5000/api/session/status
 
 ## Suggested next implementation order
 
-1. Add the smoke test and keep it green.
-2. Extract Flask blueprints without changing API payloads.
-3. Add `DashboardRuntime` context.
-4. Add session `manifest.json`.
-5. Add `AcquisitionManager`.
-6. Add a clearer live-source interface for RGB and FLIR.
-7. Add Playwright UI checks for the three operator flows:
+1. Keep the smoke test green.
+2. Add session `manifest.json`.
+3. Add `AcquisitionManager`.
+4. Add a clearer live-source interface for RGB and FLIR.
+5. Add Playwright UI checks for the three operator flows:
    live refresh, snapshot capture, start/stop analysis.
