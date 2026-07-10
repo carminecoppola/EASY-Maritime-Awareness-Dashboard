@@ -1,0 +1,176 @@
+# EASY technical optimization plan
+
+This document describes the next structural and technical steps for turning the
+current Raspberry dashboard into a stable acquisition, inference, and dataset
+collection platform.
+
+## Product objective
+
+The dashboard must reliably:
+
+1. stream the Raspberry RGB cameras and FLIR thermal sensor;
+2. run inference on live or replayed frames;
+3. save RGB, thermal, detection, event, and session metadata in a dataset-ready
+   structure;
+4. make the operator understand what is live, what is being analyzed, and what
+   has been saved;
+5. provide enough diagnostics to debug hardware issues directly on the
+   Raspberry.
+
+## Current architecture
+
+- `app.py` creates the Flask app, owns route wiring, and assembles page/API
+  payloads.
+- `create_app(run_startup_checks=..., start_runtime_services=...)` can now be
+  instantiated without preflight scripts or background services for smoke tests.
+- `system_orchestrator.py` creates and monitors the runtime managers.
+- `device_manager.py` tracks logical hardware endpoints.
+- `source_manager.py` tracks operator-selectable frame sources.
+- `frame_provider.py` converts replay folders/images and future live sources
+  into one `FrameObject` contract.
+- `inference_worker.py` runs model loading, preprocessing, inference, and
+  detection drawing.
+- `detection_manager.py`, `event_manager.py`, and `session_manager.py` persist
+  detections, events, metrics, and session metadata.
+- `static/js/dashboard_*.js` keeps frontend behavior split by page.
+
+This is already much cleaner than a monolith. The next improvement is to reduce
+hidden coupling between app routes, runtime managers, and frontend polling.
+
+## Highest-value improvements
+
+### 1. Split Flask routes into blueprints
+
+`app.py` is still the largest coordination point. It should become a small app
+factory that registers:
+
+- `routes/pages.py` for HTML pages;
+- `routes/api_dashboard.py` for aggregate dashboard state;
+- `routes/api_runtime.py` for source/device/system/session APIs;
+- `routes/api_media.py` for video streams and snapshots;
+- `routes/api_inference.py` for frame-provider and inference commands.
+
+Expected benefit: route ownership becomes obvious, merge conflicts drop, and
+API changes can be tested independently.
+
+### 2. Introduce one runtime context object
+
+Routes currently close over many local variables: events, stores, probe, RGB,
+thermal, orchestrator, and managers. Replace that with a typed context object,
+for example `DashboardRuntime`.
+
+Expected benefit: each route module receives one dependency and the startup path
+becomes easier to reason about.
+
+### 3. Make source/device/frame-provider contracts explicit
+
+`device_manager.py` and `source_manager.py` already share
+`runtime_catalog.py`, but the next step is to define a single endpoint status
+schema for:
+
+- hardware state;
+- UI source state;
+- frame-provider capability;
+- dataset role.
+
+Expected benefit: the UI can show "available", "selected", "streaming",
+"recording", and "inferable" without guessing from several payloads.
+
+### 4. Promote acquisition to a first-class service
+
+Right now snapshots, live streams, and inference are related but still operated
+through separate paths. Add an `AcquisitionManager` that owns:
+
+- active session id;
+- selected source;
+- capture cadence;
+- saved frame paths;
+- RGB/thermal synchronization metadata;
+- dataset manifest updates.
+
+Expected benefit: fine-tuning data becomes reproducible instead of a collection
+of snapshots and events.
+
+### 5. Add a dataset manifest per session
+
+Each session should produce a manifest such as:
+
+```text
+runtime/sessions/<session_id>/
+  metadata.json
+  manifest.json
+  rgb_left/
+  rgb_right/
+  thermal/
+  detections.json
+  events.json
+  metrics.json
+```
+
+`manifest.json` should index every acquired frame with timestamp, source,
+path, width, height, paired thermal/RGB frame id when available, inference
+result id, and labels.
+
+Expected benefit: later fine-tuning can consume a session directly without
+manual file archaeology.
+
+### 6. Separate inference backend from inference worker
+
+Keep `InferenceWorker` as the orchestration loop, but move model-specific logic
+into backend classes:
+
+- `OnnxDetectionBackend`;
+- later `TorchDetectionBackend`;
+- later thermal/RGB fusion backend.
+
+Expected benefit: model upgrades and Raspberry compatibility fixes are isolated.
+
+### 7. Keep UI state boring and predictable
+
+The frontend should continue with page modules, but the polling should become
+more declarative:
+
+- one shared API client;
+- one state normalizer;
+- one render function per card/panel;
+- no DOM id guessing from multiple modules.
+
+Expected benefit: the UI remains understandable while the runtime gets more
+complex.
+
+## Immediate stability checks
+
+Run this before pushing to the Raspberry:
+
+```bash
+./.venv/bin/python -m py_compile app.py runtime_support.py runtime_catalog.py device_manager.py source_manager.py detection_manager.py event_manager.py session_manager.py frame_provider.py inference_worker.py system_orchestrator.py
+
+node --check static/js/dashboard_shared.js
+node --check static/js/dashboard_live.js
+node --check static/js/dashboard_detections.js
+node --check static/js/dashboard_log.js
+node --check static/js/dashboard_system.js
+node --check static/js/dashboard_runtime.js
+node --check static/js/dashboard_utils.js
+
+./.venv/bin/python scripts/smoke_dashboard.py
+```
+
+On the Raspberry, after pulling:
+
+```bash
+./start.sh
+curl http://127.0.0.1:5000/api/dashboard/state
+curl http://127.0.0.1:5000/api/session/status
+```
+
+## Suggested next implementation order
+
+1. Add the smoke test and keep it green.
+2. Extract Flask blueprints without changing API payloads.
+3. Add `DashboardRuntime` context.
+4. Add session `manifest.json`.
+5. Add `AcquisitionManager`.
+6. Add a clearer live-source interface for RGB and FLIR.
+7. Add Playwright UI checks for the three operator flows:
+   live refresh, snapshot capture, start/stop analysis.

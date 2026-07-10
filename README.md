@@ -74,6 +74,21 @@ curl http://127.0.0.1:5000/health
 curl http://127.0.0.1:5000/cameras
 ```
 
+## Local smoke test
+
+Before pushing changes to the Raspberry, run:
+
+```bash
+./.venv/bin/python scripts/smoke_dashboard.py
+```
+
+The smoke test imports the Flask app, renders the main dashboard pages, checks
+for duplicate DOM ids, and verifies the primary JSON API contracts used by the
+UI.
+
+See `docs/technical_optimization_plan.md` for the next structural steps toward
+a cleaner acquisition, inference, and dataset pipeline.
+
 ## Notes
 
 - RGB feeds are browser-native MJPEG streams.
