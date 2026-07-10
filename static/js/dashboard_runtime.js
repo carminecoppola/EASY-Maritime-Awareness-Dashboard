@@ -122,6 +122,7 @@ const dashboardState = {
   inferenceCurrent: null,
   frameProviderStatus: null,
   sessionStatus: null,
+  acquisition: null,
   systemStatus: null,
   systemComponents: null,
   snapshots: [],
@@ -152,6 +153,7 @@ function applyDashboardPayload(payload) {
   const inferenceStatus = payload?.inference || {};
   const inferenceCurrent = payload?.detections || {};
   const sessionStatus = payload?.session || health.session || {};
+  const acquisition = payload?.acquisition || {};
   const currentEvents = payload?.events_current || { events: [] };
   const eventHistory = payload?.events_history || { events: [] };
   const frameProviderStatus = payload?.frame_provider || inferenceStatus?.frame_provider || {};
@@ -169,6 +171,7 @@ function applyDashboardPayload(payload) {
   dashboardState.inferenceCurrent = inferenceCurrent;
   dashboardState.frameProviderStatus = frameProviderStatus;
   dashboardState.sessionStatus = sessionStatus;
+  dashboardState.acquisition = acquisition;
   dashboardState.systemStatus = systemStatus;
   dashboardState.systemComponents = systemComponents;
   dashboardState.snapshots = snapshotsPayload?.items || [];

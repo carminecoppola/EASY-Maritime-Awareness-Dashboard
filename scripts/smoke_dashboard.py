@@ -77,6 +77,10 @@ def main() -> int:
         "/api/dashboard/state",
     )
 
+    summary = client.get("/api/status/summary").get_json()
+    assert_ok(isinstance(summary, dict), "/api/status/summary did not return JSON")
+    require_keys(summary, ["ok", "operator_state", "live", "mission", "dataset", "ai", "activity"], "/api/status/summary")
+
     session = client.get("/api/session/status").get_json()
     assert_ok(isinstance(session, dict), "/api/session/status did not return JSON")
     require_keys(session, ["running", "current", "latest", "recent", "count"], "/api/session/status")
