@@ -193,6 +193,39 @@ def api_acquisition_status():
     return jsonify(get_runtime().acquisition_manager.status())
 
 
+@api_inference_bp.route("/api/dataset/validate", methods=["GET"])
+def api_dataset_validate():
+    return jsonify(get_runtime().dataset_exporter.validate(request.args.get("session_id")))
+
+
+@api_inference_bp.route("/api/dataset/export", methods=["POST"])
+def api_dataset_export():
+    payload = _parse_json_payload()
+    try:
+        validation_percent = int(payload.get("validation_percent", 20))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "validation_percent deve essere un numero intero"}), 400
+    result = get_runtime().dataset_exporter.export(
+        payload.get("session_id"),
+        validation_percent=validation_percent,
+    )
+    return jsonify(result), 200 if result.get("ok") else 400
+
+
+@api_inference_bp.route("/api/dataset/export/status", methods=["GET"])
+def api_dataset_export_status():
+    return jsonify(get_runtime().dataset_exporter.status())
+
+
+@api_inference_bp.route("/api/dataset/export/download", methods=["GET"])
+def api_dataset_export_download():
+    latest = get_runtime().dataset_exporter.status().get("last_export") or {}
+    archive_path = Path(str(latest.get("archive_path") or ""))
+    if not archive_path.is_file():
+        return jsonify({"ok": False, "error": "Nessun export disponibile"}), 404
+    return send_file(archive_path, mimetype="application/zip", as_attachment=True, download_name=archive_path.name)
+
+
 @api_inference_bp.route("/api/session/current", methods=["GET"])
 def api_session_current():
     current = get_runtime().session_manager.get_current_session()

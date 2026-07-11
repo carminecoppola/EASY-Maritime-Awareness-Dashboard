@@ -8,6 +8,7 @@ from typing import Any, Callable, Dict, Optional
 
 from acquisition_manager import AcquisitionManager
 from detection_manager import DetectionManager
+from dataset_exporter import DatasetExporter
 from device_manager import DeviceManager
 from event_manager import EventManager
 from frame_provider import UnifiedFrameProvider
@@ -197,6 +198,10 @@ class SystemOrchestrator:
             session_manager=self.session_manager,
             events=self.events,
             logger=self.logger,
+        )
+        self.dataset_exporter = DatasetExporter(
+            session_manager=self.session_manager,
+            export_root=self.runtime_root / "exports",
         )
         self.event_manager = EventManager(
             self.runtime_root / "sessions",

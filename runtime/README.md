@@ -51,6 +51,12 @@ Used for dashboard runtime logs.
 
 These files are runtime outputs and should not be committed, except placeholders such as `.gitkeep`.
 
+## `exports/`
+
+Contains generated fine-tuning packages. Each export includes `dataset.json`,
+`validation_report.json`, organized train/validation images and a ZIP archive.
+Exports are generated artifacts and are not committed.
+
 ## ONNX Smoke Test
 
 To validate the ONNX model before dashboard integration, run:

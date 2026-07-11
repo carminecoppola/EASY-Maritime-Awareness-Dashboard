@@ -97,6 +97,9 @@ def main() -> int:
 
     routes = {rule.rule for rule in app.url_map.iter_rules()}
     assert_ok("/api/acquisition/capture-set" in routes, "coordinated capture route is not registered")
+    assert_ok("/api/dataset/export" in routes, "dataset export route is not registered")
+    export_status = client.get("/api/dataset/export/status").get_json()
+    require_keys(export_status, ["ok", "export_root", "last_export"], "/api/dataset/export/status")
 
     sources = client.get("/api/sources/status").get_json()
     assert_ok(isinstance(sources, dict), "/api/sources/status did not return JSON")

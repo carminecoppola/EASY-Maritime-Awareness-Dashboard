@@ -48,6 +48,12 @@ RGB destra e termico. Le tre immagini condividono `capture_set_id` e
 modalità sono state acquisite realmente. I placeholder diagnostici restano nel
 manifest con `usable: false`, ma non vengono considerati materiale di training.
 
+Quando la missione è terminata, usa **Valida dataset** per controllare quanti
+campioni RGB/termico sono completi. **Esporta ZIP** crea un pacchetto portabile
+con `dataset.json`, report di validazione, immagini divise per feed e split
+deterministico `train` / `validation`. I dati originali della sessione non
+vengono modificati.
+
 ### Rilevazioni
 
 Qui si controlla il worker AI. Dopo **Avvia analisi**, i risultati dovrebbero

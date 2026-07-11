@@ -55,6 +55,10 @@ function liveActionElementId(action) {
     datasetInferenceCount: "dataset-inference-count",
     datasetDetectionsCount: "dataset-detections-count",
     datasetFeedBreakdown: "dataset-feed-breakdown",
+    datasetValidateButton: "button-dataset-validate",
+    datasetExportButton: "button-dataset-export",
+    datasetExportDownload: "dataset-export-download",
+    datasetExportFeedback: "dataset-export-feedback",
   };
   return mapping[action];
 }

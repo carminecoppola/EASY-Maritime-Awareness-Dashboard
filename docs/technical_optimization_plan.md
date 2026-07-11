@@ -139,11 +139,14 @@ explicitly rejected until a thermal or fusion model is configured.
 
 ## Remaining implementation phases
 
-1. Add dataset validation and export tooling for train/validation splits,
-   labels, calibration metadata and reproducible fine-tuning inputs.
-2. Complete technical hardening: sustained Raspberry benchmarks, storage
+Dataset validation and export are now implemented. Only usable RGB/thermal
+samples enter the package; missing or incomplete artifacts are reported and
+excluded. Exports use deterministic train/validation assignment and include a
+portable `dataset.json`, validation report, organized images and ZIP archive.
+
+1. Complete technical hardening: sustained Raspberry benchmarks, storage
    retention and automated regression coverage.
-3. Run a dedicated final UI/UX redesign phase: information architecture,
+2. Run a dedicated final UI/UX redesign phase: information architecture,
    visual hierarchy, interaction feedback, responsive behavior, accessibility
    and full operator-flow browser validation.
 

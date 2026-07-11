@@ -54,6 +54,10 @@ class DashboardRuntime:
         return self.orchestrator.detection_manager
 
     @property
+    def dataset_exporter(self) -> Any:
+        return self.orchestrator.dataset_exporter
+
+    @property
     def inference(self) -> Any:
         return self.orchestrator.inference
 
