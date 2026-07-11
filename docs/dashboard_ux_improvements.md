@@ -33,3 +33,19 @@
 - If the snapshot archive grows, add paging or date filtering to keep the gallery dense but manageable.
 - A future pass could add stronger keyboard navigation and accessibility refinements for the view toggle and action bars.
 - If needed later, the diagnostics page can be split into smaller subsections or tabs once it accumulates more technical detail.
+# Final operator UI pass
+
+The final interface establishes one visual priority per page instead of giving
+every panel the same weight. Navigation is compact and sticky, page titles are
+separate from the product identity, and the Live page now presents mission
+controls before video, summaries, dataset tools, source configuration and the
+optional guide.
+
+The operator guide is collapsed by default, focus states are visible, reduced
+motion preferences are respected, and the mobile layout keeps the four primary
+sections reachable without a menu. Existing DOM ids and API contracts were
+preserved so the visual redesign does not change the validated runtime flow.
+
+Browser validation covered desktop and 390x844 mobile layouts, start/stop
+mission feedback, inference error feedback, and rendering of Live,
+Rilevazioni, Foto e log, Sistema and Guida.
