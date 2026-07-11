@@ -33,12 +33,14 @@ class AcquisitionManager:
     def status(self) -> Dict[str, Any]:
         session_status = self.session_manager.status()
         current = session_status.get("current")
-        manifest = self.session_manager.read_manifest(str(current.get("session_id"))) if current else None
+        latest = session_status.get("latest")
+        selected_session = current or latest
+        manifest = self.session_manager.read_manifest(str(selected_session.get("session_id"))) if selected_session else None
         counts = manifest.get("counts") if manifest else {}
         return {
             "ok": True,
             "running": bool(session_status.get("running")),
-            "session_id": current.get("session_id") if current else None,
+            "session_id": selected_session.get("session_id") if selected_session else None,
             "manifest_path": manifest.get("path") if manifest else None,
             "manifest_counts": counts,
             "dataset_summary": {

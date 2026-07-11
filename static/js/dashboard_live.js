@@ -208,6 +208,11 @@ function renderLivePage(health) {
   const snapshotButton = byId(liveActionElementId("snapshot"));
   if (snapshotButton) {
     snapshotButton.dataset.primaryFeed = ["REAL", "LIVE", "READY"].includes(thermalState) ? "thermal" : "rgb_left";
+    snapshotButton.disabled = !sessionRunning;
+    snapshotButton.textContent = sessionRunning ? "Salva set RGB + termico" : "Avvia prima la missione";
+    snapshotButton.title = sessionRunning
+      ? "Salva nello stesso campione RGB sinistra, RGB destra e termico"
+      : "Prima premi Avvia missione";
   }
   const recordButton = byId(liveActionElementId("record"));
   if (recordButton) {
@@ -229,6 +234,9 @@ function renderLivePage(health) {
       ? `${session?.session_id || "Sessione EASY"} · ${formatUptimeShort(session?.metrics?.session_duration ?? session?.duration ?? 0)} · dati salvati sulla Raspberry`
       : "Avvia una missione per salvare rilevazioni, eventi e metriche sulla Raspberry.",
   );
+  byId("mission-workflow-start")?.classList.toggle("is-complete", sessionRunning);
+  byId("mission-workflow-capture")?.classList.toggle("is-current", sessionRunning);
+  byId("mission-workflow-review")?.classList.toggle("is-current", !sessionRunning && Boolean(sessionStatus.latest));
   renderDatasetSessionPanel();
 }
 

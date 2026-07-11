@@ -313,9 +313,10 @@ class SessionManager:
 
     def read_manifest(self, session_id: str | None = None) -> Dict[str, Any]:
         with self._lock:
-            resolved_session_id = session_id or self._current_id()
+            latest_session_id = str(self._index[-1].get("session_id") or "") if self._index else ""
+            resolved_session_id = session_id or self._current_id() or latest_session_id
             if not resolved_session_id:
-                return {"ok": False, "error": "No session selected", "manifest": None}
+                return {"ok": False, "error": "Nessuna missione disponibile", "manifest": None}
             if not self._session_dir(resolved_session_id).exists():
                 return {"ok": False, "error": f"Session not found: {resolved_session_id}", "manifest": None}
             self._ensure_structure(resolved_session_id)
