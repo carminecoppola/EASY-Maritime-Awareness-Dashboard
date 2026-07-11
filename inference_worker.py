@@ -11,6 +11,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from frame_provider import FrameObject, UnifiedFrameProvider
+from inference_backend import OnnxDetectionBackend
 
 from source_manager import SourceManager, SourceStatus
 
@@ -358,9 +359,7 @@ class InferenceWorker:
         self.confidence_threshold = float(self.config.get("inference", {}).get("confidence_threshold", 0.25))
         self.iou_threshold = float(self.config.get("inference", {}).get("iou_threshold", 0.45))
         self.class_names = {int(item["id"]): str(item["name"]) for item in self.config.get("classes", [])}
-        self._session: Any | None = None
-        self._session_error = ""
-        self._session_lock = threading.Lock()
+        self.model_backend = OnnxDetectionBackend(self.model_path)
         self._state_lock = threading.Lock()
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
@@ -439,29 +438,7 @@ class InferenceWorker:
         return str(source.get("name") or "Replay Folder")
 
     def _ensure_session(self) -> Tuple[bool, str]:
-        if self._session is not None:
-            return True, ""
-        with self._session_lock:
-            if self._session is not None:
-                return True, ""
-            try:
-                import onnxruntime as ort  # type: ignore
-            except ImportError as exc:
-                self._session_error = "onnxruntime is not installed"
-                return False, self._session_error
-
-            if not self.model_path.exists():
-                self._session_error = f"Model not found: {self.model_path}"
-                return False, self._session_error
-
-            try:
-                self._session = ort.InferenceSession(str(self.model_path), providers=["CPUExecutionProvider"])
-                self._session_error = ""
-                return True, ""
-            except Exception as exc:  # pragma: no cover - runtime specific
-                self._session = None
-                self._session_error = f"Failed to load ONNX model: {exc}"
-                return False, self._session_error
+        return self.model_backend.ensure_loaded()
 
     def _emit_event(self, event_type: str, description: str, severity: str = "info", meta: Optional[Dict[str, Any]] = None) -> None:
         if not self.events:
@@ -505,9 +482,10 @@ class InferenceWorker:
             "last_run_ts": self._last_run_ts,
             "last_detections": list(self._last_detections),
             "count": len(self._last_detections),
-            "error": self._last_error or self._session_error,
+            "error": self._last_error or self.model_backend.error,
             "config_error": self._config_error,
-            "session_loaded": self._session is not None,
+            "session_loaded": self.model_backend.loaded,
+            "backend_status": self.model_backend.status(),
             "fallback_model_path": str(self.fallback_model_path),
             "frame_provider": self.frame_provider.status(),
         }
@@ -624,10 +602,10 @@ class InferenceWorker:
 
     def _execute_inference(self, image_path: Path, *, save_artifacts: bool = True, frame: FrameObject | None = None) -> Dict[str, Any]:
         ok, error = self._ensure_session()
-        if not ok or self._session is None:
+        if not ok:
             return {
                 "ok": False,
-                "error": error or self._session_error or "ONNX session unavailable",
+                "error": error or self.model_backend.error or "ONNX session unavailable",
                 "image_path": str(image_path),
                 "detections": [],
             }
@@ -645,8 +623,7 @@ class InferenceWorker:
             tensor, original_rgb, ratio, pad = preprocess_array(frame.image, self.input_size)
         else:
             tensor, original_rgb, ratio, pad = preprocess_image(image_path, self.input_size)
-        input_name = self._session.get_inputs()[0].name
-        outputs = self._session.run(None, {input_name: tensor})
+        outputs = self.model_backend.run(tensor)
         detections = decode_yolo_output(
             outputs=outputs,
             conf_threshold=self.confidence_threshold,
