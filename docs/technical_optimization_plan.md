@@ -148,6 +148,12 @@ Technical hardening is now implemented: export metadata survives service
 restarts, storage usage and a safe retention preview are exposed, and the
 Raspberry benchmark script produces repeatable latency/success summaries.
 
+Remote operation is now consolidated in `scripts/easy_dashboard_mac.sh`: one
+Mac-side command controls the Raspberry systemd service, readiness check, SSH
+tunnel and Safari launch. ONNX Runtime uses an explicit four-thread sequential
+CPU session with full graph optimization; Raspberry benchmarks remain the
+authority for comparing this configuration with the previous baseline.
+
 1. Run a dedicated final UI/UX redesign phase: information architecture,
    visual hierarchy, interaction feedback, responsive behavior, accessibility
    and full operator-flow browser validation.

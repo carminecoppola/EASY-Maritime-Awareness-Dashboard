@@ -7,6 +7,7 @@ own model loading and execution details, which keeps Raspberry runtime
 compatibility changes away from the acquisition loop.
 """
 
+import os
 import threading
 from pathlib import Path
 from typing import Any
@@ -25,6 +26,12 @@ class OnnxDetectionBackend:
         self._input_name = ""
         self._error = ""
         self._lock = threading.Lock()
+        cpu_count = os.cpu_count() or 1
+        try:
+            configured_threads = int(os.environ.get("EASY_ONNX_THREADS", min(cpu_count, 4)))
+        except ValueError:
+            configured_threads = min(cpu_count, 4)
+        self._threads = max(1, min(configured_threads, cpu_count))
 
     @property
     def loaded(self) -> bool:
@@ -51,8 +58,15 @@ class OnnxDetectionBackend:
                 return False, self._error
 
             try:
+                options = ort.SessionOptions()
+                options.intra_op_num_threads = self._threads
+                options.inter_op_num_threads = 1
+                options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+                options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+                options.add_session_config_entry("session.intra_op.allow_spinning", "0")
                 self._session = ort.InferenceSession(
                     str(self.model_path),
+                    sess_options=options,
                     providers=["CPUExecutionProvider"],
                 )
                 self._input_name = str(self._session.get_inputs()[0].name)
@@ -77,4 +91,7 @@ class OnnxDetectionBackend:
             "loaded": self.loaded,
             "error": self.error,
             "providers": ["CPUExecutionProvider"],
+            "cpu_threads": self._threads,
+            "execution_mode": "sequential",
+            "graph_optimization": "all",
         }
