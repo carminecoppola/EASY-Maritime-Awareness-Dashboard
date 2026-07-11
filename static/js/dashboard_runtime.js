@@ -728,7 +728,11 @@ function setupPageInteractions() {
   }
 }
 
-window.addEventListener("load", () => {
+let dashboardRuntimeInitialized = false;
+
+function initializeDashboardRuntime() {
+  if (dashboardRuntimeInitialized) return;
+  dashboardRuntimeInitialized = true;
   setupFilters();
   setupPageInteractions();
   refreshDashboard();
@@ -736,4 +740,11 @@ window.addEventListener("load", () => {
   if (byId(liveActionElementId("thermalImage")) && !dashboardState.liteMode) {
     window.setInterval(reloadThermalFrame, 700);
   }
-});
+  document.body?.setAttribute("data-runtime-ready", "true");
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initializeDashboardRuntime, { once: true });
+} else {
+  initializeDashboardRuntime();
+}
