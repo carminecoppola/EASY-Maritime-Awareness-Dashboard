@@ -177,6 +177,7 @@ class SystemOrchestrator:
         self.device_manager = DeviceManager(
             runtime_root=self.runtime_root,
             replay_root=self.replay_root,
+            status_providers=self._build_device_status_providers(),
             events=self.events,
             logger=self.logger,
         )
@@ -227,6 +228,118 @@ class SystemOrchestrator:
             except Exception:
                 pass
         return "unknown"
+
+    def _build_device_status_providers(self) -> Dict[str, Callable[[], Dict[str, Any]]]:
+        return {
+            "rgb_left": lambda: self._rgb_device_status("rgb_left"),
+            "rgb_right": lambda: self._rgb_device_status("rgb_right"),
+            "thermal": self._thermal_device_status,
+        }
+
+    def _rgb_device_status(self, feed_id: str) -> Dict[str, Any]:
+        if self.rgb is None or not hasattr(self.rgb, "latest_state"):
+            return {
+                "status": "NOT_PRESENT",
+                "fps": 0.0,
+                "configuration": {"feed": feed_id, "reason": "RGB runtime not available"},
+            }
+        try:
+            state = self.rgb.latest_state()
+        except Exception as exc:
+            return {
+                "status": "ERROR",
+                "fps": 0.0,
+                "error": str(exc),
+                "configuration": {"feed": feed_id},
+            }
+
+        enabled_feeds = getattr(self.rgb, "enabled_feeds", {}) or {}
+        enabled = bool(enabled_feeds.get(feed_id, True))
+        camera_state = str(state.get("camera_state") or state.get("status") or "UNKNOWN").upper()
+        last_frame_ts = state.get("last_frame_ts")
+        detected = bool(state.get("detected") or camera_state in {"DETECTED", "BUSY"})
+        fresh = False
+        try:
+            fresh = bool(last_frame_ts and time.time() - float(last_frame_ts) <= 5.0)
+        except Exception:
+            fresh = False
+
+        if not enabled:
+            status = "NOT_PRESENT"
+        elif camera_state in {"ERROR", "FAILED", "OFFLINE"}:
+            status = "ERROR"
+        elif camera_state == "BUSY":
+            status = "INITIALIZING"
+        elif detected and fresh:
+            status = "STREAMING"
+        elif detected:
+            status = "CONNECTED"
+        else:
+            status = "NOT_PRESENT"
+
+        return {
+            "status": status,
+            "fps": float(state.get("fps") or 0.0),
+            "error": state.get("error") or "",
+            "configuration": {
+                "feed": feed_id,
+                "enabled": enabled,
+                "camera_state": camera_state,
+                "last_frame_ts": last_frame_ts,
+                "message": state.get("message") or "",
+            },
+        }
+
+    def _thermal_device_status(self) -> Dict[str, Any]:
+        if self.thermal is None or not hasattr(self.thermal, "status_payload"):
+            return {
+                "status": "NOT_PRESENT",
+                "fps": 0.0,
+                "configuration": {"reason": "Thermal runtime not available"},
+            }
+        try:
+            state = self.thermal.status_payload()
+        except Exception as exc:
+            return {"status": "ERROR", "fps": 0.0, "error": str(exc), "configuration": {}}
+
+        thermal_state = str(state.get("status") or state.get("mode") or "UNKNOWN").upper()
+        last_frame_ts = state.get("last_frame_ts")
+        detected = bool(state.get("detected") or thermal_state in {"REAL", "MOCK"})
+        fresh = False
+        try:
+            fresh = bool(last_frame_ts and time.time() - float(last_frame_ts) <= 5.0)
+        except Exception:
+            fresh = False
+
+        if thermal_state in {"ERROR", "FAILED", "OFFLINE"}:
+            status = "ERROR"
+        elif thermal_state in {"DISABLED", "NOT_DETECTED"}:
+            status = "NOT_PRESENT"
+        elif thermal_state in {"STARTING", "LOADING", "PENDING", "CHECKING"}:
+            status = "INITIALIZING"
+        elif detected and fresh:
+            status = "STREAMING"
+        elif detected:
+            status = "CONNECTED"
+        else:
+            status = "UNKNOWN"
+
+        return {
+            "status": status,
+            "fps": float(state.get("fps") or state.get("frame_rate") or 0.0),
+            "temperature": state.get("avg_c"),
+            "error": state.get("error") or "",
+            "configuration": {
+                "mode": state.get("mode"),
+                "detected": detected,
+                "device": state.get("device"),
+                "configured_device": state.get("configured_device"),
+                "input_format": state.get("input_format"),
+                "video_size": state.get("video_size"),
+                "discovery_method": state.get("discovery_method"),
+                "last_frame_ts": last_frame_ts,
+            },
+        }
 
     def _register_component(
         self,

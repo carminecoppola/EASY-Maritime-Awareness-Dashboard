@@ -221,6 +221,45 @@ class PlaceholderDevice(ManagedDevice):
             return self._apply_transition(status=DeviceStatus.NOT_PRESENT, fps=0.0, temperature=None, emit_event=True)
 
 
+class LiveHardwareDevice(ManagedDevice):
+    """Device whose status is derived from an existing runtime sensor object."""
+
+    def __init__(
+        self,
+        record: DeviceRecord,
+        status_provider: Any,
+        *,
+        events: Any | None = None,
+        logger: Any | None = None,
+    ) -> None:
+        super().__init__(record, events=events, logger=logger)
+        self.status_provider = status_provider
+
+    def check_health(self) -> dict[str, Any]:
+        with self._lock:
+            try:
+                payload = self.status_provider() if callable(self.status_provider) else {}
+            except Exception as exc:
+                self.record.configuration["last_error"] = str(exc)
+                return self._apply_transition(status=DeviceStatus.ERROR, fps=0.0, emit_event=True)
+            if not isinstance(payload, dict):
+                payload = {}
+            configuration = payload.get("configuration")
+            if isinstance(configuration, dict):
+                self.record.configuration.update(configuration)
+            error = payload.get("error")
+            if error:
+                self.record.configuration["last_error"] = str(error)
+            elif "last_error" in self.record.configuration:
+                self.record.configuration.pop("last_error", None)
+            return self._apply_transition(
+                status=str(payload.get("status") or DeviceStatus.UNKNOWN).upper(),
+                fps=float(payload.get("fps") or 0.0),
+                temperature=payload.get("temperature"),
+                emit_event=True,
+            )
+
+
 class DeviceManager:
     """Owns the runtime device registry exposed to health and diagnostics APIs."""
 
@@ -229,6 +268,7 @@ class DeviceManager:
         *,
         runtime_root: Path | str,
         replay_root: Path | str,
+        status_providers: dict[str, Any] | None = None,
         events: Any | None = None,
         logger: Any | None = None,
     ) -> None:
@@ -236,6 +276,7 @@ class DeviceManager:
         self.replay_root = Path(replay_root)
         self.events = events
         self.logger = logger
+        self.status_providers = dict(status_providers or {})
         self._lock = threading.RLock()
         self._devices: dict[str, ManagedDevice] = {}
         self.runtime_root.mkdir(parents=True, exist_ok=True)
@@ -273,6 +314,15 @@ class DeviceManager:
                     ReplayDevice(
                         record,
                         self.replay_root,
+                        events=self.events,
+                        logger=self.logger,
+                    )
+                )
+            elif endpoint.endpoint_id in self.status_providers:
+                self._store_device(
+                    LiveHardwareDevice(
+                        record,
+                        self.status_providers[endpoint.endpoint_id],
                         events=self.events,
                         logger=self.logger,
                     )
