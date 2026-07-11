@@ -42,8 +42,15 @@ class SourceRecord:
     enabled: bool = True
     last_update: str = ""
     configuration: dict[str, Any] = field(default_factory=dict)
+    capabilities: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self, *, selected: bool = False) -> dict[str, Any]:
+        available = self.enabled and self.status in {SourceStatus.ONLINE, SourceStatus.STREAMING}
+        selectable = self.enabled and self.status not in {
+            SourceStatus.NOT_AVAILABLE,
+            SourceStatus.OFFLINE,
+            SourceStatus.ERROR,
+        }
         return {
             "id": self.id,
             "name": self.name,
@@ -52,6 +59,12 @@ class SourceRecord:
             "enabled": self.enabled,
             "last_update": self.last_update,
             "configuration": dict(self.configuration),
+            "capabilities": dict(self.capabilities),
+            "availability": {
+                "available": available,
+                "selectable": selectable,
+                "streaming": self.status == SourceStatus.STREAMING,
+            },
             "selected": selected,
         }
 
@@ -111,6 +124,7 @@ class SourceManager:
                 endpoint.source_type,
                 enabled=endpoint.source_enabled,
                 configuration=endpoint.source_configuration,
+                capabilities=endpoint.source_capabilities,
             )
 
     def register_source(
@@ -121,6 +135,7 @@ class SourceManager:
         *,
         enabled: bool = True,
         configuration: dict[str, Any] | None = None,
+        capabilities: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         with self._lock:
             record = SourceRecord(
@@ -131,6 +146,7 @@ class SourceManager:
                 enabled=enabled,
                 last_update=utc_now_iso(),
                 configuration=dict(configuration or {}),
+                capabilities=dict(capabilities or {}),
             )
             self._sources[source_id] = record
             return self._serialize_source(record)
@@ -211,6 +227,8 @@ class SourceManager:
                     "enabled": False,
                     "last_update": utc_now_iso(),
                     "configuration": {},
+                    "capabilities": {},
+                    "availability": {"available": False, "selectable": False, "streaming": False},
                     "selected": True,
                 }
             return self._serialize_source(record)

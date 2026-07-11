@@ -95,6 +95,13 @@ def main() -> int:
     assert_ok(isinstance(acquisition, dict), "/api/acquisition/status did not return JSON")
     require_keys(acquisition, ["ok", "running", "manifest_counts", "dataset_summary"], "/api/acquisition/status")
 
+    sources = client.get("/api/sources/status").get_json()
+    assert_ok(isinstance(sources, dict), "/api/sources/status did not return JSON")
+    require_keys(sources, ["ok", "sources", "selected_source"], "/api/sources/status")
+    for source in sources["sources"]:
+        require_keys(source, ["id", "status", "selected", "availability", "capabilities"], f"source {source.get('id')}")
+        require_keys(source["availability"], ["available", "selectable", "streaming"], f"source {source.get('id')} availability")
+
     inference = client.get("/api/inference/status").get_json()
     assert_ok(isinstance(inference, dict), "/api/inference/status did not return JSON")
     require_keys(inference, ["running", "backend", "model_path", "frame_provider"], "/api/inference/status")
