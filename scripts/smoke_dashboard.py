@@ -58,7 +58,9 @@ def main() -> int:
     for route in page_routes:
         response = client.get(route)
         assert_ok(response.status_code == 200, f"{route} returned {response.status_code}")
-        assert_no_duplicate_ids(route, response.get_data(as_text=True))
+        html = response.get_data(as_text=True)
+        assert_no_duplicate_ids(route, html)
+        assert_ok("dashboard_api.js" in html, f"{route} does not load the shared API client")
 
     state = client.get("/api/dashboard/state").get_json()
     assert_ok(isinstance(state, dict), "/api/dashboard/state did not return JSON")

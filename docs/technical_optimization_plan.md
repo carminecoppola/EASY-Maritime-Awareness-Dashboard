@@ -147,6 +147,10 @@ more declarative:
 Expected benefit: the UI remains understandable while the runtime gets more
 complex.
 
+First pass done. `dashboard_api.js` now owns JSON parsing, request timeouts and
+action errors for every page. `dashboard_runtime.js` focuses on state and user
+interactions instead of implementing multiple variants of the same HTTP call.
+
 ## Immediate stability checks
 
 Run this before pushing to the Raspberry:
