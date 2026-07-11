@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from typing import Any, Dict
 
 from flask import Blueprint, current_app, jsonify, request, send_file
@@ -189,6 +190,72 @@ def thermal_snapshot():
     if snapshot_info["meta"].get("status") in {"NOT_DETECTED", "DISABLED"}:
         return _snapshot_error("thermal", snapshot_info["filename"], "Thermal feed unavailable", snapshot_info, 503)
     return _snapshot_success("thermal", snapshot_info)
+
+
+@media_bp.route("/api/acquisition/capture-set", methods=["POST"])
+def capture_acquisition_set():
+    """Capture RGB left/right and thermal as one dataset sample."""
+    runtime = get_runtime()
+    current = runtime.session_manager.get_current_session()
+    if not current:
+        return jsonify({"ok": False, "error": "Avvia una missione prima di acquisire un set sincronizzato"}), 409
+
+    capture_set_id = f"capture-{uuid.uuid4().hex[:12]}"
+    captures: Dict[str, Any] = {}
+    for feed, side, source in (
+        ("rgb_left", "left", "RGB_CAM_LEFT"),
+        ("rgb_right", "right", "RGB_CAM_RIGHT"),
+    ):
+        meta = {
+            "feed": feed,
+            "source": source,
+            "snapshot_type": "rgb",
+            "capture_set_id": capture_set_id,
+            "camera_state": runtime.rgb.camera_state(),
+            "width": runtime.rgb.width,
+            "height": runtime.rgb.height,
+        }
+        _frame, ok, snapshot_info, _meta = runtime.capture_snapshot(
+            feed,
+            lambda side=side: runtime.rgb.capture_snapshot(side),
+            meta,
+        )
+        captures[feed] = {
+            "ok": bool(ok and snapshot_info),
+            "snapshot": snapshot_info,
+            "error": None if ok else f"{feed} non disponibile",
+        }
+
+    try:
+        thermal_frame, thermal_stats = runtime.thermal.snapshot()
+        thermal_meta = dict(thermal_stats)
+        thermal_meta.update({"feed": "thermal", "snapshot_type": "thermal", "capture_set_id": capture_set_id})
+        thermal_info = runtime.snapshot_store.save("thermal", thermal_frame, meta=thermal_meta)
+        runtime.acquisition_manager.record_snapshot(feed="thermal", snapshot=thermal_info, meta=thermal_meta)
+        thermal_ok = thermal_info["meta"].get("status") not in {"NOT_DETECTED", "DISABLED"}
+        captures["thermal"] = {
+            "ok": thermal_ok,
+            "snapshot": thermal_info,
+            "error": None if thermal_ok else "Termico non disponibile",
+        }
+    except Exception as exc:
+        runtime.logger.exception("Failed to save coordinated thermal snapshot")
+        captures["thermal"] = {"ok": False, "snapshot": None, "error": str(exc)}
+
+    successful = sum(1 for item in captures.values() if item.get("ok"))
+    manifest = runtime.session_manager.read_manifest(str(current.get("session_id") or ""))
+    return jsonify(
+        {
+            "ok": successful > 0,
+            "complete": successful == len(captures),
+            "capture_set_id": capture_set_id,
+            "sample_id": f"{current.get('session_id')}:capture:{capture_set_id}",
+            "successful_feeds": successful,
+            "total_feeds": len(captures),
+            "captures": captures,
+            "manifest_counts": manifest.get("counts", {}),
+        }
+    ), (200 if successful > 0 else 503)
 
 
 @media_bp.route("/api/stream-state", methods=["GET"])

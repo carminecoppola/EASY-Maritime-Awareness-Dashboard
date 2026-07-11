@@ -127,6 +127,20 @@ inference entries. Snapshot entries include `sample_id`, `modality`,
 happen close together. Expected benefit: later fine-tuning can consume a session
 directly without manual file archaeology.
 
+Coordinated capture is now implemented. One operator action records RGB left,
+RGB right and thermal with a shared `capture_set_id` and `sample_id`. Manifest
+counts include `synchronized_samples` only when usable RGB and thermal data are
+both present, so diagnostic placeholders cannot inflate training-ready totals.
+
+## Remaining implementation phases
+
+1. Connect live RGB/thermal frame sources directly to the unified inference
+   provider, including an explicit modality/fusion policy.
+2. Add dataset validation and export tooling for train/validation splits,
+   labels, calibration metadata and reproducible fine-tuning inputs.
+3. Complete production hardening: sustained Raspberry benchmarks, storage
+   retention, automated browser regression checks and accessibility polish.
+
 ### 6. Separate inference backend from inference worker
 
 Keep `InferenceWorker` as the orchestration loop, but move model-specific logic

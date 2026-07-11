@@ -260,7 +260,7 @@ function renderDatasetSessionPanel() {
     manifestPath ? `Manifest: ${compactPath(manifestPath)}` : "Il manifest apparirà qui appena la missione salva il primo dato.",
   );
   setText(liveActionElementId("datasetSamplesCount"), `${datasetSummary.samples ?? manifestCounts.samples ?? 0}`);
-  setText(liveActionElementId("datasetPairedCount"), `${datasetSummary.paired_items ?? manifestCounts.paired_items ?? 0}`);
+  setText(liveActionElementId("datasetPairedCount"), `${datasetSummary.synchronized_samples ?? manifestCounts.synchronized_samples ?? datasetSummary.paired_items ?? manifestCounts.paired_items ?? 0}`);
   setText(liveActionElementId("datasetSnapshotsCount"), `${manifestCounts.snapshots ?? 0}`);
   setText(liveActionElementId("datasetInferenceCount"), `${manifestCounts.inference ?? 0}`);
   setText(liveActionElementId("datasetDetectionsCount"), `${manifestCounts.detections ?? 0}`);

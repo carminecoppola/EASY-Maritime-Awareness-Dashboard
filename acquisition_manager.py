@@ -44,6 +44,7 @@ class AcquisitionManager:
             "dataset_summary": {
                 "samples": counts.get("samples", 0) if isinstance(counts, dict) else 0,
                 "paired_items": counts.get("paired_items", 0) if isinstance(counts, dict) else 0,
+                "synchronized_samples": counts.get("synchronized_samples", 0) if isinstance(counts, dict) else 0,
                 "by_feed": counts.get("by_feed", {}) if isinstance(counts, dict) else {},
                 "pair_window_seconds": PAIR_WINDOW_SECONDS,
             },
@@ -64,15 +65,25 @@ class AcquisitionManager:
         session_id = str(current.get("session_id") or "")
         feed_info = FEED_DATASET_ROLES.get(feed, {"modality": "unknown", "dataset_role": feed})
         created_ts = self._snapshot_created_ts(snapshot)
-        pairing = self._snapshot_pairing(session_id=session_id, feed=feed, created_ts=created_ts)
-        sample_id = pairing.get("sample_id") or self._new_sample_id(session_id, feed, created_ts)
+        capture_set_id = str((meta or {}).get("capture_set_id") or "") or None
+        pairing = {} if capture_set_id else self._snapshot_pairing(session_id=session_id, feed=feed, created_ts=created_ts)
+        sample_id = (
+            f"{session_id}:capture:{capture_set_id}"
+            if capture_set_id
+            else pairing.get("sample_id") or self._new_sample_id(session_id, feed, created_ts)
+        )
+        capture_meta = meta or snapshot.get("meta") or {}
+        capture_status = str(capture_meta.get("status") or "").upper()
+        usable = bool(capture_meta.get("capture_ok", capture_status not in {"NOT_DETECTED", "DISABLED", "ERROR"}))
         entry = {
             "kind": "snapshot",
             "artifact_type": "image",
             "sample_id": sample_id,
+            "capture_set_id": capture_set_id,
             "feed": feed,
             "modality": feed_info["modality"],
             "dataset_role": feed_info["dataset_role"],
+            "usable": usable,
             "source": snapshot.get("source") or (meta or {}).get("source"),
             "path": snapshot.get("path"),
             "url": snapshot.get("url"),
@@ -83,7 +94,11 @@ class AcquisitionManager:
             "pair_window_seconds": PAIR_WINDOW_SECONDS,
             "paired_with": pairing.get("paired_with"),
             "pair_delta_seconds": pairing.get("pair_delta_seconds"),
-            "meta": meta or snapshot.get("meta") or {},
+            "synchronization": {
+                "method": "coordinated_capture" if capture_set_id else "timestamp_window",
+                "window_seconds": PAIR_WINDOW_SECONDS,
+            },
+            "meta": capture_meta,
         }
         return self.session_manager.append_manifest_item(session_id, entry)
 
