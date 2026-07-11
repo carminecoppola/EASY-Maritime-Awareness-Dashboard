@@ -368,7 +368,28 @@ function setupLivePage() {
               ? "rgb_right"
               : "thermal";
       try {
-        await snapshot(preferredFeed);
+        if (dashboardState.sessionStatus?.running) {
+          const payload = await callInferenceAction("/api/acquisition/capture-set", {});
+          const saved = Number(payload?.successful_feeds || 0);
+          const total = Number(payload?.total_feeds || 3);
+          const complete = Boolean(payload?.complete);
+          showToast(
+            complete ? "Set acquisizione salvato" : "Set acquisizione parziale",
+            `${saved}/${total} sorgenti salvate nello stesso campione.`,
+            complete ? "success" : "info",
+            "/snapshots",
+          );
+          const feedbackTitle = byId(liveActionElementId("captureTitle"));
+          const feedbackLink = byId(liveActionElementId("captureLink"));
+          if (feedbackTitle) feedbackTitle.textContent = `${saved}/${total} sorgenti · stesso campione`;
+          if (feedbackLink) {
+            feedbackLink.href = "/snapshots";
+            feedbackLink.hidden = false;
+          }
+          await refreshDashboard();
+        } else {
+          await snapshot(preferredFeed);
+        }
       } finally {
         liveSnapshotButton.disabled = false;
         liveSnapshotButton.textContent = originalLabel;

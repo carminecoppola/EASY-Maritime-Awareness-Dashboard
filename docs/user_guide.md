@@ -42,6 +42,12 @@ Il pannello mostra:
 Se vuoi materiale utile al fine-tuning, controlla soprattutto campioni e coppie
 RGB/termico.
 
+Durante una missione, **Salva foto** crea un set coordinato con RGB sinistra,
+RGB destra e termico. Le tre immagini condividono `capture_set_id` e
+`sample_id`; un campione viene contato come RGB/termico solo quando entrambe le
+modalità sono state acquisite realmente. I placeholder diagnostici restano nel
+manifest con `usable: false`, ma non vengono considerati materiale di training.
+
 ### Rilevazioni
 
 Qui si controlla il worker AI. Dopo **Avvia analisi**, i risultati dovrebbero

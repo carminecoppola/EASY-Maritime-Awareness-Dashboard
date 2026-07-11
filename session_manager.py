@@ -401,6 +401,7 @@ class SessionManager:
     def _manifest_counts(self, items: List[Dict[str, Any]]) -> Dict[str, Any]:
         by_feed: Dict[str, int] = {}
         sample_ids = set()
+        sample_modalities: Dict[str, set[str]] = {}
         paired_items = 0
         for item in items:
             feed = str(item.get("feed") or "")
@@ -408,7 +409,11 @@ class SessionManager:
                 by_feed[feed] = by_feed.get(feed, 0) + 1
             sample_id = item.get("sample_id")
             if sample_id:
-                sample_ids.add(str(sample_id))
+                resolved_sample_id = str(sample_id)
+                sample_ids.add(resolved_sample_id)
+                modality = str(item.get("modality") or "")
+                if modality and item.get("usable", True):
+                    sample_modalities.setdefault(resolved_sample_id, set()).add(modality)
             if item.get("paired_with"):
                 paired_items += 1
         return {
@@ -422,6 +427,7 @@ class SessionManager:
             ),
             "samples": len(sample_ids),
             "paired_items": paired_items,
+            "synchronized_samples": sum(1 for modalities in sample_modalities.values() if {"rgb", "thermal"} <= modalities),
             "by_feed": by_feed,
         }
 
