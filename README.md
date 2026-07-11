@@ -46,9 +46,12 @@ sudo install -m 644 services/easy-dashboard.service /etc/systemd/system/easy-das
 sudo systemctl daemon-reload
 sudo systemctl enable easy-dashboard.service
 sudo systemctl restart easy-dashboard.service
-curl http://127.0.0.1:5000/health
 ./scripts/validate_raspberry_runtime.sh
 ```
+
+The runtime validator waits up to 30 seconds for Flask and the hardware runtime
+to become ready after a service restart. Override the limit with
+`EASY_STARTUP_TIMEOUT_SECONDS` when startup checks intentionally take longer.
 
 `start.sh` is the operator/manual launcher with preflight output and tunnel
 instructions. The systemd unit uses `scripts/run_service.sh`, a minimal
