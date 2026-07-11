@@ -1896,6 +1896,12 @@ body[data-page="live"] .live-page {
   color: var(--text);
 }
 
+.dataset-export-feedback {
+  margin: 0;
+  color: var(--text-weak);
+  font-size: 12px;
+}
+
 .help-page {
   display: grid;
   gap: 10px;

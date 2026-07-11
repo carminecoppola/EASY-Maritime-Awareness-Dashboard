@@ -41,3 +41,5 @@ runtime/replay/test_inference/*
 !runtime/replay/test_inference/.gitkeep
 runtime/replay/test_output/*
 runtime/sessions/frame_provider_temp/*
+runtime/exports/*
+!runtime/exports/.gitkeep

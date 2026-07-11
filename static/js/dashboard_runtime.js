@@ -422,6 +422,51 @@ function setupLivePage() {
       }
     });
   }
+
+  const datasetValidateButton = byId(liveActionElementId("datasetValidateButton"));
+  if (datasetValidateButton) {
+    datasetValidateButton.addEventListener("click", async () => {
+      datasetValidateButton.disabled = true;
+      try {
+        const response = await DashboardApi.request("/api/dataset/validate");
+        const payload = response.data || {};
+        if (!response.ok || !payload.ok) throw new Error(payload.error || "Dataset non disponibile");
+        setText(
+          liveActionElementId("datasetExportFeedback"),
+          payload.valid
+            ? `${payload.valid_samples} campioni validi · ${payload.incomplete_samples} incompleti · ${payload.excluded_items} file esclusi.`
+            : `Nessun campione completo · ${payload.incomplete_samples} incompleti · ${payload.excluded_items} file esclusi.`,
+        );
+        showToast(payload.valid ? "Dataset valido" : "Dataset incompleto", payload.valid ? "Puoi creare il pacchetto ZIP." : "Controlla i feed mancanti.", payload.valid ? "success" : "info");
+      } catch (error) {
+        setText(liveActionElementId("datasetExportFeedback"), error.message || "Validazione non riuscita");
+        showToast("Validazione non riuscita", error.message || "Dataset non disponibile", "error");
+      } finally {
+        datasetValidateButton.disabled = false;
+      }
+    });
+  }
+
+  const datasetExportButton = byId(liveActionElementId("datasetExportButton"));
+  if (datasetExportButton) {
+    datasetExportButton.addEventListener("click", async () => {
+      datasetExportButton.disabled = true;
+      datasetExportButton.textContent = "Esportazione…";
+      try {
+        const payload = await callInferenceAction("/api/dataset/export", { validation_percent: 20 });
+        setText(liveActionElementId("datasetExportFeedback"), `${payload.counts.samples} campioni e ${payload.counts.images} immagini esportati.`);
+        const download = byId(liveActionElementId("datasetExportDownload"));
+        if (download) download.hidden = false;
+        showToast("Dataset esportato", "Il pacchetto ZIP è pronto.", "success", "/api/dataset/export/download");
+      } catch (error) {
+        setText(liveActionElementId("datasetExportFeedback"), error.message || "Esportazione non riuscita");
+        showToast("Esportazione non riuscita", error.message || "Nessun campione valido", "error");
+      } finally {
+        datasetExportButton.disabled = false;
+        datasetExportButton.textContent = "Esporta ZIP";
+      }
+    });
+  }
 }
 
 function setupFeedControlButtons() {

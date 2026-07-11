@@ -204,6 +204,9 @@
         </div>
         <div class="panel-head-actions">
           <span class="badge badge-muted" id="dataset-session-state-badge">Standby</span>
+          <button class="btn btn-ghost btn-small" id="button-dataset-validate" type="button">Valida dataset</button>
+          <button class="btn btn-secondary btn-small" id="button-dataset-export" type="button">Esporta ZIP</button>
+          <a class="btn btn-ghost btn-small" id="dataset-export-download" href="/api/dataset/export/download" hidden>Scarica ZIP</a>
           <a class="btn btn-ghost btn-small" href="/snapshots">Apri foto e log</a>
         </div>
       </div>
@@ -241,6 +244,7 @@
         <span class="dataset-feed-pill">RGB destra: 0</span>
         <span class="dataset-feed-pill">Termico: 0</span>
       </div>
+      <p class="dataset-export-feedback" id="dataset-export-feedback">Valida la missione per sapere se i campioni sono pronti per il fine-tuning.</p>
     </section>
 
     <section class="panel mission-sources-panel" aria-label="Mission Sources">
