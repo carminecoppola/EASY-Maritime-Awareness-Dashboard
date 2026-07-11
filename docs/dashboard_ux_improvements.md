@@ -49,3 +49,11 @@ preserved so the visual redesign does not change the validated runtime flow.
 Browser validation covered desktop and 390x844 mobile layouts, start/stop
 mission feedback, inference error feedback, and rendering of Live,
 Rilevazioni, Foto e log, Sistema and Guida.
+
+The follow-up simplification keeps Rilevazioni focused on the AI action,
+analysis state and latest result. First-use guidance, mission metrics, replay
+controls, event history and raw detections remain available in collapsed
+sections. Sistema now leads with temperature/resources and actionable errors;
+component and device inventories are grouped under one technical disclosure.
+Desktop and 390x844 mobile browser checks confirmed that the hidden sections
+open correctly and retain their runtime DOM targets.

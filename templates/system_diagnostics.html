@@ -29,6 +29,28 @@
       </div>
     </section>
 
+    <section class="system-errors panel system-errors-primary">
+      <div class="panel-head">
+        <div>
+          <span class="panel-kicker">Controllo rapido</span>
+          <h2 class="panel-title">Problemi che richiedono attenzione</h2>
+          <p class="panel-copy">Se questa sezione è vuota, non devi intervenire.</p>
+        </div>
+        <a class="panel-link panel-link-icon" href="/snapshots?severity=error"><span>Apri registro →</span></a>
+      </div>
+      <div class="system-errors-empty" id="system-errors-empty-state" hidden>
+        <svg class="system-empty-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M20 12.5a8 8 0 1 1-4.3-7.1"></path>
+          <path d="m10.2 12.2 2.1 2.1 4.1-4.9"></path>
+        </svg>
+        <span>Nessun errore recente</span>
+      </div>
+      <div class="system-error-list" id="system-errors-list"></div>
+    </section>
+
+    <details class="panel system-technical-details">
+      <summary><span><span class="panel-kicker">Diagnostica</span><strong>Servizi e dispositivi</strong></span><span>Apri dettagli tecnici</span></summary>
+      <div class="system-technical-content">
     <section class="system-status panel">
       <div class="panel-head">
         <div>
@@ -70,19 +92,7 @@
       </div>
       <div class="system-device-list" id="system-device-list"></div>
     </section>
-
-    <section class="system-errors panel">
-      <a class="panel-link panel-link-icon" href="/snapshots?severity=error">
-        <span>Vedi tutti nel log →</span>
-      </a>
-      <div class="system-errors-empty" id="system-errors-empty-state" hidden>
-        <svg class="system-empty-icon" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M20 12.5a8 8 0 1 1-4.3-7.1"></path>
-          <path d="m10.2 12.2 2.1 2.1 4.1-4.9"></path>
-        </svg>
-        <span>Nessun errore recente</span>
       </div>
-      <div class="system-error-list" id="system-errors-list"></div>
-    </section>
+    </details>
   </section>
 {% endblock %}

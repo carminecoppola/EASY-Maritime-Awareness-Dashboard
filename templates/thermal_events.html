@@ -4,11 +4,14 @@
 
 {% block content %}
   <section class="detections-page">
-    <section class="analysis-guide" aria-label="Come funziona l'analisi">
-      <div><span>1</span><strong>Avvia</strong><p>Si apre una missione e parte il motore AI.</p></div>
-      <div><span>2</span><strong>Osserva</strong><p>I frame vengono analizzati in sequenza.</p></div>
-      <div><span>3</span><strong>Archivia</strong><p>Rilevazioni ed eventi restano salvati sulla Raspberry.</p></div>
-    </section>
+    <details class="analysis-guide-details panel">
+      <summary><span><span class="ai-section-label">Prima volta?</span><strong>Come funziona l’analisi</strong></span><span>3 passaggi</span></summary>
+      <section class="analysis-guide" aria-label="Come funziona l'analisi">
+        <div><span>1</span><strong>Avvia</strong><p>Si apre una missione e parte il motore AI.</p></div>
+        <div><span>2</span><strong>Osserva</strong><p>I frame vengono analizzati in sequenza.</p></div>
+        <div><span>3</span><strong>Archivia</strong><p>Rilevazioni ed eventi restano salvati sulla Raspberry.</p></div>
+      </section>
+    </details>
 
     <section class="ai-control-bar" aria-label="Controlli AI">
       <div class="ai-control-meta">
@@ -79,6 +82,8 @@
         </div>
       </div>
 
+      <details class="session-details">
+        <summary>Mostra dettagli della missione</summary>
       <div class="session-info-grid" id="session-info-grid">
         <article class="session-info-item"><span>Stato</span><strong id="session-info-status">—</strong></article>
         <article class="session-info-item"><span>Durata</span><strong id="session-info-duration">—</strong></article>
@@ -93,6 +98,7 @@
         <article class="session-info-item"><span>Navi</span><strong id="session-metric-ship-count">0</strong></article>
         <article class="session-info-item"><span>Boe</span><strong id="session-metric-buoy-count">0</strong></article>
       </div>
+      </details>
     </section>
 
     <details class="operations-panel panel">
@@ -171,7 +177,12 @@
       </div>
     </section>
 
-    <section class="events-panel panel" aria-label="Event Timeline">
+    <details class="events-panel panel events-history-details">
+      <summary>
+        <span><span class="ai-section-label">Cronologia</span><strong>Eventi recenti</strong></span>
+        <span>Apri cronologia</span>
+      </summary>
+      <section aria-label="Event Timeline">
       <div class="events-panel-head">
         <div>
           <span class="ai-section-label">Cronologia</span>
@@ -189,7 +200,8 @@
         <strong>Nessun evento in timeline</strong>
         <p>La cronologia apparirà qui non appena il sistema inizierà a produrre eventi.</p>
       </div>
-    </section>
+      </section>
+    </details>
 
     <details class="debug-panel panel">
       <summary class="debug-panel-summary">
