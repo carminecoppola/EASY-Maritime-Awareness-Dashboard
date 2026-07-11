@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ asset_version }}">
   </head>
   <body class="dashboard-shell view-simple" data-page="{{ page_key }}">
+    <a class="skip-link" href="#dashboard-content">Vai al contenuto</a>
     <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
     <main class="shell">
       <header class="topbar">
@@ -15,9 +16,8 @@
           <div class="brand-block">
             <img class="brand-logo" src="{{ url_for('static', filename='img/easy-logo.svg') }}" alt="EASY">
             <div>
-              <p class="eyebrow">Environmental Awareness by the Sea and beYond</p>
-              <h1>{{ page_title }}</h1>
-              <p class="subline">{{ page_subtitle }}</p>
+              <p class="brand-name">EASY</p>
+              <p class="eyebrow">Maritime awareness</p>
             </div>
           </div>
           <div class="topbar-controls">
@@ -74,7 +74,18 @@
         </div>
       </header>
 
-      {% block content %}{% endblock %}
+      <section class="page-heading" aria-labelledby="page-title">
+        <div>
+          <span class="page-heading-kicker">Centro operativo</span>
+          <h1 id="page-title">{{ page_title }}</h1>
+          <p>{{ page_subtitle }}</p>
+        </div>
+        <a class="page-help-link" href="/help">Come si usa?</a>
+      </section>
+
+      <div id="dashboard-content">
+        {% block content %}{% endblock %}
+      </div>
 
       <footer class="app-footer" aria-label="Informazioni dashboard">
         <div class="app-footer-brand">

@@ -33,20 +33,16 @@
       </div>
     </div>
 
-    <div class="live-explainer">
+    <div class="live-explainer" aria-live="polite">
       <strong>Questa pagina è sempre in diretta.</strong>
       <span>I video scorrono continuamente; stato, FPS e missione si aggiornano automaticamente ogni 2,5 secondi.</span>
     </div>
 
-    <section class="panel operator-guide-panel" aria-label="Guida rapida operatore">
-      <div class="panel-head">
-        <div>
-          <span class="panel-kicker">Guida rapida</span>
-          <h2 class="panel-title">Come usare la dashboard in missione</h2>
-          <p class="panel-copy">Il flusso corretto è sempre lo stesso: controlla il live, apri una missione, acquisisci dati, poi verifica archivio e log.</p>
-        </div>
-        <span class="badge badge-online">Primi passi</span>
-      </div>
+    <details class="panel operator-guide-panel" aria-label="Guida rapida operatore">
+      <summary>
+        <span><span class="panel-kicker">Guida rapida</span><strong>Come svolgere una missione</strong></span>
+        <span class="operator-guide-summary-copy">4 passaggi · apri solo se ti serve</span>
+      </summary>
       <ol class="operator-guide-steps">
         <li>
           <strong>Controlla il live</strong>
@@ -65,7 +61,7 @@
           <span>Foto e log mostrano cosa è stato salvato; il dataset qui sotto conferma se i campioni sono accoppiati.</span>
         </li>
       </ol>
-    </section>
+    </details>
 
     <section class="mission-command-bar" id="live-mission-command-bar" aria-live="polite">
       <div class="mission-command-state">
