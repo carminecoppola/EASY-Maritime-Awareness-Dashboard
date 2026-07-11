@@ -56,9 +56,9 @@ The runtime validator waits up to 30 seconds for Flask and the hardware runtime
 to become ready after a service restart. Override the limit with
 `EASY_STARTUP_TIMEOUT_SECONDS` when startup checks intentionally take longer.
 
-`start.sh` is the operator/manual launcher with preflight output and tunnel
-instructions. The systemd unit uses `scripts/run_service.sh`, a minimal
-non-interactive launcher for the Flask process.
+The systemd unit uses `scripts/run_service.sh`, a minimal non-interactive
+launcher for Flask. `start.sh` remains available only for local diagnostics on
+the Raspberry; remote operation should use the single Mac launcher below.
 
 ## Access
 
@@ -69,28 +69,37 @@ http://<Raspberry_IP>:5000
 ```
 
 Purple exposes the Raspberry SSH server only on its loopback address through
-the persistent reverse tunnel `rainbow-tunnel.service`. Start the dashboard on
-the Raspberry, then run this command in a second terminal on the Mac:
-
-```bash
-curl -fsS --max-time 2 http://127.0.0.1:5500/ >/dev/null || \
-  ssh -fNT -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 \
-    -L 5500:127.0.0.1:5000 \
-    -J ccoppola@193.205.230.76 \
-    -p 44222 pi@127.0.0.1
-open http://127.0.0.1:5500
-```
-
-The command reuses a working local tunnel when one already exists. Otherwise,
-SSH moves to the background after creating it. Safari then opens automatically.
-Port `5500` is used on the Mac to avoid the macOS AirPlay service that may
-already occupy local port `5000`; Flask continues to listen on Raspberry port
+the persistent reverse tunnel `rainbow-tunnel.service`. The Mac launcher below
+handles service startup, readiness, the local tunnel and Safari. Port `5500` is
+preferred on the Mac to avoid the macOS AirPlay service; if occupied, the
+launcher selects the next available port. Flask remains on Raspberry port
 `5000`.
 
 The two SSH ports have different roles:
 
 - Purple SSH uses its normal port `22`.
 - Port `44222` exists only on Purple loopback and reaches Raspberry SSH.
+
+### Un solo comando dal Mac
+
+Quando lavori senza accesso fisico alla Raspberry, non lanciare Flask a mano e
+non aprire un browser sulla Raspberry. Dal clone del progetto sul Mac esegui:
+
+```bash
+./scripts/easy_dashboard_mac.sh
+```
+
+Il launcher riavvia `easy-dashboard.service` via SSH, aspetta `/health`, sceglie
+una porta locale libera a partire da `5500`, crea il tunnel e apre Safari solo
+quando la dashboard è raggiungibile. Il codice sulla Raspberry deve essere già
+allineato con `git pull --ff-only`; il launcher non aggiorna il repository in
+automatico.
+
+I parametri possono essere sovrascritti senza modificare lo script, per esempio:
+
+```bash
+EASY_LOCAL_PORT=5600 EASY_TARGET_PORT=44222 ./scripts/easy_dashboard_mac.sh
+```
 
 ## Debug
 

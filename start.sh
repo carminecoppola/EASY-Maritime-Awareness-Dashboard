@@ -10,15 +10,8 @@ if [[ ! -x "${PYTHON_BIN}" ]]; then
 fi
 
 APP_URL="http://127.0.0.1:5000"
-JUMP_USER="${EASY_JUMP_USER:-ccoppola}"
-JUMP_HOST="${EASY_JUMP_HOST:-193.205.230.76}"
-TARGET_USER="${EASY_TARGET_USER:-pi}"
-TARGET_HOST="${EASY_TARGET_HOST:-127.0.0.1}"
-TARGET_PORT="${EASY_TARGET_PORT:-44222}"
 REMOTE_APP_PORT="${EASY_REMOTE_APP_PORT:-5000}"
-LOCAL_PORT="${EASY_LOCAL_PORT:-5500}"
 RASPBERRY_IP="$(hostname -I | awk '{print $1}')"
-MAC_TUNNEL_COMMAND="ssh -fNT -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -L ${LOCAL_PORT}:127.0.0.1:${REMOTE_APP_PORT} -J ${JUMP_USER}@${JUMP_HOST} -p ${TARGET_PORT} ${TARGET_USER}@${TARGET_HOST} && open http://127.0.0.1:${LOCAL_PORT}"
 
 ./preflight_check.sh || true
 echo
@@ -32,14 +25,12 @@ else
   echo "Check it with: systemctl status rainbow-tunnel.service"
 fi
 echo
-echo "COMMAND TO RUN ON THE MAC"
-echo "-------------------------"
+echo "REMOTE ACCESS FROM THE MAC"
+echo "--------------------------"
 echo
-echo "   ${MAC_TUNNEL_COMMAND}"
-echo
-echo "Safari URL: http://127.0.0.1:${LOCAL_PORT}"
-echo "Run the command after restarting the Mac. If the tunnel is already active,"
-echo "just open or refresh the Safari URL above."
+echo "From the Mac repository run:"
+echo "   ./scripts/easy_dashboard_mac.sh"
+echo "It manages systemd, readiness, the SSH tunnel and Safari."
 echo
 
 if [[ "${EASY_OPEN_BROWSER:-1}" == "1" && -n "${DISPLAY:-}" ]]; then
