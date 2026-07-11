@@ -3,24 +3,8 @@ function reloadThermalFrame() {
   if (node) node.src = `/thermal/frame?ts=${Date.now()}`;
 }
 
-async function fetchJson(url, options = {}) {
-  try {
-    const response = await fetch(url, { cache: "no-store", ...options });
-    let data = null;
-    try {
-      data = await response.json();
-    } catch (parseError) {
-      data = null;
-    }
-    return { ok: response.ok, status: response.status, data };
-  } catch (error) {
-    return { ok: false, status: 0, error };
-  }
-}
-
 async function streamControl(feed, action) {
-  const response = await fetch(`/video/${feed}/${action}`, { method: "POST" });
-  return response.json();
+  return DashboardApi.action(`/video/${feed}/${action}`);
 }
 
 async function snapshot(feed) {
@@ -35,11 +19,11 @@ async function snapshot(feed) {
     overlay.classList.remove("feed-overlay-hidden");
   }
   try {
-    const response = await fetch(`/snapshot/${feed}`, {
+    const response = await DashboardApi.request(`/snapshot/${feed}`, {
       method: "POST",
       headers: { Accept: "application/json" },
     });
-    const payload = await response.json();
+    const payload = response.data || {};
     if (!response.ok || !payload.ok) {
       const fallbackUrl = payload?.snapshot?.url || payload?.url;
       const fallbackFilename = payload?.snapshot?.filename || payload?.filename;
@@ -78,21 +62,7 @@ async function snapshot(feed) {
 }
 
 async function callInferenceAction(path, body = null) {
-  const response = await fetch(path, {
-    method: "POST",
-    headers: body ? { "Content-Type": "application/json" } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  let payload = null;
-  try {
-    payload = await response.json();
-  } catch (error) {
-    payload = null;
-  }
-  if (!response.ok || payload?.ok === false) {
-    throw new Error(payload?.error || payload?.message || `Request failed (${response.status})`);
-  }
-  return payload;
+  return DashboardApi.action(path, body);
 }
 
 function setFeedOverlay(feed, visible, message) {
@@ -255,7 +225,10 @@ function applyDashboardPayload(payload) {
 
 async function refreshDashboard() {
   try {
-    const stateRes = await fetchJson("/api/dashboard/state?events_limit=9999&snapshots_limit=12");
+    const stateRes = await DashboardApi.request("/api/dashboard/state?events_limit=9999&snapshots_limit=12");
+    if (!stateRes.ok || !stateRes.data) {
+      throw new Error(stateRes.message || `Aggiornamento non riuscito (${stateRes.status})`);
+    }
     const payload = stateRes.data || {};
     applyDashboardPayload(payload);
   } catch (error) {
