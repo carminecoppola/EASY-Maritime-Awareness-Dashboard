@@ -3,6 +3,7 @@ from __future__ import annotations
 """Validate and package session manifests for reproducible fine-tuning."""
 
 import hashlib
+import json
 import shutil
 import time
 import uuid
@@ -17,7 +18,37 @@ class DatasetExporter:
         self.session_manager = session_manager
         self.export_root = Path(export_root)
         self.export_root.mkdir(parents=True, exist_ok=True)
-        self._last_export: Dict[str, Any] | None = None
+        self.index_path = self.export_root / "index.json"
+        self._last_export: Dict[str, Any] | None = self._load_latest_export()
+
+    def _load_latest_export(self) -> Dict[str, Any] | None:
+        """Restore the latest valid export after a service restart."""
+        try:
+            payload = json.loads(self.index_path.read_text(encoding="utf-8"))
+            exports = payload.get("exports", []) if isinstance(payload, dict) else []
+            return next((item for item in exports if Path(str(item.get("archive_path") or "")).is_file()), None)
+        except (OSError, ValueError, TypeError):
+            return None
+
+    def _read_index(self) -> list[Dict[str, Any]]:
+        try:
+            payload = json.loads(self.index_path.read_text(encoding="utf-8"))
+            return list(payload.get("exports", [])) if isinstance(payload, dict) else []
+        except (OSError, ValueError, TypeError):
+            return []
+
+    def _write_index(self, exports: list[Dict[str, Any]]) -> None:
+        atomic_write_json(self.index_path, {"schema": "easy.dataset.exports.v1", "exports": exports, "updated_at": utc_now_iso()})
+
+    @staticmethod
+    def _path_size(path: Path) -> int:
+        if path.is_file():
+            return path.stat().st_size
+        return sum(item.stat().st_size for item in path.rglob("*") if item.is_file()) if path.is_dir() else 0
+
+    def _export_size(self, item: Dict[str, Any]) -> int:
+        paths = [Path(str(item.get(key))) for key in ("path", "archive_path") if item.get(key)]
+        return sum(self._path_size(path) for path in paths if path.parent == self.export_root)
 
     @staticmethod
     def _split_for(sample_id: str, validation_percent: int) -> str:
@@ -153,7 +184,52 @@ class DatasetExporter:
             "counts": counts,
             "created_at": dataset_payload["created_at"],
         }
+        exports = [self._last_export, *[item for item in self._read_index() if item.get("export_id") != export_id]]
+        self._write_index(exports)
         return dict(self._last_export)
 
     def status(self) -> Dict[str, Any]:
-        return {"ok": True, "export_root": str(self.export_root), "last_export": self._last_export, "updated_at": utc_now_iso()}
+        exports = self._read_index()
+        valid_exports = [item for item in exports if Path(str(item.get("archive_path") or "")).is_file()]
+        usage = shutil.disk_usage(self.export_root)
+        return {
+            "ok": True,
+            "export_root": str(self.export_root),
+            "last_export": self._last_export,
+            "exports_count": len(valid_exports),
+            "exports_size_bytes": sum(self._export_size(item) for item in valid_exports),
+            "disk": {"total_bytes": usage.total, "used_bytes": usage.used, "free_bytes": usage.free, "used_percent": round((usage.used / usage.total) * 100, 1) if usage.total else 0},
+            "retention": self.retention_plan(keep_latest=5),
+            "updated_at": utc_now_iso(),
+        }
+
+    def retention_plan(self, *, keep_latest: int = 5) -> Dict[str, Any]:
+        """Describe removable exports without deleting operator data."""
+        keep_latest = max(1, min(100, int(keep_latest)))
+        exports = self._read_index()
+        removable = exports[keep_latest:]
+        return {
+            "keep_latest": keep_latest,
+            "remove_count": len(removable),
+            "reclaimable_bytes": sum(self._export_size(item) for item in removable),
+            "export_ids": [item.get("export_id") for item in removable],
+        }
+
+    def apply_retention(self, *, keep_latest: int = 5) -> Dict[str, Any]:
+        """Delete only exports selected by the explicit keep-latest policy."""
+        exports = self._read_index()
+        plan = self.retention_plan(keep_latest=keep_latest)
+        remove_ids = set(plan["export_ids"])
+        for item in exports:
+            if item.get("export_id") not in remove_ids:
+                continue
+            archive = Path(str(item.get("archive_path") or ""))
+            directory = Path(str(item.get("path") or ""))
+            if archive.is_file() and archive.parent == self.export_root:
+                archive.unlink()
+            if directory.is_dir() and directory.parent == self.export_root:
+                shutil.rmtree(directory)
+        remaining = [item for item in exports if item.get("export_id") not in remove_ids]
+        self._write_index(remaining)
+        self._last_export = next((item for item in remaining if Path(str(item.get("archive_path") or "")).is_file()), None)
+        return {"ok": True, "removed": len(remove_ids), "reclaimed_bytes": plan["reclaimable_bytes"], "last_export": self._last_export}

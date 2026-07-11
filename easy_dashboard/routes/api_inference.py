@@ -217,6 +217,22 @@ def api_dataset_export_status():
     return jsonify(get_runtime().dataset_exporter.status())
 
 
+@api_inference_bp.route("/api/dataset/export/retention", methods=["GET", "POST"])
+def api_dataset_export_retention():
+    payload = _parse_json_payload() if request.method == "POST" else {}
+    raw_keep = payload.get("keep_latest", request.args.get("keep_latest", 5))
+    try:
+        keep_latest = int(raw_keep)
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "keep_latest deve essere un numero intero"}), 400
+    exporter = get_runtime().dataset_exporter
+    if request.method == "GET":
+        return jsonify({"ok": True, "plan": exporter.retention_plan(keep_latest=keep_latest)})
+    if payload.get("confirm") is not True:
+        return jsonify({"ok": False, "error": "Impostare confirm=true per applicare la retention", "plan": exporter.retention_plan(keep_latest=keep_latest)}), 400
+    return jsonify(exporter.apply_retention(keep_latest=keep_latest))
+
+
 @api_inference_bp.route("/api/dataset/export/download", methods=["GET"])
 def api_dataset_export_download():
     latest = get_runtime().dataset_exporter.status().get("last_export") or {}

@@ -121,6 +121,29 @@ UI.
 See `docs/technical_optimization_plan.md` for the next structural steps toward
 a cleaner acquisition, inference, and dataset pipeline.
 
+### Raspberry performance and storage checks
+
+After restarting the service, run the normal validation and a short read-only
+API benchmark:
+
+```bash
+./scripts/validate_raspberry_runtime.sh
+./scripts/benchmark_raspberry_runtime.py --runs 20
+```
+
+Add `--inference` only when you intentionally want to benchmark the currently
+selected source and model. Export status survives service restarts and includes
+disk usage plus a retention preview:
+
+```bash
+curl http://127.0.0.1:5000/api/dataset/export/status
+curl 'http://127.0.0.1:5000/api/dataset/export/retention?keep_latest=5'
+```
+
+Retention never runs automatically. Applying it requires an explicit POST with
+`confirm: true`, so an operator can inspect the preview before removing old
+export packages.
+
 For day-to-day usage, see `docs/user_guide.md` or open `/help` from the
 dashboard footer.
 
