@@ -82,6 +82,10 @@ schema for:
 Expected benefit: the UI can show "available", "selected", "streaming",
 "recording", and "inferable" without guessing from several payloads.
 
+First pass done. Source payloads now expose explicit `availability` and
+`capabilities` fields. The UI uses them to distinguish live viewing, snapshot
+capture and AI inference support without deriving behavior from source names.
+
 ### 4. Promote acquisition to a first-class service
 
 First pass done. `AcquisitionManager` now records runtime artifacts into the

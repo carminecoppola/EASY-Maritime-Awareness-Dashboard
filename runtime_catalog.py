@@ -23,6 +23,7 @@ class RuntimeEndpointSpec:
     device_status: str
     device_health: str
     source_enabled: bool = True
+    source_capabilities: dict[str, Any] = field(default_factory=dict)
     device_configuration: dict[str, Any] = field(default_factory=dict)
     source_configuration: dict[str, Any] = field(default_factory=dict)
 
@@ -52,6 +53,12 @@ def build_runtime_endpoint_catalog(runtime_root: Path | str, replay_root: Path |
                 "role": "primary_replay",
                 "supports_live": False,
             },
+            source_capabilities={
+                "live": False,
+                "capture": False,
+                "inference": True,
+                "dataset_role": "replay",
+            },
         ),
         RuntimeEndpointSpec(
             endpoint_id="rgb_left",
@@ -72,6 +79,12 @@ def build_runtime_endpoint_catalog(runtime_root: Path | str, replay_root: Path |
                 "provider": "RGB",
                 "side": "left",
                 "supports_live": True,
+            },
+            source_capabilities={
+                "live": True,
+                "capture": True,
+                "inference": False,
+                "dataset_role": "rgb_left",
             },
         ),
         RuntimeEndpointSpec(
@@ -94,6 +107,12 @@ def build_runtime_endpoint_catalog(runtime_root: Path | str, replay_root: Path |
                 "side": "right",
                 "supports_live": True,
             },
+            source_capabilities={
+                "live": True,
+                "capture": True,
+                "inference": False,
+                "dataset_role": "rgb_right",
+            },
         ),
         RuntimeEndpointSpec(
             endpoint_id="thermal",
@@ -112,6 +131,12 @@ def build_runtime_endpoint_catalog(runtime_root: Path | str, replay_root: Path |
                 "transport": "flir",
                 "provider": "THERMAL",
                 "supports_live": True,
+            },
+            source_capabilities={
+                "live": True,
+                "capture": True,
+                "inference": False,
+                "dataset_role": "thermal",
             },
         ),
     ]

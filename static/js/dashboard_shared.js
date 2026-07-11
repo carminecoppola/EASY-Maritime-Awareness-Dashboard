@@ -165,9 +165,18 @@ function renderSourcePanel(payload) {
     const tone = stateTone(source.status);
     const label = humanStateLabel(source.status);
     const isSelected = Boolean(source.selected);
+    const capabilities = source.capabilities || {};
+    const availability = source.availability || {};
+    const selectable = availability.selectable !== false;
     const updated = source.last_update ? formatRomeDateTime(source.last_update) : "--";
+    const sourceTypeLabels = {
+      replay_folder: "Archivio replay",
+      camera_placeholder: "Camera RGB",
+      thermal_placeholder: "Camera termica",
+    };
+    const sourceTypeLabel = sourceTypeLabels[source.type] || String(source.type || "Sorgente").replace(/_/g, " ");
     const configBits = [];
-    if (source.type) configBits.push(source.type.replace(/_/g, " "));
+    configBits.push(sourceTypeLabel);
     if (source.configuration?.replay_dir) configBits.push(compactPath(source.configuration.replay_dir));
     if (source.configuration?.provider) configBits.push(source.configuration.provider);
     return `
@@ -180,6 +189,11 @@ function renderSourcePanel(payload) {
           <span class="badge badge-${tone.badge}">${escapeHtml(label)}</span>
         </div>
         <div class="source-card-body">
+          <div class="source-capability-list" aria-label="Funzioni disponibili">
+            ${capabilities.live ? '<span class="source-capability is-available">Live</span>' : ''}
+            ${capabilities.capture ? '<span class="source-capability is-available">Foto</span>' : ''}
+            ${capabilities.inference ? '<span class="source-capability is-available">Analisi AI</span>' : '<span class="source-capability is-muted">AI non collegata</span>'}
+          </div>
           <div class="source-status-line">
             <span class="state-dot ${tone.dot}"></span>
             <span>${escapeHtml(source.enabled ? "Abilitata" : "Disabilitata")}</span>
@@ -190,12 +204,12 @@ function renderSourcePanel(payload) {
           </div>
           <div class="source-card-meta">
             <span>Tipo</span>
-            <strong>${escapeHtml(source.type || "--")}</strong>
+            <strong>${escapeHtml(sourceTypeLabel)}</strong>
           </div>
         </div>
         <div class="source-card-actions">
-          <button class="btn btn-small ${isSelected ? "btn-primary" : "btn-ghost"}" type="button" data-source-select="${escapeHtml(source.id || "")}" ${isSelected ? "disabled" : ""}>
-            ${escapeHtml(isSelected ? "Attiva" : "Seleziona")}
+          <button class="btn btn-small ${isSelected ? "btn-primary" : "btn-ghost"}" type="button" data-source-select="${escapeHtml(source.id || "")}" ${isSelected || !selectable ? "disabled" : ""}>
+            ${escapeHtml(isSelected ? "Attiva" : selectable ? "Seleziona" : "Non disponibile")}
           </button>
           ${isSelected ? '<span class="source-selected-badge">Sorgente in uso</span>' : ""}
         </div>

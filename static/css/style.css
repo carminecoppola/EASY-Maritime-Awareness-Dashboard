@@ -804,6 +804,32 @@ h2 {
   gap: 10px;
 }
 
+.source-capability-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.source-capability {
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  padding: 0.25rem 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.source-capability.is-available {
+  border-color: rgba(42, 190, 142, 0.32);
+  background: rgba(42, 190, 142, 0.1);
+  color: var(--online);
+}
+
+.source-capability.is-muted {
+  opacity: 0.72;
+}
+
 .source-status-line {
   display: inline-flex;
   align-items: center;
