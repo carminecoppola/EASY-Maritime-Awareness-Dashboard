@@ -42,6 +42,7 @@ for endpoint in \
   "/api/dashboard/state" \
   "/thermal/status" \
   "/api/acquisition/status" \
+  "/api/dataset/export/status" \
   "/api/session/status"; do
   echo "GET ${endpoint}"
   curl -fsS "${BASE_URL}${endpoint}" >/dev/null

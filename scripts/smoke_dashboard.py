@@ -99,7 +99,9 @@ def main() -> int:
     assert_ok("/api/acquisition/capture-set" in routes, "coordinated capture route is not registered")
     assert_ok("/api/dataset/export" in routes, "dataset export route is not registered")
     export_status = client.get("/api/dataset/export/status").get_json()
-    require_keys(export_status, ["ok", "export_root", "last_export"], "/api/dataset/export/status")
+    require_keys(export_status, ["ok", "export_root", "last_export", "exports_count", "exports_size_bytes", "disk", "retention"], "/api/dataset/export/status")
+    retention = client.get("/api/dataset/export/retention?keep_latest=5").get_json()
+    require_keys(retention, ["ok", "plan"], "/api/dataset/export/retention")
 
     sources = client.get("/api/sources/status").get_json()
     assert_ok(isinstance(sources, dict), "/api/sources/status did not return JSON")

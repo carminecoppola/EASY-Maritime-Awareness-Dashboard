@@ -144,9 +144,11 @@ samples enter the package; missing or incomplete artifacts are reported and
 excluded. Exports use deterministic train/validation assignment and include a
 portable `dataset.json`, validation report, organized images and ZIP archive.
 
-1. Complete technical hardening: sustained Raspberry benchmarks, storage
-   retention and automated regression coverage.
-2. Run a dedicated final UI/UX redesign phase: information architecture,
+Technical hardening is now implemented: export metadata survives service
+restarts, storage usage and a safe retention preview are exposed, and the
+Raspberry benchmark script produces repeatable latency/success summaries.
+
+1. Run a dedicated final UI/UX redesign phase: information architecture,
    visual hierarchy, interaction feedback, responsive behavior, accessibility
    and full operator-flow browser validation.
 
