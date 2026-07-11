@@ -115,6 +115,10 @@ def main() -> int:
     assert_ok(isinstance(snapshots, dict), "/api/snapshots/recent did not return JSON")
     require_keys(snapshots, ["count", "items", "feeds", "summary"], "/api/snapshots/recent")
 
+    runtime_script = (PROJECT_ROOT / "static" / "js" / "dashboard_runtime.js").read_text(encoding="utf-8")
+    assert_ok("DOMContentLoaded" in runtime_script, "dashboard runtime must not wait for endless media streams")
+    assert_ok('addEventListener("load"' not in runtime_script, "dashboard runtime still waits for window.load")
+
     thermal = client.get("/thermal/status").get_json()
     assert_ok(isinstance(thermal, dict), "/thermal/status did not return JSON")
     require_keys(
