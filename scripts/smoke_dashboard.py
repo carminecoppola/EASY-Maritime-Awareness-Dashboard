@@ -61,6 +61,8 @@ def main() -> int:
         html = response.get_data(as_text=True)
         assert_no_duplicate_ids(route, html)
         assert_ok("dashboard_api.js" in html, f"{route} does not load the shared API client")
+        if route == "/":
+            assert_ok("live-secondary-details" in html, "Live page must keep advanced data collapsed")
 
     state = client.get("/api/dashboard/state").get_json()
     assert_ok(isinstance(state, dict), "/api/dashboard/state did not return JSON")
@@ -132,7 +134,7 @@ def main() -> int:
     assert_ok(isinstance(thermal, dict), "/thermal/status did not return JSON")
     require_keys(
         thermal,
-        ["status", "device", "configured_device", "input_format", "video_size", "discovery_method"],
+        ["status", "device", "configured_device", "input_format", "video_size", "discovery_method", "streaming"],
         "/thermal/status",
     )
 
