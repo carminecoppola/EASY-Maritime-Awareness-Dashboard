@@ -104,6 +104,10 @@ def main() -> int:
     for source in sources["sources"]:
         require_keys(source, ["id", "status", "selected", "availability", "capabilities"], f"source {source.get('id')}")
         require_keys(source["availability"], ["available", "selectable", "streaming"], f"source {source.get('id')} availability")
+    source_capabilities = {source["id"]: source["capabilities"] for source in sources["sources"]}
+    assert_ok(source_capabilities["rgb_left"]["inference"] is True, "RGB left must support live inference")
+    assert_ok(source_capabilities["rgb_right"]["inference"] is True, "RGB right must support live inference")
+    assert_ok(source_capabilities["thermal"]["inference"] is False, "thermal must not use the RGB model")
 
     inference = client.get("/api/inference/status").get_json()
     assert_ok(isinstance(inference, dict), "/api/inference/status did not return JSON")

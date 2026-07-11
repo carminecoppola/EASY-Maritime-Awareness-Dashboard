@@ -800,6 +800,24 @@ class InferenceWorker:
     def frame_provider_status(self) -> Dict[str, Any]:
         return self.frame_provider.status()
 
+    def sync_selected_source(self) -> Dict[str, Any]:
+        """Align the unified provider with the operator-selected source."""
+        source = self._selected_source()
+        source_id = str(source.get("id") or "replay")
+        if source_id == "replay":
+            replay_dir = self._resolve_active_replay_dir()
+            return self.frame_provider.configure(
+                source_type="REPLAY_FOLDER",
+                source_path=replay_dir,
+                source_name=str(source.get("name") or "Replay Folder"),
+                loop=True,
+                save_temp_frames=False,
+            )
+        source_type = {"rgb_left": "RGB_LEFT", "rgb_right": "RGB_RIGHT"}.get(source_id)
+        if not source_type:
+            raise ValueError(f"La sorgente {source.get('name') or source_id} non è compatibile con il modello RGB")
+        return self.frame_provider.configure_live_source(source_type)
+
     def run_on_next_frame(self) -> Dict[str, Any]:
         frame = self._next_frame_object()
         return self.run_on_frame(frame)

@@ -73,9 +73,16 @@ def api_sources_select():
     source_id = str(payload.get("source_id") or payload.get("id") or "").strip()
     if not source_id:
         return jsonify({"ok": False, "error": "source_id is required"}), 400
+    candidate = runtime.source_manager.get_source(source_id)
+    if candidate and not bool((candidate.get("capabilities") or {}).get("inference")):
+        return jsonify({"ok": False, "error": f"La sorgente {candidate.get('name') or source_id} non è compatibile con il modello RGB"}), 409
     result = runtime.source_manager.select_source(source_id)
     if result.get("ok") is False:
         return jsonify(result), 404
+    try:
+        result["frame_provider"] = runtime.inference.sync_selected_source()
+    except Exception as exc:
+        return jsonify({**result, "ok": False, "error": str(exc)}), 409
     return jsonify(result)
 
 

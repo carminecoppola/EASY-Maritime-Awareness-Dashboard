@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import json
+import io
 import threading
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
 from PIL import Image
@@ -380,6 +381,36 @@ class CameraFrameProvider(BaseFrameProvider):
         raise FrameProviderError(f"Camera provider placeholder for {camera_label} is not available in this phase")
 
 
+class LiveCallbackFrameProvider(BaseFrameProvider):
+    """Read a frame from the runtime that already owns the physical camera."""
+
+    def __init__(self, *, source_type: str, frame_supplier: Callable[[], tuple[bytes, bool]], **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.source_type = source_type
+        self.frame_supplier = frame_supplier
+        self._frame_index = 0
+
+    def next_frame(self, *, session_id: str | None = None) -> FrameObject:
+        jpeg_bytes, usable = self.frame_supplier()
+        if not usable:
+            raise FrameProviderError(f"Live source {self.source_name} is not delivering a usable frame")
+        try:
+            image = np.asarray(Image.open(io.BytesIO(jpeg_bytes)).convert("RGB"))
+        except Exception as exc:
+            raise FrameProviderError(f"Unable to decode live frame from {self.source_name}: {exc}") from exc
+        frame = self._build_frame(
+            image=image,
+            image_path=None,
+            metadata={"provider": "LiveCallbackFrameProvider", "live": True},
+            session_id=session_id,
+            frame_index=self._frame_index,
+            sequence_id=self.source_name,
+            camera_id=self.source_type.lower(),
+        )
+        self._frame_index += 1
+        return frame
+
+
 class FrameProviderFactory:
     @staticmethod
     def normalize_source_type(source_type: str | None) -> str:
@@ -426,7 +457,38 @@ class UnifiedFrameProvider:
             save_temp_frames=bool(self.config.get("save_temp_frames", False)),
         )
         self._last_error = ""
+        self._live_sources: Dict[str, tuple[str, Callable[[], tuple[bytes, bool]]]] = {}
         self._persist_status()
+
+    def register_live_source(
+        self,
+        source_type: str,
+        source_name: str,
+        frame_supplier: Callable[[], tuple[bytes, bool]],
+    ) -> None:
+        normalized = FrameProviderFactory.normalize_source_type(source_type)
+        if normalized not in {"RGB_LEFT", "RGB_RIGHT", "THERMAL"}:
+            raise ValueError(f"Unsupported live source type: {source_type}")
+        with self._lock:
+            self._live_sources[normalized] = (source_name, frame_supplier)
+
+    def configure_live_source(self, source_type: str) -> Dict[str, Any]:
+        normalized = FrameProviderFactory.normalize_source_type(source_type)
+        with self._lock:
+            registered = self._live_sources.get(normalized)
+            if not registered:
+                raise FrameProviderError(f"Live source is not registered: {normalized}")
+            source_name, supplier = registered
+            self.provider = LiveCallbackFrameProvider(
+                source_type=normalized,
+                source_name=source_name,
+                frame_supplier=supplier,
+                loop=True,
+                save_temp_frames=False,
+            )
+            self._last_error = ""
+            self._persist_status()
+            return self.status()
 
     def _persist_status(self) -> None:
         _atomic_write_json(FRAME_PROVIDER_STATUS_PATH, self.status())

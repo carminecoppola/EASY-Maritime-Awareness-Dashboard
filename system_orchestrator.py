@@ -216,6 +216,9 @@ class SystemOrchestrator:
             source_manager=self.source_manager,
         )
         self.frame_provider: UnifiedFrameProvider = self.inference.frame_provider
+        if self.rgb is not None and hasattr(self.rgb, "capture_snapshot"):
+            self.frame_provider.register_live_source("RGB_LEFT", "RGB LEFT", lambda: self.rgb.capture_snapshot("left"))
+            self.frame_provider.register_live_source("RGB_RIGHT", "RGB RIGHT", lambda: self.rgb.capture_snapshot("right"))
 
         self._register_managed_components()
         self._register_external_components()

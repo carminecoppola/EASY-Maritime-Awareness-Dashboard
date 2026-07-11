@@ -167,7 +167,7 @@ function renderSourcePanel(payload) {
     const isSelected = Boolean(source.selected);
     const capabilities = source.capabilities || {};
     const availability = source.availability || {};
-    const selectable = availability.selectable !== false;
+    const selectable = availability.selectable !== false && capabilities.inference === true;
     const updated = source.last_update ? formatRomeDateTime(source.last_update) : "--";
     const sourceTypeLabels = {
       replay_folder: "Archivio replay",
