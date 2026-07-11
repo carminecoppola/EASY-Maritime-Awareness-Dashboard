@@ -5219,6 +5219,120 @@ body[data-page="live"] .live-grid {
   }
 }
 
+.analysis-guide-details,
+.events-history-details,
+.system-technical-details {
+  padding: 0;
+  overflow: hidden;
+  background: rgba(12, 20, 17, 0.52);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.analysis-guide-details > summary,
+.events-history-details > summary,
+.system-technical-details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 16px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.analysis-guide-details > summary::-webkit-details-marker,
+.events-history-details > summary::-webkit-details-marker,
+.system-technical-details > summary::-webkit-details-marker { display: none; }
+
+.analysis-guide-details > summary strong,
+.events-history-details > summary strong,
+.system-technical-details > summary strong {
+  display: block;
+  font-size: 14px;
+}
+
+.analysis-guide-details > summary > span:last-child,
+.events-history-details > summary > span:last-child,
+.system-technical-details > summary > span:last-child {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.analysis-guide-details .analysis-guide {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--surface-border);
+  border-radius: 0;
+}
+
+.session-details {
+  margin-top: 14px;
+  border-top: 1px solid var(--surface-border);
+}
+
+.session-details > summary {
+  padding: 12px 2px 0;
+  color: var(--cta);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  list-style-position: inside;
+}
+
+.session-details .session-info-grid {
+  margin-top: 12px;
+}
+
+.events-history-details > section,
+.system-technical-content {
+  display: grid;
+  gap: 10px;
+  padding: 0 12px 12px;
+}
+
+.events-history-details .events-panel-head {
+  display: none;
+}
+
+.system-errors-primary {
+  border-color: rgba(0, 229, 160, 0.16);
+}
+
+.system-errors-primary:has(.system-error-row) {
+  border-color: rgba(255, 68, 68, 0.36);
+}
+
+.system-technical-content > .panel {
+  margin: 0;
+}
+
+@media (min-width: 901px) {
+  .ai-control-bar {
+    align-items: center;
+    flex-direction: row;
+  }
+
+  .ai-control-actions {
+    width: auto;
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 900px) {
+  .analysis-guide-details > summary,
+  .events-history-details > summary,
+  .system-technical-details > summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .analysis-guide-details > summary > span:last-child,
+  .events-history-details > summary > span:last-child,
+  .system-technical-details > summary > span:last-child {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     scroll-behavior: auto !important;

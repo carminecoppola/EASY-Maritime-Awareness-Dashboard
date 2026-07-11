@@ -63,6 +63,11 @@ def main() -> int:
         assert_ok("dashboard_api.js" in html, f"{route} does not load the shared API client")
         if route == "/":
             assert_ok("live-secondary-details" in html, "Live page must keep advanced data collapsed")
+        if route == "/thermal-events":
+            assert_ok("analysis-guide-details" in html, "Detection guide must be optional")
+            assert_ok("session-details" in html, "Mission metrics must be collapsed")
+        if route == "/system-diagnostics":
+            assert_ok("system-technical-details" in html, "System diagnostics must be collapsed")
 
     state = client.get("/api/dashboard/state").get_json()
     assert_ok(isinstance(state, dict), "/api/dashboard/state did not return JSON")
