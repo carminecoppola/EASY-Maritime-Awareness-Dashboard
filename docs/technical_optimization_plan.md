@@ -138,6 +138,10 @@ into backend classes:
 
 Expected benefit: model upgrades and Raspberry compatibility fixes are isolated.
 
+First pass done. `OnnxDetectionBackend` now owns lazy ONNX Runtime loading,
+CPU provider selection and tensor execution. `InferenceWorker` remains
+responsible for frame orchestration, result shaping and persistence.
+
 ### 7. Keep UI state boring and predictable
 
 The frontend should continue with page modules, but the polling should become

@@ -105,6 +105,8 @@ def main() -> int:
     inference = client.get("/api/inference/status").get_json()
     assert_ok(isinstance(inference, dict), "/api/inference/status did not return JSON")
     require_keys(inference, ["running", "backend", "model_path", "frame_provider"], "/api/inference/status")
+    require_keys(inference, ["backend_status"], "/api/inference/status")
+    require_keys(inference["backend_status"], ["name", "model_path", "loaded", "providers"], "inference backend")
 
     snapshots = client.get("/api/snapshots/recent").get_json()
     assert_ok(isinstance(snapshots, dict), "/api/snapshots/recent did not return JSON")

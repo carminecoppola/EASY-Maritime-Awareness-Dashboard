@@ -19,6 +19,8 @@ responsibilities are easy to find:
 - `easy_dashboard/presentation.py` — UI payload builders and page context helpers
 - `system_orchestrator.py` — lifecycle and health coordination of the runtime managers
 - `acquisition_manager.py` — indexes session artifacts for dataset/fine-tuning workflows
+- `inference_backend.py` — lazy ONNX Runtime loading and model execution
+- `inference_worker.py` — frame orchestration, result shaping, and persistence
 - `runtime/` — session data, replay data, runtime configs, and models
 - `docs/embedded/` — delivery notes and phase-by-phase implementation reports
 
