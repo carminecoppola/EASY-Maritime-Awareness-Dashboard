@@ -4928,7 +4928,8 @@ body[data-page="live"] .live-grid { order: 4; }
 body[data-page="live"] .live-summary-grid { order: 5; }
 body[data-page="live"] .dataset-session-panel { order: 6; }
 body[data-page="live"] .mission-sources-panel { order: 7; }
-body[data-page="live"] .operator-guide-panel { order: 8; }
+body[data-page="live"] .live-secondary-details { order: 5; }
+body[data-page="live"] .operator-guide-panel { order: 6; }
 
 body[data-page="live"] .live-statusbar {
   padding: 9px 11px;
@@ -5016,6 +5017,46 @@ body[data-page="live"] .live-grid {
   padding: 0;
   background: transparent;
   border-color: rgba(255, 255, 255, 0.08);
+}
+
+.live-secondary-details {
+  padding: 0;
+  overflow: hidden;
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(12, 20, 17, 0.5);
+}
+
+.live-secondary-details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 15px 16px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.live-secondary-details > summary::-webkit-details-marker { display: none; }
+
+.live-secondary-details > summary strong {
+  display: block;
+  font-size: 14px;
+}
+
+.live-secondary-details > summary > span:last-child {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.live-secondary-content {
+  display: grid;
+  gap: 10px;
+  padding: 0 12px 12px;
+}
+
+.live-secondary-content .dataset-session-panel,
+.live-secondary-content .mission-sources-panel {
+  margin: 0;
 }
 
 .operator-guide-panel summary {
@@ -5157,6 +5198,15 @@ body[data-page="live"] .live-grid {
   .operator-guide-panel summary {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .live-secondary-details > summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .live-secondary-details > summary > span:last-child {
+    display: none;
   }
 
   .operator-guide-summary-copy {

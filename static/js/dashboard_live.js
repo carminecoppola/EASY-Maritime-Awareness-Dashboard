@@ -165,8 +165,8 @@ function renderLivePage(health) {
       state: thermal.status || thermalCam.state || thermal.mode || "LOADING",
       fps: thermal.fps ?? thermal.frame_rate ?? thermalCam.fps ?? null,
       last: thermal.last_frame_ts || thermal.last_acquisition_ts || thermalCam.last_frame_ts || null,
-      device: "FLIR Lepton",
-      detected: Boolean(thermal.last_frame_ts || thermal.last_acquisition_ts || thermalCam.last_frame_ts),
+      device: thermal.error || (thermal.detected ? `${thermal.device || "FLIR"} rilevato, ma senza frame` : "FLIR Lepton non rilevato"),
+      detected: Boolean(thermal.detected || thermal.last_frame_ts || thermal.last_acquisition_ts || thermalCam.last_frame_ts),
     },
     {
       key: "rgb_right",

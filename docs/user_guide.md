@@ -4,6 +4,19 @@ Questa dashboard controlla le camere RGB, il sensore termico FLIR/PureThermal,
 gli snapshot e l’inferenza locale sulla Raspberry. L’obiettivo pratico è
 raccogliere dati ordinati per analisi e fine-tuning, non solo “vedere video”.
 
+## PureThermal rilevato ma senza streaming
+
+La presenza di `/dev/video0` conferma che la scheda USB è enumerata, non che
+stia producendo immagini. In `/thermal/status`, `streaming` deve essere `true`
+e `frame_seq` deve aumentare. Il backend interrompe una cattura senza frame dopo
+quattro secondi e attende 60 secondi prima di ritentare. Sopra 78 °C non avvia
+la cattura termica, così un dispositivo bloccato non mantiene la Raspberry sotto
+carico.
+
+Se anche `sudo usbreset 1e4e:0100` non produce frame, controlla firmware
+PureThermal, collegamento fisico del modulo Lepton e compatibilità UVC. Il
+tunnel Mac e Safari non influenzano l’acquisizione hardware.
+
 ## Flusso consigliato
 
 1. Apri la pagina **Live**.

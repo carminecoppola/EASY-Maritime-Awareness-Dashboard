@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import logging
 import os
+import select
 import shutil
 import subprocess
 import threading
@@ -535,6 +536,9 @@ class ThermalState:
         self._capture_lock = threading.Lock()
         self._frame_lock = threading.Lock()
         self._worker_started = False
+        self._retry_after = 0.0
+        self._retry_delay_seconds = 60.0
+        self._max_cpu_temperature = 78.0
         self._stop_event = threading.Event()
         self._stream_process: Optional[subprocess.Popen[bytes]] = None
 
@@ -649,6 +653,14 @@ class ThermalState:
 
     def start(self) -> None:
         if self._worker_started or not self.enabled or self.mode != "real" or not self.detected:
+            return
+        if time.time() < self._retry_after:
+            return
+        cpu_temperature = read_cpu_temperature()
+        if cpu_temperature is not None and cpu_temperature >= self._max_cpu_temperature:
+            self.status = "COOLDOWN"
+            self.error = f"Thermal capture paused: Raspberry CPU temperature is {cpu_temperature:.1f} C"
+            self._retry_after = time.time() + self._retry_delay_seconds
             return
         self._worker_started = True
         threading.Thread(target=self._real_worker_loop, daemon=True, name="thermal-real-worker").start()
@@ -772,6 +784,26 @@ class ThermalState:
             remaining -= len(chunk)
         return b"".join(chunks)
 
+    @staticmethod
+    def _read_exact_with_timeout(stream: Any, size: int, timeout_seconds: float) -> bytes:
+        """Read one raw frame without allowing a silent device to hang forever."""
+        chunks: list[bytes] = []
+        remaining = size
+        deadline = time.monotonic() + timeout_seconds
+        while remaining > 0:
+            wait_seconds = deadline - time.monotonic()
+            if wait_seconds <= 0:
+                break
+            readable, _, _ = select.select([stream], [], [], wait_seconds)
+            if not readable:
+                break
+            chunk = stream.read(remaining)
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        return b"".join(chunks)
+
     def _real_thermal_palette(self, raw_map: np.ndarray) -> tuple[Image.Image, Dict[str, Any]]:
         analysis_map = raw_map[6:-6, 6:-6]
         low = float(np.percentile(analysis_map, 2))
@@ -838,37 +870,51 @@ class ThermalState:
     def _real_worker_loop(self) -> None:
         width, height = self._video_dimensions()
         frame_size = width * height * 2
-        while not self._stop_event.is_set():
-            try:
-                process = subprocess.Popen(self._stream_command(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                self._stream_process = process
-                self.status = "REAL"
-                while not self._stop_event.is_set():
-                    assert process.stdout is not None
-                    payload = self._read_exact(process.stdout, frame_size)
-                    if len(payload) < frame_size:
-                        raise RuntimeError("thermal stream ended")
-                    raw_map = np.frombuffer(payload, dtype="<u2").reshape((height, width)).astype(np.float32)
-                    image, extra = self._real_thermal_palette(raw_map)
-                    frame = self._encode_image(image)
-                    stats = {
-                        "mode": self.mode,
-                        "status": "REAL",
-                        "detected": True,
-                        "threshold_celsius": self.threshold_celsius,
-                        "delta_threshold": self.delta_threshold,
-                        **extra,
-                    }
-                    with self._frame_lock:
-                        self.last_frame_bytes = frame
-                        self.last_frame_ts = time.time()
-                        self.last_stats = stats
-                        self.frame_seq += 1
-                    self._anomaly_active = bool(extra.get("anomaly_active"))
-            except Exception as exc:
-                self.error = self._friendly_thermal_error(str(exc))
-                self.status = "ERROR"
-                time.sleep(1.0)
+        try:
+            process = subprocess.Popen(self._stream_command(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            self._stream_process = process
+            self.status = "STARTING"
+            while not self._stop_event.is_set():
+                assert process.stdout is not None
+                payload = self._read_exact_with_timeout(process.stdout, frame_size, 4.0)
+                if len(payload) < frame_size:
+                    stderr = ""
+                    if process.poll() is not None and process.stderr is not None:
+                        stderr = process.stderr.read().decode("utf-8", errors="replace").strip()
+                    raise RuntimeError(stderr or f"thermal stream timeout: received {len(payload)}/{frame_size} bytes")
+                raw_map = np.frombuffer(payload, dtype="<u2").reshape((height, width)).astype(np.float32)
+                image, extra = self._real_thermal_palette(raw_map)
+                frame = self._encode_image(image)
+                stats = {
+                    "mode": self.mode,
+                    "status": "REAL",
+                    "detected": True,
+                    "threshold_celsius": self.threshold_celsius,
+                    "delta_threshold": self.delta_threshold,
+                    **extra,
+                }
+                with self._frame_lock:
+                    self.last_frame_bytes = frame
+                    self.last_frame_ts = time.time()
+                    self.last_stats = stats
+                    self.frame_seq += 1
+                    self.status = "REAL"
+                    self.error = ""
+                self._anomaly_active = bool(extra.get("anomaly_active"))
+        except Exception as exc:
+            process = self._stream_process
+            if process and process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=1.0)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+            self.error = self._friendly_thermal_error(str(exc))
+            self.status = "ERROR"
+            self._retry_after = time.time() + self._retry_delay_seconds
+        finally:
+            self._stream_process = None
+            self._worker_started = False
 
     def frame(self) -> tuple[bytes, Dict[str, Any]]:
         if not self.enabled:
@@ -919,8 +965,10 @@ class ThermalState:
         return frame, snapshot_stats
 
     def status_payload(self) -> Dict[str, Any]:
+        streaming = bool(self.last_frame_ts and time.time() - self.last_frame_ts <= 5.0)
+        effective_status = "REAL" if streaming else self.status
         return {
-            "status": self.last_stats.get("status", self.status),
+            "status": effective_status,
             "mode": self.mode,
             "enabled": self.enabled,
             "detected": self.detected or self.mode == "mock",
@@ -934,6 +982,9 @@ class ThermalState:
             "delta_threshold": self.delta_threshold,
             "last_frame_ts": self.last_frame_ts,
             "frame_seq": self.frame_seq,
+            "streaming": streaming,
+            "retry_after_ts": self._retry_after,
+            "cpu_temperature_limit": self._max_cpu_temperature,
             "error": self.error,
             "anomaly_active": self.last_stats.get("anomaly_active", self._anomaly_active),
             **{k: v for k, v in self.last_stats.items() if k not in {"status", "mode", "enabled", "detected", "device", "threshold_celsius", "delta_threshold", "last_frame_ts", "frame_seq", "error"}},
