@@ -1686,6 +1686,41 @@ body[data-page="live"] .live-page {
   text-decoration: none;
 }
 
+.mission-workflow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mission-workflow li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-weak);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.mission-workflow li span {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 1px solid var(--surface-border-strong);
+  border-radius: 50%;
+}
+
+.mission-workflow li.is-current {
+  color: var(--cta);
+}
+
+.mission-workflow li.is-complete {
+  color: var(--online);
+}
+
 .live-summary-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
