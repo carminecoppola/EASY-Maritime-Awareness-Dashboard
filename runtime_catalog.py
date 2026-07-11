@@ -83,7 +83,7 @@ def build_runtime_endpoint_catalog(runtime_root: Path | str, replay_root: Path |
             source_capabilities={
                 "live": True,
                 "capture": True,
-                "inference": False,
+                "inference": True,
                 "dataset_role": "rgb_left",
             },
         ),
@@ -110,7 +110,7 @@ def build_runtime_endpoint_catalog(runtime_root: Path | str, replay_root: Path |
             source_capabilities={
                 "live": True,
                 "capture": True,
-                "inference": False,
+                "inference": True,
                 "dataset_role": "rgb_right",
             },
         ),

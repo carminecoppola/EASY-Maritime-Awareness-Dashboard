@@ -54,6 +54,10 @@ Qui si controlla il worker AI. Dopo **Avvia analisi**, i risultati dovrebbero
 comparire come detection correnti, eventi e righe nel manifest della sessione.
 Se non succede, controlla prima la sorgente frame e poi i log.
 
+Il modello attuale è RGB: puoi selezionare Replay Folder, RGB sinistra o RGB
+destra come sorgente AI. Il feed termico viene acquisito nel dataset ma non è
+inviato al modello RGB; richiederà un modello termico o di fusione dedicato.
+
 ### Foto e log
 
 Qui trovi le immagini salvate e gli eventi tecnici. I log servono a distinguere

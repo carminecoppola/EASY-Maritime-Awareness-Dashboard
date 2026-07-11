@@ -132,14 +132,20 @@ RGB right and thermal with a shared `capture_set_id` and `sample_id`. Manifest
 counts include `synchronized_samples` only when usable RGB and thermal data are
 both present, so diagnostic placeholders cannot inflate training-ready totals.
 
+Live RGB inference is now connected. The unified provider consumes frames from
+the existing RGB runtime owner through in-memory callbacks, avoiding a second
+camera process. RGB left and right can feed the current RGB model; thermal is
+explicitly rejected until a thermal or fusion model is configured.
+
 ## Remaining implementation phases
 
-1. Connect live RGB/thermal frame sources directly to the unified inference
-   provider, including an explicit modality/fusion policy.
-2. Add dataset validation and export tooling for train/validation splits,
+1. Add dataset validation and export tooling for train/validation splits,
    labels, calibration metadata and reproducible fine-tuning inputs.
-3. Complete production hardening: sustained Raspberry benchmarks, storage
-   retention, automated browser regression checks and accessibility polish.
+2. Complete technical hardening: sustained Raspberry benchmarks, storage
+   retention and automated regression coverage.
+3. Run a dedicated final UI/UX redesign phase: information architecture,
+   visual hierarchy, interaction feedback, responsive behavior, accessibility
+   and full operator-flow browser validation.
 
 ### 6. Separate inference backend from inference worker
 
