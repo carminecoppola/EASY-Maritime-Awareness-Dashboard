@@ -338,9 +338,10 @@ class DetectionManager:
         with self._lock:
             for item_id in self._current_ids:
                 if item_id in self._detections:
-                    self._detections[item_id].status = "ACTIVE"
+                    self._detections[item_id].status = "RESOLVED"
                     self._detections[item_id].updated_at = timestamp
             self._current_ids = []
+            self._last_detection_id = None
             self._last_image = image_path or self._last_image
             self._last_source = source
             self._last_source_label = source_label
