@@ -28,8 +28,6 @@
           <span class="live-status-label">AI ·</span>
           <strong id="live-ai-status-label">—</strong>
         </div>
-        <button class="btn btn-secondary btn-small" id="button-live-save-snapshot" type="button" aria-describedby="live-mission-state-copy">Avvia prima la missione</button>
-        <button class="btn btn-primary btn-small" id="button-live-toggle-recording" type="button">Avvia missione</button>
       </div>
     </div>
 
@@ -82,7 +80,11 @@
         <li id="mission-workflow-capture"><span>2</span> Salva set sensori</li>
         <li id="mission-workflow-review"><span>3</span> Verifica archivio</li>
       </ol>
-      <a class="btn btn-ghost btn-small" href="/snapshots">Archivio foto</a>
+      <div class="mission-command-actions">
+        <button class="btn btn-secondary btn-small" id="button-live-save-snapshot" type="button" aria-describedby="live-mission-state-copy">Avvia prima la missione</button>
+        <button class="btn btn-primary btn-small" id="button-live-toggle-recording" type="button">Avvia missione</button>
+        <a class="btn btn-ghost btn-small" href="/snapshots">Apri archivio</a>
+      </div>
     </section>
 
     <section class="live-grid" aria-label="Flussi video in tempo reale">
