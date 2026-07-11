@@ -5341,3 +5341,18 @@ body[data-page="live"] .live-grid {
     transition-duration: 0.01ms !important;
   }
 }
+
+.mission-command-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 900px) {
+  .mission-command-actions {
+    display: grid;
+    width: 100%;
+  }
+}
