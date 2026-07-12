@@ -4,9 +4,10 @@
 
 {% block content %}
   <section class="log-page">
-    <nav class="archive-tabs" aria-label="Sezioni archivio">
-      <button class="archive-tab is-active" type="button" data-archive-tab="photos">Foto salvate</button>
-      <button class="archive-tab" type="button" data-archive-tab="events">Registro attività</button>
+    <div class="archive-location" aria-live="polite"><span>Archivio</span><span aria-hidden="true">›</span><strong id="archive-current-section">Foto salvate</strong></div>
+    <nav class="archive-tabs" aria-label="Sezioni archivio" role="tablist">
+      <button class="archive-tab is-active" type="button" role="tab" aria-selected="true" data-archive-tab="photos">Foto salvate</button>
+      <button class="archive-tab" type="button" role="tab" aria-selected="false" data-archive-tab="events">Registro attività</button>
     </nav>
 
     <section class="snapshot-library panel" id="archive-panel-photos" data-archive-panel="photos" aria-label="Foto salvate">

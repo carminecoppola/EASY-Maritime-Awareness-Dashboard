@@ -27,9 +27,9 @@
         <li id="mission-workflow-review"><span>3</span> Verifica archivio</li>
       </ol>
       <div class="mission-command-actions">
-        <button class="btn btn-secondary btn-small" id="button-live-save-snapshot" type="button" aria-describedby="live-mission-state-copy">Avvia prima la missione</button>
         <button class="btn btn-primary btn-small" id="button-live-toggle-recording" type="button">Avvia missione</button>
-        <a class="btn btn-ghost btn-small" href="/snapshots">Apri archivio</a>
+        <button class="btn btn-secondary btn-small" id="button-live-save-snapshot" type="button" aria-describedby="live-mission-state-copy">Salva set sensori</button>
+        <a class="mission-archive-link" href="/snapshots">Apri archivio</a>
       </div>
     </section>
 
@@ -49,9 +49,21 @@
       </div>
       <div class="dataset-session-layout">
         <div class="dataset-session-main">
-          <span class="panel-kicker">Sessione</span>
-          <strong id="dataset-session-id">Nessuna sessione</strong>
-          <p id="dataset-manifest-path">Il manifest apparirà qui appena la missione salva il primo dato.</p>
+          <div class="dataset-session-identity">
+            <span class="panel-kicker">Sessione</span>
+            <strong id="dataset-session-id">Nessuna sessione</strong>
+            <p id="dataset-manifest-path">Il manifest apparirà qui appena la missione salva il primo dato.</p>
+          </div>
+          <dl class="mission-context-list" aria-label="Contesto operativo">
+            <div>
+              <dt>Sistema</dt>
+              <dd><strong id="live-summary-health-title">Verifica in corso</strong><span id="live-summary-health-copy">Sto raccogliendo lo stato operativo del sistema.</span></dd>
+            </div>
+            <div>
+              <dt>Sorgente attiva</dt>
+              <dd><strong id="live-summary-source-title">--</strong><span id="live-summary-source-copy">Nessuna sorgente selezionata.</span></dd>
+            </div>
+          </dl>
         </div>
         <div class="dataset-metrics-grid">
           <div class="dataset-metric"><span>Campioni sessione</span><strong id="dataset-samples-count">0</strong></div>
@@ -67,29 +79,23 @@
         <span class="dataset-feed-pill">Termico: 0</span>
       </div>
       <p class="dataset-export-feedback" id="dataset-export-feedback">Valida la missione per sapere se i campioni sono pronti per il fine-tuning.</p>
+      <div class="visually-hidden" aria-hidden="true">
+        <span id="live-summary-session-title">--</span>
+        <span id="live-summary-session-copy">Sessione non disponibile.</span>
+        <span id="live-summary-detections-count">0</span>
+        <span id="live-summary-detections-copy">Nessuna rilevazione corrente.</span>
+      </div>
     </section>
 
-    <section class="live-summary-grid" aria-label="Riepilogo operativo della missione">
-      <article class="panel live-summary-card">
-        <span class="panel-kicker">Sistema</span>
-        <h2 class="live-summary-title" id="live-summary-health-title">Verifica in corso</h2>
-        <p class="live-summary-copy" id="live-summary-health-copy">Sto raccogliendo lo stato operativo del sistema.</p>
-      </article>
-      <article class="panel live-summary-card">
-        <span class="panel-kicker">Sorgente attiva</span>
-        <h2 class="live-summary-title" id="live-summary-source-title">--</h2>
-        <p class="live-summary-copy" id="live-summary-source-copy">Nessuna sorgente selezionata.</p>
-      </article>
-      <article class="panel live-summary-card">
-        <span class="panel-kicker">Sessione</span>
-        <h2 class="live-summary-title" id="live-summary-session-title">--</h2>
-        <p class="live-summary-copy" id="live-summary-session-copy">La sessione operativa non è ancora disponibile.</p>
-      </article>
-      <article class="panel live-summary-card">
-        <span class="panel-kicker">Rilevazioni AI</span>
-        <h2 class="live-summary-title" id="live-summary-detections-count">0</h2>
-        <p class="live-summary-copy" id="live-summary-detections-copy">Le rilevazioni compariranno qui dopo l’analisi.</p>
-      </article>
+    <section class="panel mission-history-panel" aria-label="Missioni passate">
+      <div class="panel-head">
+        <div><span class="panel-kicker">Archivio missioni</span><h2 class="panel-title">Missioni passate</h2><p class="panel-copy">Apri una sessione archiviata per controllare il dataset o creare un nuovo export.</p></div>
+        <span class="badge badge-muted" id="mission-history-count">0 missioni</span>
+      </div>
+      <div class="mission-history-layout">
+        <div class="mission-history-list" id="mission-history-list"><div class="empty-state">Caricamento missioni…</div></div>
+        <aside class="mission-history-detail" id="mission-history-detail" aria-live="polite"><strong>Seleziona una missione</strong><p>Qui compariranno riepilogo del manifest e azioni disponibili.</p></aside>
+      </div>
     </section>
 
     <section class="panel mission-sources-panel" aria-label="Sorgenti della missione">

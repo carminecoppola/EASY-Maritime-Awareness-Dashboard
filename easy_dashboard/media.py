@@ -40,7 +40,7 @@ def make_thermal_svg(stats: Dict[str, Any]) -> bytes:
     threshold = float(stats.get("threshold_celsius", 35.0))
     hot_cells = stats.get("hot_cells") or []
     badge_fill = "#ff7a7a" if anomaly_active else "#26d0b2"
-    badge_text = "THERMAL ALERT" if anomaly_active else "THERMAL OK"
+    badge_text = "ANOMALIA TERMICA" if anomaly_active else "NELLA SOGLIA"
     rects = []
     cell_w = 1280 / 16.0
     cell_h = 360 / 12.0
@@ -94,4 +94,3 @@ def make_placeholder_jpeg(title: str, subtitle: str, accent: str = "#26d0b2") ->
 
 def multipart_frame(jpeg_bytes: bytes) -> bytes:
     return b"--frame\r\nContent-Type: image/jpeg\r\nCache-Control: no-cache\r\n\r\n" + jpeg_bytes + b"\r\n"
-

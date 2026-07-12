@@ -301,10 +301,10 @@ function renderCurrentEventsPanel() {
     card.innerHTML = `
       <div class="event-card-head">
         <span class="event-card-title">${typeMeta.icon}<span>${escapeHtml(typeMeta.label)}</span></span>
-        <span class="badge badge-severity-${severityTone}">${escapeHtml(String(event?.severity || "INFO"))}</span>
+        <span class="badge badge-severity-${severityTone}">${escapeHtml(eventSeverityLabel(event?.severity))}</span>
       </div>
       <div class="event-card-meta">
-        <span class="badge badge-status-${statusTone}">${escapeHtml(String(event?.status || "NEW"))}</span>
+        <span class="badge badge-status-${statusTone}">${escapeHtml(eventStatusLabel(event?.status))}</span>
         <span class="badge badge-muted">${escapeHtml(eventSourceLabel(event))}</span>
       </div>
       <div class="event-card-times">
@@ -337,8 +337,8 @@ function renderEventTimeline() {
         <strong>${escapeHtml(typeMeta.label)}</strong>
         <p>${escapeHtml(eventSourceLabel(event))} · ${escapeHtml(eventUpdateLabel(event))}</p>
       </div>
-      <span class="badge badge-severity-${severityTone}">${escapeHtml(String(event?.severity || "INFO"))}</span>
-      <span class="badge badge-status-${statusTone}">${escapeHtml(String(event?.status || "NEW"))}</span>
+      <span class="badge badge-severity-${severityTone}">${escapeHtml(eventSeverityLabel(event?.severity))}</span>
+      <span class="badge badge-status-${statusTone}">${escapeHtml(eventStatusLabel(event?.status))}</span>
     `;
     timeline.appendChild(row);
   });
