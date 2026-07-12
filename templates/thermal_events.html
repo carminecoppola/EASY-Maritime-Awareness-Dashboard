@@ -4,20 +4,13 @@
 
 {% block content %}
   <section class="detections-page">
-    <details class="analysis-guide-details panel">
-      <summary><span><span class="ai-section-label">Prima volta?</span><strong>Come funziona l’analisi</strong></span><span>3 passaggi</span></summary>
-      <section class="analysis-guide" aria-label="Come funziona l'analisi">
-        <div><span>1</span><strong>Avvia</strong><p>Si apre una missione e parte il motore AI.</p></div>
-        <div><span>2</span><strong>Osserva</strong><p>I frame vengono analizzati in sequenza.</p></div>
-        <div><span>3</span><strong>Archivia</strong><p>Rilevazioni ed eventi restano salvati sulla Raspberry.</p></div>
-      </section>
-    </details>
-
     <section class="ai-control-bar" aria-label="Controlli AI">
-      <div class="ai-control-meta">
-        <span class="ai-control-badge">AI</span>
+      <div class="analysis-control-copy">
+        <span class="ai-control-badge">Analisi AI</span>
+        <div><strong>Riconoscimento automatico</strong><p>Avvia il modello sulla sorgente selezionata. Il monitor mostra frame, avanzamento e oggetti trovati.</p></div>
+      </div>
+      <div class="ai-control-meta" aria-label="Stato analisi">
         <code id="detections-ai-model-name">easy_v1_best_rgb.onnx</code>
-        <span class="ai-control-separator">·</span>
         <strong class="ai-control-state" id="detections-ai-status-badge">—</strong>
         <span class="ai-control-timing" id="detections-ai-last-run">--</span>
       </div>
@@ -27,6 +20,19 @@
         <button class="btn btn-ghost btn-small" id="button-ai-run-demo" type="button" hidden>Analizza frame</button>
         <button class="btn btn-ghost btn-small" id="button-ai-refresh" type="button" hidden>Aggiorna</button>
       </div>
+    </section>
+
+    <section class="analysis-session-reference" aria-label="Sessione corrente">
+      <span class="state-dot state-dot-muted" aria-hidden="true"></span>
+      <div class="analysis-session-reference-copy">
+        <strong id="session-summary-title">Nessuna missione attiva</strong>
+        <p id="session-summary-helper-copy">L’analisi apre automaticamente una missione se necessario.</p>
+      </div>
+      <div class="analysis-session-reference-meta">
+        <span id="session-info-status">IDLE</span>
+        <code id="session-info-id">—</code>
+      </div>
+      <a class="analysis-mission-link" href="/mission">Gestisci missione</a>
     </section>
 
     <div class="analysis-workspace">
@@ -70,85 +76,22 @@
       </section>
     </section>
 
-    <section class="analysis-session-reference" aria-label="Sessione corrente">
-      <span class="state-dot state-dot-muted" aria-hidden="true"></span>
-      <div class="analysis-session-reference-copy">
-        <strong id="session-summary-title">Nessuna missione attiva</strong>
-        <p id="session-summary-helper-copy">La raccolta e il salvataggio si gestiscono dalla pagina Missione.</p>
-      </div>
-      <div class="analysis-session-reference-meta">
-        <span id="session-info-status">IDLE</span>
-        <code id="session-info-id">—</code>
-      </div>
-      <a class="panel-link" href="/mission">Vai a Missione</a>
-    </section>
-
-    <details class="operations-panel panel">
-      <summary class="operations-panel-summary">
-        <span>
-          <span class="ai-section-label">Configurazione</span>
-          <strong>Sorgente e strumenti avanzati</strong>
-        </span>
-        <span class="debug-panel-copy">Apri per cambiare sorgente o controllare manualmente il replay.</span>
-      </summary>
-      <div class="operations-panel-body">
-    <section class="frame-source-panel panel" aria-label="Frame Source">
-      <div class="frame-source-head">
-        <div>
-          <span class="ai-section-label">Sorgente immagini</span>
-          <h2 id="frame-provider-title">Ingresso dell’analisi</h2>
-          <p id="frame-provider-helper-copy">La sorgente fornisce le immagini da analizzare.</p>
-        </div>
-        <div class="frame-source-actions">
-          <button class="btn btn-ghost btn-small" id="button-frame-provider-configure" type="button">Scegli cartella replay</button>
-          <button class="btn btn-ghost btn-small" id="button-frame-provider-next" type="button">Frame successivo</button>
-          <button class="btn btn-primary btn-small" id="button-frame-provider-run" type="button">Analizza il prossimo frame</button>
-          <button class="btn btn-ghost btn-small" id="button-frame-provider-reset" type="button">Ricomincia</button>
-        </div>
-      </div>
-
-      <div class="frame-source-grid">
-        <article class="session-info-item">
-          <span>Tipo sorgente</span>
-          <strong id="frame-provider-source-type">—</strong>
-        </article>
-        <article class="session-info-item">
-          <span>Percorso</span>
-          <strong id="frame-provider-source-path">—</strong>
-        </article>
-        <article class="session-info-item">
-          <span>Stato</span>
-          <strong id="frame-provider-status">—</strong>
-        </article>
-        <article class="session-info-item">
-          <span>Frame corrente</span>
-          <strong id="frame-provider-current-frame-id">—</strong>
-        </article>
-        <article class="session-info-item">
-          <span>Posizione</span>
-          <strong id="frame-provider-current-frame-index">—</strong>
-        </article>
-        <article class="session-info-item">
-          <span>Frame totali</span>
-          <strong id="frame-provider-total-frames">—</strong>
-        </article>
-      </div>
-    </section>
-
-      </div>
-    </details>
-
+    <aside class="analysis-events-column" aria-label="Eventi dell’analisi">
+    <div class="analysis-events-empty" id="analysis-events-empty-state">
+      <svg class="detections-empty-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.2 20.2 12 12 19.8 3.8 12 12 4.2Z"></path><path d="M12 8v8"></path><path d="M8 12h8"></path></svg>
+      <div><strong>Nessun evento registrato</strong><p>Gli eventi attivi e la cronologia compariranno qui quando l’analisi produrrà risultati significativi.</p></div>
+    </div>
     <section class="events-panel panel" aria-label="Current Events">
       <div class="events-panel-head">
         <div>
           <span class="ai-section-label">In evidenza</span>
           <h2>Eventi attivi</h2>
-          <p>Situazioni che richiedono attenzione, ricavate dalle rilevazioni AI.</p>
+          <p>Solo situazioni ancora aperte che richiedono attenzione.</p>
         </div>
         <span class="badge badge-muted detections-count-badge" id="events-current-count-badge">0 eventi</span>
       </div>
       <div class="events-grid" id="events-current-grid" hidden></div>
-      <div class="detections-empty-state" id="events-current-empty-state">
+      <div class="detections-empty-state visually-hidden" id="events-current-empty-state">
         <svg class="detections-empty-icon" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M12 4.2 20.2 12 12 19.8 3.8 12 12 4.2Z"></path>
           <path d="M12 8v8"></path>
@@ -159,21 +102,17 @@
       </div>
     </section>
 
-    <details class="events-panel panel events-history-details">
-      <summary>
-        <span><span class="ai-section-label">Cronologia</span><strong>Eventi recenti</strong></span>
-        <span>Apri cronologia</span>
-      </summary>
+    <section class="events-panel panel events-history-details">
       <section aria-label="Event Timeline">
       <div class="events-panel-head">
         <div>
           <span class="ai-section-label">Cronologia</span>
           <h2>Eventi recenti</h2>
-          <p>Sequenza temporale degli eventi prodotti durante la sessione.</p>
+          <p>Eventi conclusi e aggiornamenti recenti, dal più nuovo.</p>
         </div>
       </div>
       <div class="events-timeline" id="events-timeline-list" hidden></div>
-      <div class="detections-empty-state" id="events-timeline-empty">
+      <div class="detections-empty-state visually-hidden" id="events-timeline-empty">
         <svg class="detections-empty-icon" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M12 4.2 20.2 12 12 19.8 3.8 12 12 4.2Z"></path>
           <path d="M12 8v8"></path>
@@ -183,16 +122,33 @@
         <p>La cronologia apparirà qui non appena il sistema inizierà a produrre eventi.</p>
       </div>
       </section>
-    </details>
+    </section>
+    </aside>
     </div>
+
+    <details class="operations-panel panel">
+      <summary class="operations-panel-summary">
+        <span><span class="ai-section-label">Impostazioni analisi</span><strong>Sorgente e controllo manuale</strong></span>
+        <span class="debug-panel-copy">Serve solo per cambiare archivio replay o elaborare un singolo frame.</span>
+      </summary>
+      <div class="operations-panel-body">
+        <section class="frame-source-panel" aria-label="Frame Source">
+          <div class="frame-source-head">
+            <div><span class="ai-section-label">Sorgente corrente</span><h2 id="frame-provider-title">Ingresso dell’analisi</h2><p id="frame-provider-helper-copy">La sorgente fornisce le immagini da analizzare.</p></div>
+            <div class="frame-source-actions"><button class="btn btn-ghost btn-small" id="button-frame-provider-configure" type="button">Cambia cartella</button><button class="btn btn-ghost btn-small" id="button-frame-provider-next" type="button">Frame successivo</button><button class="btn btn-primary btn-small" id="button-frame-provider-run" type="button">Analizza un frame</button><button class="btn btn-ghost btn-small" id="button-frame-provider-reset" type="button">Riparti dall’inizio</button></div>
+          </div>
+          <div class="frame-source-grid"><article class="session-info-item"><span>Tipo sorgente</span><strong id="frame-provider-source-type">—</strong></article><article class="session-info-item"><span>Percorso</span><strong id="frame-provider-source-path">—</strong></article><article class="session-info-item"><span>Stato</span><strong id="frame-provider-status">—</strong></article><article class="session-info-item"><span>Frame corrente</span><strong id="frame-provider-current-frame-id">—</strong></article><article class="session-info-item"><span>Posizione</span><strong id="frame-provider-current-frame-index">—</strong></article><article class="session-info-item"><span>Frame totali</span><strong id="frame-provider-total-frames">—</strong></article></div>
+        </section>
+      </div>
+    </details>
 
     <details class="debug-panel panel">
       <summary class="debug-panel-summary">
         <span>
-          <span class="ai-section-label">Dettagli tecnici</span>
-          <strong>Rilevazioni grezze</strong>
+          <span class="ai-section-label">Diagnostica avanzata</span>
+          <strong>Dati prodotti dal modello</strong>
         </span>
-        <span class="debug-panel-copy">Coordinate, confidenza e anteprima del modello AI.</span>
+        <span class="debug-panel-copy">Per verificare coordinate, confidenza e origine di ogni risultato.</span>
       </summary>
 
       <div class="debug-panel-body">

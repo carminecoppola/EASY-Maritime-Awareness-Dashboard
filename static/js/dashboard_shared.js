@@ -80,8 +80,8 @@ function thermalVisualState(thermal, fallback = {}) {
     detected,
     fresh,
     tone,
-    label: tone.offline ? (detected ? "Non disponibile" : "Non rilevata") : humanStateLabel(state),
-    statusText: !fresh ? (detected ? "NON DISPONIBILE" : "NON RILEVATA") : liveStatusText("thermal", state, payload.fps ?? payload.frame_rate, lastFrame, detected),
+    label: tone.offline ? "Nessun segnale" : humanStateLabel(state),
+    statusText: !fresh ? "NESSUN SEGNALE" : liveStatusText("thermal", state, payload.fps ?? payload.frame_rate, lastFrame, detected),
   };
 }
 
@@ -104,15 +104,15 @@ function liveStatusText(feed, state, fps, lastFrameTs = null, detected = true) {
   const fresh = isFreshTimestamp(lastFrameTs);
   if (feed === "thermal") {
     if (["NOT_DETECTED", "DISABLED"].includes(value)) return "NON RILEVATO";
-    if (["OFFLINE", "ERROR", "FAILED"].includes(value)) return "OFFLINE";
-    if (!fresh) return detected ? "OFFLINE" : "NON RILEVATO";
+    if (["OFFLINE", "ERROR", "FAILED"].includes(value)) return "NESSUN SEGNALE";
+    if (!fresh) return "NESSUN SEGNALE";
     if (["STARTING", "LOADING", "WAITING", "CHECKING", "PENDING"].includes(value)) return "CARICANDO";
     if (value === "MOCK") return "SIMULAZIONE";
     return "REALE";
   }
   if (["NOT_DETECTED"].includes(value)) return "NON RILEVATO";
-  if (["OFFLINE", "ERROR", "FAILED", "DISABLED"].includes(value)) return "OFFLINE";
-  if (!fresh) return detected ? "OFFLINE" : "NON RILEVATO";
+  if (["OFFLINE", "ERROR", "FAILED", "DISABLED"].includes(value)) return "NESSUN SEGNALE";
+  if (!fresh) return "NESSUN SEGNALE";
   if (["STARTING", "LOADING", "WAITING", "CHECKING", "PENDING"].includes(value)) return "CARICANDO";
   if (["ONLINE", "DETECTED", "READY", "OK"].includes(value)) {
     const rate = fps != null && Number.isFinite(Number(fps)) ? `${Math.round(Number(fps))}fps` : "LIVE";
@@ -219,6 +219,7 @@ function renderSourcePanel(payload) {
       thermal_placeholder: "Camera termica",
     };
     const sourceTypeLabel = sourceTypeLabels[source.type] || String(source.type || "Sorgente").replace(/_/g, " ");
+    const sourceIcon = source.type === "replay_folder" ? "↻" : source.type === "thermal_placeholder" ? "◈" : "▣";
     const configBits = [];
     configBits.push(sourceTypeLabel);
     if (source.configuration?.replay_dir) configBits.push(compactPath(source.configuration.replay_dir));
@@ -226,23 +227,15 @@ function renderSourcePanel(payload) {
     return `
       <article class="source-card source-row${isSelected ? " is-selected" : ""}">
         <div class="source-card-head">
+          <span class="source-row-icon" aria-hidden="true">${sourceIcon}</span>
           <div>
             <span class="source-card-name">${escapeHtml(source.name || source.id || "--")}</span>
-            <p class="source-card-subtitle">${escapeHtml(configBits.join(" · ") || "No configuration")}</p>
+            <p class="source-card-subtitle">${escapeHtml(sourceTypeLabel)}</p>
           </div>
-          <span class="badge badge-${availabilityTone}">${escapeHtml(availabilityLabel)}</span>
         </div>
         <div class="source-card-body">
-          <div class="source-capability-list" aria-label="Funzioni disponibili">
-            ${capabilities.live ? '<span class="source-capability is-available">Live</span>' : ''}
-            ${capabilities.capture ? '<span class="source-capability is-available">Foto</span>' : ''}
-            ${capabilities.inference ? '<span class="source-capability is-available">Analisi AI</span>' : '<span class="source-capability is-muted">AI non collegata</span>'}
-          </div>
-          <div class="source-status-line">
-            <span class="state-dot ${tone.dot}"></span>
-            <span>${escapeHtml(source.enabled ? "Abilitata" : "Disabilitata")}</span>
-          </div>
-          <p class="source-card-meta"><span>Stato</span><strong>${escapeHtml(label)} · ${escapeHtml(updated)}</strong></p>
+          <span class="badge badge-${availabilityTone}">${escapeHtml(availabilityLabel)}</span>
+          <span class="source-row-state"><span class="state-dot ${tone.dot}"></span>${escapeHtml(label)}</span>
         </div>
         <div class="source-card-actions">
           <button class="btn btn-small btn-ghost" type="button" data-source-select="${escapeHtml(source.id || "")}" ${isSelected || !selectable ? "disabled" : ""}>

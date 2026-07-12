@@ -147,10 +147,14 @@ function updateNavIndicators(health, eventsPayload) {
     badge.hidden = !showBadge;
     badge.classList.remove("is-online", "is-warning", "is-error", "is-muted");
     if (showBadge) {
-      badge.classList.add("is-error");
+      badge.classList.add("is-warning");
       badge.textContent = `${errorCount} err`;
+      badge.title = `${errorCount} errori totali registrati nello storico attività`;
+      badge.setAttribute("aria-label", `${errorCount} errori totali registrati nello storico attività`);
     } else {
       badge.textContent = "";
+      badge.removeAttribute("title");
+      badge.removeAttribute("aria-label");
     }
   });
 }

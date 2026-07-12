@@ -132,6 +132,7 @@ function renderSnapshots(snapshots, summary) {
   const visibleSnapshots = selectedFeed === "all"
     ? snapshots
     : snapshots.filter((item) => item.feed === selectedFeed);
+  const renderedSnapshots = visibleSnapshots.slice(0, dashboardState.snapshotLimit || 24);
   setText("snapshot-filter-count-all", `${snapshots.length}`);
   setText("snapshot-filter-count-thermal", `${snapshots.filter((item) => item.feed === "thermal").length}`);
   setText("snapshot-filter-count-rgb-left", `${snapshots.filter((item) => item.feed === "rgb_left").length}`);
@@ -140,7 +141,7 @@ function renderSnapshots(snapshots, summary) {
   if (!visibleSnapshots.length) {
     grid.innerHTML = `<div class="empty-state">Nessuna foto disponibile per questa camera.</div>`;
   }
-  visibleSnapshots.forEach((item) => {
+  renderedSnapshots.forEach((item) => {
     const card = document.createElement("article");
     card.className = `snapshot-card snapshot-card-${item.feed || "generic"}`;
     const feedLabel = item.feed_label || item.feed || "--";
@@ -198,6 +199,15 @@ function renderSnapshots(snapshots, summary) {
     }
     grid.appendChild(card);
   });
+  setText("snapshot-visible-count", `${renderedSnapshots.length} di ${visibleSnapshots.length} foto visualizzate`);
+  const loadMoreButton = byId("button-snapshot-load-more");
+  const pagination = byId("snapshot-pagination");
+  if (loadMoreButton) {
+    const hasMore = renderedSnapshots.length < visibleSnapshots.length;
+    loadMoreButton.hidden = !hasMore;
+    loadMoreButton.disabled = !hasMore;
+  }
+  if (pagination) pagination.hidden = visibleSnapshots.length === 0;
   const count = summary?.count ?? snapshots.length;
   setText("snapshot-count", `${count}`);
   setText("snapshot-total-size", formatBytes(summary?.size_bytes || 0));

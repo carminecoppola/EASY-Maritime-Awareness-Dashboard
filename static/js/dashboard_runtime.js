@@ -103,6 +103,7 @@ const dashboardState = {
   eventSummary: null,
   eventCount: 0,
   logLimit: 100,
+  snapshotLimit: 24,
   logExpandedIds: new Set(),
   initialLogSeverity: new URLSearchParams(window.location.search).get("severity") || "all",
   filters: {
@@ -770,6 +771,7 @@ function setupLogPage() {
   document.querySelectorAll("[data-snapshot-feed]").forEach((button) => {
     button.addEventListener("click", () => {
       dashboardState.filters.snapshotFeed = button.dataset.snapshotFeed || "all";
+      dashboardState.snapshotLimit = 24;
       document.querySelectorAll("[data-snapshot-feed]").forEach((item) => {
         const active = item === button;
         item.classList.toggle("is-active", active);
@@ -778,7 +780,21 @@ function setupLogPage() {
       renderSnapshots(dashboardState.snapshots, dashboardState.snapshotSummary);
     });
   });
+  const snapshotLoadMore = byId("button-snapshot-load-more");
+  if (snapshotLoadMore) {
+    snapshotLoadMore.addEventListener("click", () => {
+      dashboardState.snapshotLimit += 24;
+      renderSnapshots(dashboardState.snapshots, dashboardState.snapshotSummary);
+    });
+  }
   selectArchiveTab(initialArchiveTab);
+
+  DashboardApi.request("/api/snapshots/recent?limit=200").then((response) => {
+    if (!response.ok || !response.data) return;
+    dashboardState.snapshots = response.data.items || [];
+    dashboardState.snapshotSummary = response.data.summary || dashboardState.snapshotSummary;
+    renderSnapshots(dashboardState.snapshots, dashboardState.snapshotSummary);
+  }).catch((error) => console.error("Archivio foto non disponibile", error));
 
   const logExportButton = byId(logElementId("exportButton"));
   if (logExportButton) {
