@@ -536,6 +536,9 @@ class ThermalState:
         self._anomaly_active = False
         self._capture_lock = threading.Lock()
         self._frame_lock = threading.Lock()
+        self._detection_lock = threading.Lock()
+        self._last_detection_attempt = 0.0
+        self._detection_retry_seconds = 5.0
         self._worker_started = False
         self._retry_after = 0.0
         self._retry_delay_seconds = 60.0
@@ -545,38 +548,54 @@ class ThermalState:
 
     def detect_device(self) -> bool:
         """Resolve the real PureThermal V4L2 node and update detection state."""
-        self.device_candidates = []
-        if not self.enabled:
+        with self._detection_lock:
+            self._last_detection_attempt = time.monotonic()
+            self.device_candidates = []
+            if not self.enabled:
+                self.detected = False
+                self.discovery_method = "disabled"
+                return False
+            if self.mode == "mock":
+                self.detected = True
+                self.discovery_method = "mock"
+                return True
+
+            configured = self.configured_device.strip()
+            if configured and configured.lower() not in {"auto", "detect", "purethermal"}:
+                self.device = configured
+                allow_unverified = os.environ.get("EASY_THERMAL_ALLOW_UNVERIFIED_DEVICE") == "1"
+                self.detected = self._is_purethermal_device(configured) or (allow_unverified and Path(configured).exists())
+                self.discovery_method = "configured_device_verified" if self.detected else "configured_device_rejected"
+                if not self.detected:
+                    self.error = (
+                        f"Configured thermal device {configured} is not identified as PureThermal/FLIR. "
+                        "Use thermal.device=auto or set EASY_THERMAL_ALLOW_UNVERIFIED_DEVICE=1 only for debugging."
+                    )
+                return self.detected
+
+            resolved = self._discover_purethermal_device()
+            if resolved:
+                self.device = resolved
+                self.detected = True
+                if self.status in {"PENDING", "NOT_DETECTED"}:
+                    self.error = ""
+                return True
             self.detected = False
-            self.discovery_method = "disabled"
+            self.status = "NOT_DETECTED"
+            self.discovery_method = "not_found"
+            self.error = "PureThermal video node not found. Check USB cable and v4l2-ctl --list-devices."
             return False
-        if self.mode == "mock":
-            self.detected = True
-            self.discovery_method = "mock"
-            return True
 
-        configured = self.configured_device.strip()
-        if configured and configured.lower() not in {"auto", "detect", "purethermal"}:
-            self.device = configured
-            allow_unverified = os.environ.get("EASY_THERMAL_ALLOW_UNVERIFIED_DEVICE") == "1"
-            self.detected = self._is_purethermal_device(configured) or (allow_unverified and Path(configured).exists())
-            self.discovery_method = "configured_device_verified" if self.detected else "configured_device_rejected"
-            if not self.detected:
-                self.error = (
-                    f"Configured thermal device {configured} is not identified as PureThermal/FLIR. "
-                    "Use thermal.device=auto or set EASY_THERMAL_ALLOW_UNVERIFIED_DEVICE=1 only for debugging."
-                )
-            return self.detected
-
-        resolved = self._discover_purethermal_device()
-        if resolved:
-            self.device = resolved
-            self.detected = True
+    def refresh_device(self, force: bool = False) -> bool:
+        """Retry PureThermal discovery, throttling automatic requests."""
+        if self.detected and not force:
             return True
-        self.detected = False
-        self.discovery_method = "not_found"
-        self.error = "PureThermal video node not found. Check USB cable and v4l2-ctl --list-devices."
-        return False
+        if not force and time.monotonic() - self._last_detection_attempt < self._detection_retry_seconds:
+            return False
+        detected = self.detect_device()
+        if detected:
+            self.start()
+        return detected
 
     def _discover_purethermal_device(self) -> str | None:
         candidates = self._discover_with_v4l2_ctl()
@@ -979,6 +998,8 @@ class ThermalState:
             self.last_stats = stats
             self.frame_seq += 1
             return frame, stats
+        if not self.detected:
+            self.refresh_device()
         self.start()
         with self._frame_lock:
             if self.last_frame_bytes is not None:
@@ -1017,6 +1038,8 @@ class ThermalState:
         return frame, snapshot_stats
 
     def status_payload(self) -> Dict[str, Any]:
+        if self.enabled and self.mode == "real" and not self.detected:
+            self.refresh_device()
         streaming = bool(self.last_frame_ts and time.time() - self.last_frame_ts <= 5.0)
         effective_status = "REAL" if streaming else self.status
         return {

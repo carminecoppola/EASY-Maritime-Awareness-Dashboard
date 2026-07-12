@@ -80,13 +80,14 @@ function renderAiDetections(status, current) {
     card.className = "ai-detection-card";
     const confidence = aiConfidencePercent(detection?.confidence);
     const confidenceDisplay = Number.isFinite(confidence) ? `${Math.round(confidence)}%` : "—";
+    const confidenceTone = detectionConfidenceTone(detection?.confidence);
     const sourceLabel = aiSourceLabel(current || status, detection);
     const imagePath = current?.last_image || status?.last_image || detection?.image_path || "";
     card.innerHTML = `
       <strong>${escapeHtml(detection?.class_name || detection?.label || "Detection")}</strong>
       <p>${escapeHtml(formatAiBBox(detection?.box_xyxy || detection?.bbox || detection?.xyxy))}</p>
       <div class="ai-detection-meta">
-        <span class="badge badge-online">Confidence ${escapeHtml(confidenceDisplay)}</span>
+        <span class="badge badge-${confidenceTone} detection-confidence">Confidenza ${escapeHtml(confidenceDisplay)}</span>
         <span class="badge badge-muted">Source ${escapeHtml(sourceLabel)}</span>
       </div>
       <small title="${escapeHtml(imagePath)}">${escapeHtml(compactPath(imagePath || detection?.source || "runtime/sessions"))}</small>
@@ -129,7 +130,10 @@ function renderAiControlButtons(status, current) {
   const refreshButton = byId(detectionsElementId("aiRefreshButton"));
   const isRunning = meta.label === "RUNNING";
   const isDemo = meta.label === "DEMO";
-  if (startButton) startButton.hidden = isRunning || isDemo;
+  if (startButton) {
+    startButton.hidden = isRunning || isDemo;
+    startButton.textContent = status?.last_run_ts ? "Riprendi analisi" : "Avvia analisi";
+  }
   if (stopButton) stopButton.hidden = !(isRunning || isDemo);
   if (runButton) runButton.hidden = !isRunning;
   if (refreshButton) refreshButton.hidden = !(isRunning || isDemo);

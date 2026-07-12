@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="mission-page" aria-label="Gestione missione">
+    <div class="live-explainer" aria-live="polite">
+      <strong>Qui controlli cosa viene salvato.</strong>
+      <span>Avvia la missione, acquisisci set sincronizzati e verifica il dataset prima dell’esportazione.</span>
+    </div>
+
+    <section class="mission-command-bar" id="live-mission-command-bar" aria-live="polite">
+      <div class="mission-command-state">
+        <span class="mission-state-indicator" id="live-mission-state-indicator" aria-hidden="true"></span>
+        <div>
+          <span class="panel-kicker">Registrazione missione</span>
+          <strong id="live-mission-state-title">Nessuna missione attiva</strong>
+          <p id="live-mission-state-copy">Avvia una missione per salvare rilevazioni, eventi e metriche sulla Raspberry.</p>
+        </div>
+      </div>
+      <div class="mission-command-feedback" id="live-capture-feedback">
+        <span>Ultima acquisizione</span>
+        <strong id="live-capture-feedback-title">Non ancora acquisita</strong>
+        <a id="live-capture-feedback-link" href="/snapshots" hidden>Apri il campione</a>
+      </div>
+      <ol class="mission-workflow" aria-label="Flusso di acquisizione">
+        <li id="mission-workflow-start"><span>1</span> Registrazione</li>
+        <li id="mission-workflow-capture"><span>2</span> Salva set sensori</li>
+        <li id="mission-workflow-review"><span>3</span> Verifica archivio</li>
+      </ol>
+      <div class="mission-command-actions">
+        <button class="btn btn-secondary btn-small" id="button-live-save-snapshot" type="button" aria-describedby="live-mission-state-copy">Avvia prima la missione</button>
+        <button class="btn btn-primary btn-small" id="button-live-toggle-recording" type="button">Avvia missione</button>
+        <a class="btn btn-ghost btn-small" href="/snapshots">Apri archivio</a>
+      </div>
+    </section>
+
+    <section class="panel dataset-session-panel" aria-label="Dataset della sessione">
+      <div class="panel-head">
+        <div>
+          <span class="panel-kicker">Dataset sessione</span>
+          <h2 class="panel-title">Dati salvati sulla Raspberry</h2>
+          <p class="panel-copy" id="dataset-session-explanation">Avvia una missione per creare un manifest con foto, inferenze e coppie RGB/termiche.</p>
+        </div>
+        <div class="panel-head-actions">
+          <span class="badge badge-muted" id="dataset-session-state-badge">Standby</span>
+          <button class="btn btn-ghost btn-small" id="button-dataset-validate" type="button">Valida dataset</button>
+          <button class="btn btn-secondary btn-small" id="button-dataset-export" type="button">Esporta ZIP</button>
+          <a class="btn btn-ghost btn-small" id="dataset-export-download" href="/api/dataset/export/download" hidden>Scarica ZIP</a>
+        </div>
+      </div>
+      <div class="dataset-session-layout">
+        <div class="dataset-session-main">
+          <span class="panel-kicker">Sessione</span>
+          <strong id="dataset-session-id">Nessuna sessione</strong>
+          <p id="dataset-manifest-path">Il manifest apparirà qui appena la missione salva il primo dato.</p>
+        </div>
+        <div class="dataset-metrics-grid">
+          <div class="dataset-metric"><span>Campioni sessione</span><strong id="dataset-samples-count">0</strong></div>
+          <div class="dataset-metric"><span>Set sincronizzati</span><strong id="dataset-paired-count">0</strong></div>
+          <div class="dataset-metric"><span>Foto sessione</span><strong id="dataset-snapshots-count">0</strong></div>
+          <div class="dataset-metric"><span>Inferenze sessione</span><strong id="dataset-inference-count">0</strong></div>
+          <div class="dataset-metric"><span>Rilevazioni sessione</span><strong id="dataset-detections-count">0</strong></div>
+        </div>
+      </div>
+      <div class="dataset-feed-breakdown" id="dataset-feed-breakdown">
+        <span class="dataset-feed-pill">RGB sinistra: 0</span>
+        <span class="dataset-feed-pill">RGB destra: 0</span>
+        <span class="dataset-feed-pill">Termico: 0</span>
+      </div>
+      <p class="dataset-export-feedback" id="dataset-export-feedback">Valida la missione per sapere se i campioni sono pronti per il fine-tuning.</p>
+    </section>
+
+    <section class="live-summary-grid" aria-label="Riepilogo operativo della missione">
+      <article class="panel live-summary-card">
+        <span class="panel-kicker">Sistema</span>
+        <h2 class="live-summary-title" id="live-summary-health-title">Verifica in corso</h2>
+        <p class="live-summary-copy" id="live-summary-health-copy">Sto raccogliendo lo stato operativo del sistema.</p>
+      </article>
+      <article class="panel live-summary-card">
+        <span class="panel-kicker">Sorgente attiva</span>
+        <h2 class="live-summary-title" id="live-summary-source-title">--</h2>
+        <p class="live-summary-copy" id="live-summary-source-copy">Nessuna sorgente selezionata.</p>
+      </article>
+      <article class="panel live-summary-card">
+        <span class="panel-kicker">Sessione</span>
+        <h2 class="live-summary-title" id="live-summary-session-title">--</h2>
+        <p class="live-summary-copy" id="live-summary-session-copy">La sessione operativa non è ancora disponibile.</p>
+      </article>
+      <article class="panel live-summary-card">
+        <span class="panel-kicker">Rilevazioni AI</span>
+        <h2 class="live-summary-title" id="live-summary-detections-count">0</h2>
+        <p class="live-summary-copy" id="live-summary-detections-copy">Le rilevazioni compariranno qui dopo l’analisi.</p>
+      </article>
+    </section>
+
+    <section class="panel mission-sources-panel" aria-label="Sorgenti della missione">
+      <div class="panel-head">
+        <div>
+          <span class="panel-kicker">Ingresso video</span>
+          <h2 class="panel-title">Scegli la sorgente</h2>
+          <p class="panel-copy">Controlla quali sorgenti sono live, salvano foto o possono essere usate dall’analisi AI.</p>
+        </div>
+        <div class="panel-head-actions">
+          <span class="badge badge-muted" id="live-source-selected-badge">Attiva: --</span>
+          <button class="btn btn-ghost btn-small" id="button-live-refresh-sources" type="button">Aggiorna</button>
+        </div>
+      </div>
+      <div class="sources-grid" id="live-source-grid"></div>
+    </section>
+  </section>
+{% endblock %}

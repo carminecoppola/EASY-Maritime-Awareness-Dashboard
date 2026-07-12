@@ -67,7 +67,7 @@ def main() -> int:
     app.testing = True
     client = app.test_client()
 
-    page_routes = ["/", "/thermal-events", "/snapshots", "/system-diagnostics", "/help"]
+    page_routes = ["/", "/mission", "/thermal-events", "/snapshots", "/system-diagnostics", "/help"]
     for route in page_routes:
         response = client.get(route)
         assert_ok(response.status_code == 200, f"{route} returned {response.status_code}")
@@ -76,7 +76,17 @@ def main() -> int:
         assert_ok("dashboard_api.js" in html, f"{route} does not load the shared API client")
         assert_ok("app-footer-nav" in html, f"{route} does not render the shared footer navigation")
         if route == "/":
-            assert_ok("live-secondary-details" in html, "Live page must keep advanced data collapsed")
+            assert_ok("live-grid" in html, "Live page must render the camera feeds")
+            assert_ok("live-mission-command-bar" not in html, "Live page must not render mission controls")
+            assert_ok("live-source-grid" not in html, "Live page must not render mission source controls")
+            assert_ok("dataset-session-state-badge" not in html, "Live page must not render session dataset controls")
+        if route == "/mission":
+            assert_ok('data-page="mission"' in html, "Mission page must expose its page key")
+            assert_ok('data-nav-key="mission"' in html and 'topnav-link is-active' in html, "Mission navigation must be active")
+            assert_ok("live-mission-command-bar" in html, "Mission page must render mission controls")
+            assert_ok("dataset-session-state-badge" in html, "Mission page must render dataset status")
+            assert_ok("live-source-grid" in html, "Mission page must render source controls")
+            assert_ok("live-source-selected-badge" in html, "Mission page must render selected source status")
         if route == "/thermal-events":
             assert_ok("analysis-guide-details" in html, "Detection guide must be optional")
             assert_ok("session-details" in html, "Mission metrics must be collapsed")

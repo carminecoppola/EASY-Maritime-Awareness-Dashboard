@@ -177,15 +177,18 @@ function renderLivePage(health) {
       detected: Boolean(rgbRight.last_acquisition_ts || rgb.last_frame_ts || rgbRight.last_frame_ts),
     },
   ].forEach((cardInfo) => {
+    const hasFreshFrame = isFreshTimestamp(cardInfo.last);
     const tone = liveFeedTone(cardInfo.state, cardInfo.key, cardInfo.last, cardInfo.detected);
-    if (cardInfo.key === "thermal" && !isFreshTimestamp(cardInfo.last)) {
+    if (cardInfo.key === "thermal" && !hasFreshFrame) {
       tone.offline = true;
       tone.loading = false;
       tone.dot = cardInfo.detected ? "state-dot-error" : "state-dot-muted";
       tone.badge = cardInfo.detected ? "error" : "muted";
     }
     const label = tone.offline ? (cardInfo.detected ? "Non disponibile" : "Non rilevata") : humanStateLabel(cardInfo.state);
-    const statusText = liveStatusText(cardInfo.key, cardInfo.state, cardInfo.fps, cardInfo.last, cardInfo.detected);
+    const statusText = cardInfo.key === "thermal" && !hasFreshFrame
+      ? (cardInfo.detected ? "NON DISPONIBILE" : "NON RILEVATA")
+      : liveStatusText(cardInfo.key, cardInfo.state, cardInfo.fps, cardInfo.last, cardInfo.detected);
     const card = document.querySelector(`[data-feed="${cardInfo.key}"]`);
     const badgeTone = tone.badge === "loading" ? "loading" : tone.badge;
     setBadge(liveFeedElementId(cardInfo.key, "badge"), label, badgeTone);

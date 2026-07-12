@@ -194,7 +194,7 @@ function applyDashboardPayload(payload) {
   renderSourcePanel(dashboardState.sources);
   updateNavIndicators(health, eventsPayload, dashboardState.snapshots);
 
-  if (dashboardState.page === "live") {
+  if (dashboardState.page === "live" || dashboardState.page === "mission") {
     renderLivePage(health);
     renderAiCompactStatus(inferenceStatus, inferenceCurrent);
   }
@@ -527,7 +527,7 @@ function setupDetectionsPage() {
         await refreshDashboard();
       } finally {
         aiStartButton.disabled = false;
-        aiStartButton.textContent = "Avvia analisi";
+        aiStartButton.textContent = dashboardState.inferenceStatus?.last_run_ts ? "Riprendi analisi" : "Avvia analisi";
       }
     });
   }
@@ -709,7 +709,11 @@ function setupLogPage() {
   document.querySelectorAll("[data-snapshot-feed]").forEach((button) => {
     button.addEventListener("click", () => {
       dashboardState.filters.snapshotFeed = button.dataset.snapshotFeed || "all";
-      document.querySelectorAll("[data-snapshot-feed]").forEach((item) => item.classList.toggle("is-active", item === button));
+      document.querySelectorAll("[data-snapshot-feed]").forEach((item) => {
+        const active = item === button;
+        item.classList.toggle("is-active", active);
+        item.setAttribute("aria-pressed", active ? "true" : "false");
+      });
       renderSnapshots(dashboardState.snapshots, dashboardState.snapshotSummary);
     });
   });
@@ -758,7 +762,7 @@ function setupLogPage() {
 
 function setupPageInteractions() {
   setupSharedInteractions();
-  if (dashboardState.page === "live") {
+  if (dashboardState.page === "live" || dashboardState.page === "mission") {
     setupLivePage();
     setupFeedControlButtons();
     return;

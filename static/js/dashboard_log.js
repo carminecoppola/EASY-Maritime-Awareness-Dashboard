@@ -145,6 +145,14 @@ function renderSnapshots(snapshots, summary) {
     card.className = `snapshot-card snapshot-card-${item.feed || "generic"}`;
     const feedLabel = item.feed_label || item.feed || "--";
     const feedClass = item.feed === "thermal" ? "is-thermal" : "is-rgb";
+    const thermalReadingLabel = item.feed === "thermal"
+      ? item.meta?.anomaly_active === true
+        ? "Anomalia rilevata nella lettura"
+        : item.meta?.anomaly_active === false
+          ? "Letture entro soglia al momento dello scatto"
+          : "Stato della lettura termica non disponibile"
+      : "";
+    const thermalReadingTone = item.meta?.anomaly_active === true ? "is-alert" : item.meta?.anomaly_active === false ? "is-normal" : "is-unknown";
     const openIcon = `<svg class="icon-svg" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3h7v7"></path><path d="M13 3 6 10"></path><path d="M4 5H3a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1v-1"></path></svg>`;
     const downloadIcon = `<svg class="icon-svg" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v7"></path><path d="m5.2 7.8 2.8 2.8 2.8-2.8"></path><path d="M3 13.5h10"></path></svg>`;
     card.innerHTML = `
@@ -162,6 +170,7 @@ function renderSnapshots(snapshots, summary) {
         </div>
       </div>
       <div class="snapshot-card-body">
+        ${thermalReadingLabel ? `<span class="snapshot-thermal-context ${thermalReadingTone}" title="${escapeHtml(thermalReadingLabel)}">${escapeHtml(thermalReadingLabel)}</span>` : ""}
         <div class="snapshot-card-head">
           <div>
             <strong title="${escapeHtml(item.filename)}">${escapeHtml(item.filename)}</strong>

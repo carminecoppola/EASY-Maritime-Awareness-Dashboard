@@ -15,7 +15,7 @@ def index() -> str:
     return dashboard_context(
         "live",
         "Vista operativa",
-        "Flussi video e stato della missione",
+        "Flussi video e stato delle camere",
         template_name="index.html",
         hostname=runtime.probe.hostname(),
         ip_address=runtime.probe.ip_address(),
@@ -27,7 +27,18 @@ def index() -> str:
 
 @pages_bp.route("/mission")
 def mission_page() -> str:
-    return redirect("/")
+    runtime = get_runtime()
+    return dashboard_context(
+        "mission",
+        "Missione",
+        "Registrazione, acquisizioni e dataset della sessione",
+        template_name="mission.html",
+        hostname=runtime.probe.hostname(),
+        ip_address=runtime.probe.ip_address(),
+        asset_version=runtime.asset_version(),
+        thermal_device=runtime.thermal.device,
+        thermal_mode=runtime.config["thermal"].get("mode", "mock"),
+    )
 
 
 @pages_bp.route("/sensors")
