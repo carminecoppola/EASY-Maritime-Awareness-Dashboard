@@ -226,6 +226,15 @@ function renderLivePage(health) {
     recordButton.title = sessionRunning ? "Termina e archivia la missione corrente" : "Inizia a salvare rilevazioni, eventi e metriche";
   }
 
+  const captureFeedbackTitle = byId(liveActionElementId("captureTitle"));
+  if (captureFeedbackTitle && !captureFeedbackTitle.dataset.actionFeedback) {
+    captureFeedbackTitle.textContent = sessionRunning
+      ? "Registrazione attiva · ora puoi salvare un set sensori"
+      : sessionStatus.latest
+        ? "Missione terminata · puoi controllare lo storico"
+        : "In attesa dell’avvio";
+  }
+
   const missionBar = byId(liveActionElementId("missionBar"));
   const missionIndicator = byId(liveActionElementId("missionIndicator"));
   if (missionBar) missionBar.classList.toggle("is-running", sessionRunning);
@@ -292,16 +301,18 @@ function renderDatasetSessionPanel() {
 function renderMissionHistory(sessions) {
   const list = byId("mission-history-list");
   if (!list) return;
-  const items = Array.isArray(sessions) ? sessions.slice().reverse() : [];
+  const items = Array.isArray(sessions)
+    ? sessions.slice().sort((left, right) => new Date(right.start_time || 0) - new Date(left.start_time || 0))
+    : [];
   setText("mission-history-count", `${items.length} mission${items.length === 1 ? "e" : "i"}`);
   if (!items.length) {
     list.innerHTML = '<div class="empty-state">Nessuna missione archiviata.</div>';
     return;
   }
-  list.innerHTML = items.map((session) => {
+  list.innerHTML = items.map((session, index) => {
     const sessionId = String(session.session_id || "");
     const running = String(session.status || "").toUpperCase() === "RUNNING";
-    return `<button class="mission-history-row" type="button" data-mission-history-id="${escapeHtml(sessionId)}"><span><strong>${escapeHtml(sessionId || "Sessione EASY")}</strong><small>${escapeHtml(formatRomeDateTime(session.start_time))}</small></span><span><span class="badge badge-${running ? "online" : "muted"}">${running ? "In corso" : "Archiviata"}</span><small>${escapeHtml(formatSessionDuration(session.duration))}</small></span></button>`;
+    return `<button class="mission-history-row${index === 0 ? " is-active" : ""}" type="button" data-mission-history-id="${escapeHtml(sessionId)}" aria-pressed="${index === 0 ? "true" : "false"}"><span><strong>${escapeHtml(formatRomeDateTime(session.start_time))}</strong><small>${escapeHtml(sessionId || "Sessione EASY")}</small></span><span><span class="badge badge-${running ? "online" : "muted"}">${running ? "In corso" : "Archiviata"}</span><small>${escapeHtml(formatSessionDuration(session.duration))}</small></span></button>`;
   }).join("");
 }
 
@@ -309,6 +320,7 @@ function renderMissionHistoryDetail(session, manifest) {
   const detail = byId("mission-history-detail");
   if (!detail) return;
   const counts = manifest?.counts || {};
+  const byFeed = counts.by_feed || {};
   const sessionId = String(session?.session_id || manifest?.session_id || "");
-  detail.innerHTML = `<div class="mission-history-detail-head"><span class="panel-kicker">Dettaglio missione</span><strong>${escapeHtml(sessionId || "Sessione EASY")}</strong><p>${escapeHtml(formatRomeDateTime(session?.start_time))} · ${escapeHtml(formatSessionDuration(session?.duration))}</p></div><dl class="mission-history-counts"><div><dt>Campioni</dt><dd>${escapeHtml(String(counts.samples || 0))}</dd></div><div><dt>Foto</dt><dd>${escapeHtml(String(counts.snapshots || 0))}</dd></div><div><dt>Inferenze</dt><dd>${escapeHtml(String(counts.inference || 0))}</dd></div><div><dt>Rilevazioni</dt><dd>${escapeHtml(String(counts.detections || 0))}</dd></div></dl><p class="mission-history-feedback" id="mission-history-feedback">Manifest ${manifest?.ok === false ? "non disponibile" : "caricato"}.</p><div class="mission-history-actions"><button class="btn btn-ghost btn-small" type="button" data-history-validate="${escapeHtml(sessionId)}">Valida dataset</button><button class="btn btn-secondary btn-small" type="button" data-history-export="${escapeHtml(sessionId)}">Esporta ZIP</button><a class="panel-link" href="/snapshots">Apri archivio</a></div>`;
+  detail.innerHTML = `<div class="mission-history-detail-head"><span class="panel-kicker">Missione selezionata</span><strong>${escapeHtml(formatRomeDateTime(session?.start_time))}</strong><p>${escapeHtml(sessionId || "Sessione EASY")} · ${escapeHtml(formatSessionDuration(session?.duration))}</p></div><dl class="mission-history-counts"><div><dt>Campioni</dt><dd>${escapeHtml(String(counts.samples || 0))}</dd></div><div><dt>Foto</dt><dd>${escapeHtml(String(counts.snapshots || 0))}</dd></div><div><dt>Inferenze</dt><dd>${escapeHtml(String(counts.inference || 0))}</dd></div><div><dt>Rilevazioni</dt><dd>${escapeHtml(String(counts.detections || 0))}</dd></div></dl><div class="mission-history-feeds"><span>RGB sinistra <strong>${escapeHtml(String(byFeed.rgb_left || 0))}</strong></span><span>RGB destra <strong>${escapeHtml(String(byFeed.rgb_right || 0))}</strong></span><span>Termico <strong>${escapeHtml(String(byFeed.thermal || 0))}</strong></span></div><p class="mission-history-feedback" id="mission-history-feedback">${manifest?.ok === false ? "Manifest non disponibile per questa missione." : "Manifest caricato: puoi validare il dataset o esportarlo."}</p><div class="mission-history-actions"><button class="btn btn-ghost btn-small" type="button" data-history-validate="${escapeHtml(sessionId)}">Valida dataset</button><button class="btn btn-secondary btn-small" type="button" data-history-export="${escapeHtml(sessionId)}">Esporta ZIP</button><a class="panel-link" href="/snapshots">Vedi foto</a></div>`;
 }

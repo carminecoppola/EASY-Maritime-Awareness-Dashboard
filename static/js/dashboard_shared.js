@@ -224,7 +224,7 @@ function renderSourcePanel(payload) {
     if (source.configuration?.replay_dir) configBits.push(compactPath(source.configuration.replay_dir));
     if (source.configuration?.provider) configBits.push(source.configuration.provider);
     return `
-      <article class="source-card${isSelected ? " is-selected" : ""}">
+      <article class="source-card source-row${isSelected ? " is-selected" : ""}">
         <div class="source-card-head">
           <div>
             <span class="source-card-name">${escapeHtml(source.name || source.id || "--")}</span>
@@ -242,7 +242,7 @@ function renderSourcePanel(payload) {
             <span class="state-dot ${tone.dot}"></span>
             <span>${escapeHtml(source.enabled ? "Abilitata" : "Disabilitata")}</span>
           </div>
-          <p class="source-card-meta"><span>Aggiornamento</span><strong>${escapeHtml(updated)}</strong></p>
+          <p class="source-card-meta"><span>Stato</span><strong>${escapeHtml(label)} · ${escapeHtml(updated)}</strong></p>
         </div>
         <div class="source-card-actions">
           <button class="btn btn-small btn-ghost" type="button" data-source-select="${escapeHtml(source.id || "")}" ${isSelected || !selectable ? "disabled" : ""}>
