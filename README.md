@@ -1,167 +1,95 @@
-# EASY Local Dashboard
+# EASY Maritime Awareness Dashboard
 
-Browser-based local dashboard for Raspberry Pi camera monitoring.
+EASY is a Raspberry Pi dashboard for RGB and FLIR/PureThermal monitoring,
+mission-based acquisition, ONNX inference, and dataset export. The browser runs
+on the operator's Mac; camera capture and data storage remain on the Raspberry.
 
-## Project structure
+## Start here
 
-The codebase is now organized so the Flask entrypoint stays small and the core
-responsibilities are easy to find:
+- [Operator guide](docs/operator-guide.md) — use the dashboard and collect data.
+- [Developer guide](docs/developer-guide.md) — understand the runtime and APIs.
+- [Raspberry operations](docs/raspberry-operations.md) — install, launch, diagnose, and test safely.
 
-- `app.py` — Flask entrypoint and route wiring only
-- `easy_dashboard/runtime.py` — shared runtime context used by all routes
-- `easy_dashboard/routes/` — Flask blueprints split by page, runtime API,
-  media/snapshots, and inference/session APIs
-- `easy_dashboard/config.py` — config loading and merge logic
-- `easy_dashboard/constants.py` — shared paths, defaults, and folder bootstrap
-- `easy_dashboard/stores.py` — event log and snapshot persistence
-- `easy_dashboard/media.py` — placeholder image and stream helpers
-- `easy_dashboard/hardware.py` — Raspberry probe, RGB source, and thermal source
-- `easy_dashboard/presentation.py` — UI payload builders and page context helpers
-- `system_orchestrator.py` — lifecycle and health coordination of the runtime managers
-- `acquisition_manager.py` — indexes session artifacts for dataset/fine-tuning workflows
-- `dataset_exporter.py` — validates synchronized samples and creates portable train/validation packages
-- `inference_backend.py` — lazy ONNX Runtime loading and model execution
-- `inference_worker.py` — frame orchestration, result shaping, and persistence
-- `runtime/` — session data, replay data, runtime configs, and models
-- `docs/embedded/` — delivery notes and phase-by-phase implementation reports
+## Installation
 
-This split is intentional: app boot, route ownership, storage, hardware, and UI
-payload shaping now evolve independently instead of accumulating inside one
-monolithic file.
-
-## Install
+The target runtime is Raspberry Pi OS with Python 3.9. On the Raspberry:
 
 ```bash
 cd ~/Desktop/carmine/easy-dashboard
 ./install.sh
-```
-
-## Start
-
-```bash
-./start.sh
-```
-
-For systemd/service mode, use:
-
-```bash
 sudo install -m 644 services/easy-dashboard.service /etc/systemd/system/easy-dashboard.service
 sudo systemctl daemon-reload
 sudo systemctl enable easy-dashboard.service
-sudo systemctl restart easy-dashboard.service
-./scripts/validate_raspberry_runtime.sh
 ```
 
-The runtime validator waits up to 30 seconds for Flask and the hardware runtime
-to become ready after a service restart. Override the limit with
-`EASY_STARTUP_TIMEOUT_SECONDS` when startup checks intentionally take longer.
+Do not run `install.sh` from an active virtual environment; the Raspberry
+installer uses the platform-compatible package layout.
 
-The systemd unit uses `scripts/run_service.sh`, a minimal non-interactive
-launcher for Flask. `start.sh` remains available only for local diagnostics on
-the Raspberry; remote operation should use the single Mac launcher below.
+## One-command remote launch
 
-## Access
-
-Open:
-
-```text
-http://<Raspberry_IP>:5000
-```
-
-Purple exposes the Raspberry SSH server only on its loopback address through
-the persistent reverse tunnel `rainbow-tunnel.service`. The Mac launcher below
-handles service startup, readiness, the local tunnel and Safari. Port `5500` is
-preferred on the Mac to avoid the macOS AirPlay service; if occupied, the
-launcher selects the next available port. Flask remains on Raspberry port
-`5000`.
-
-The two SSH ports have different roles:
-
-- Purple SSH uses its normal port `22`.
-- Port `44222` exists only on Purple loopback and reaches Raspberry SSH.
-
-### Un solo comando dal Mac
-
-Quando lavori senza accesso fisico alla Raspberry, non lanciare Flask a mano e
-non aprire un browser sulla Raspberry. Dal clone del progetto sul Mac esegui:
+From the project clone on the Mac:
 
 ```bash
 ./scripts/easy_dashboard_mac.sh
 ```
 
-Il launcher riavvia `easy-dashboard.service` via SSH, aspetta `/health`, sceglie
-una porta locale libera a partire da `5500`, crea il tunnel e apre Safari solo
-quando la dashboard è raggiungibile. Il codice sulla Raspberry deve essere già
-allineato con `git pull --ff-only`; il launcher non aggiorna il repository in
-automatico.
+The launcher connects through the configured jump host, installs the current
+systemd unit, restarts the Raspberry service, waits for `/health`, creates a
+local SSH tunnel on the first available port from `5500`, and opens Safari only
+after the dashboard responds.
 
-I parametri possono essere sovrascritti senza modificare lo script, per esempio:
+The launcher intentionally does not run `git pull`. Update the Raspberry clone
+explicitly so local changes can never be overwritten silently.
 
-```bash
-EASY_LOCAL_PORT=5600 EASY_TARGET_PORT=44222 ./scripts/easy_dashboard_mac.sh
+## Architecture
+
+```text
+RGB cameras / PureThermal / replay
+                │
+                ▼
+        hardware and providers
+                │
+       ┌────────┴────────┐
+       ▼                 ▼
+ acquisition         ONNX inference
+       │                 │
+       └────────┬────────┘
+                ▼
+       mission manifest/events
+                │
+                ▼
+      validated dataset export
 ```
 
-## Debug
+Flask routes are under `easy_dashboard/routes/`. Long-lived services are
+created by `SystemOrchestrator`. Runtime data belongs under `runtime/`; operator
+snapshots belong under `data/snapshots/`.
+
+## Local validation
+
+Local tests do not require Raspberry hardware:
 
 ```bash
-journalctl -u easy-dashboard.service -f
-curl http://127.0.0.1:5000/health
-curl http://127.0.0.1:5000/cameras
-curl http://127.0.0.1:5000/api/acquisition/status
-curl http://127.0.0.1:5000/api/session/manifest
-```
-
-Session manifests index saved artifacts with `sample_id`, feed/modality labels,
-and lightweight RGB/thermal pairing metadata when captures are close enough in
-time to become a useful fine-tuning sample.
-
-## Local smoke test
-
-Before pushing changes to the Raspberry, run:
-
-```bash
+./.venv/bin/python -m py_compile app.py runtime_support.py system_orchestrator.py
 ./.venv/bin/python scripts/smoke_dashboard.py
+for file in static/js/dashboard_*.js; do node --check "$file"; done
 ```
 
-The smoke test imports the Flask app, renders the main dashboard pages, checks
-for duplicate DOM ids, and verifies the primary JSON API contracts used by the
-UI.
+On the Raspberry, use `scripts/validate_raspberry_runtime.sh` only during a
+controlled validation window. Stop the service if CPU temperature reaches
+78 °C or the thermal device fails to produce frames.
 
-See `docs/technical_optimization_plan.md` for the next structural steps toward
-a cleaner acquisition, inference, and dataset pipeline.
+## Repository map
 
-### Raspberry performance and storage checks
+- `app.py` — Flask application factory and runtime wiring.
+- `easy_dashboard/` — configuration, hardware adapters, presentation, routes, and shared runtime context.
+- `*_manager.py` — sessions, acquisition, sources, devices, detections, and events.
+- `inference_backend.py` / `inference_worker.py` — model execution and inference orchestration.
+- `static/` / `templates/` — operator interface.
+- `scripts/` — launch, smoke, benchmark, and Raspberry validation tools.
+- `docs/archive/` — historical implementation reports; not current operating instructions.
 
-After restarting the service, run the normal validation and a short read-only
-API benchmark:
+## Compatibility
 
-```bash
-./scripts/validate_raspberry_runtime.sh
-./scripts/benchmark_raspberry_runtime.py --runs 20
-```
-
-Add `--inference` only when you intentionally want to benchmark the currently
-selected source and model. Export status survives service restarts and includes
-disk usage plus a retention preview:
-
-```bash
-curl http://127.0.0.1:5000/api/dataset/export/status
-curl 'http://127.0.0.1:5000/api/dataset/export/retention?keep_latest=5'
-```
-
-Retention never runs automatically. Applying it requires an explicit POST with
-`confirm: true`, so an operator can inspect the preview before removing old
-export packages.
-
-For day-to-day usage, see `docs/user_guide.md` or open `/help` from the
-dashboard footer.
-
-## Notes
-
-- RGB feeds are browser-native MJPEG streams.
-- Left and right cards represent the logical split of the CamArray feed.
-- Thermal mode defaults to `mock` until the real FLIR path is activated.
-- Runtime data is stored under `data/`:
-  - `data/logs/`
-  - `data/reports/`
-  - `data/captures/`
+Existing HTTP routes and required JSON fields are kept stable. Internal modules
+may be reorganized behind compatibility adapters as the project is simplified.
