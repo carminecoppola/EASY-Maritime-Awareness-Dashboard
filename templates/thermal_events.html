@@ -70,36 +70,17 @@
       </section>
     </section>
 
-    <section class="session-panel panel session-panel-primary" aria-label="Sessione corrente">
-      <div class="session-panel-head">
-        <div>
-          <span class="ai-section-label">Missione e salvataggio</span>
-          <h2 id="session-summary-title">Nessuna missione attiva</h2>
-          <p id="session-summary-helper-copy">Avvia una missione per salvare rilevazioni, eventi e metriche sulla Raspberry.</p>
-        </div>
-        <div class="session-actions">
-          <button class="btn btn-primary btn-small" id="button-session-start" type="button">Avvia missione</button>
-          <button class="btn btn-danger btn-small" id="button-session-stop" type="button" hidden>Termina e archivia</button>
-        </div>
+    <section class="analysis-session-reference" aria-label="Sessione corrente">
+      <span class="state-dot state-dot-muted" aria-hidden="true"></span>
+      <div class="analysis-session-reference-copy">
+        <strong id="session-summary-title">Nessuna missione attiva</strong>
+        <p id="session-summary-helper-copy">La raccolta e il salvataggio si gestiscono dalla pagina Missione.</p>
       </div>
-
-      <details class="session-details">
-        <summary>Mostra dettagli della missione</summary>
-      <div class="session-info-grid" id="session-info-grid">
-        <article class="session-info-item"><span>Stato</span><strong id="session-info-status">—</strong></article>
-        <article class="session-info-item"><span>Durata</span><strong id="session-info-duration">—</strong></article>
-        <article class="session-info-item"><span>Rilevazioni salvate</span><strong id="session-metric-total-detections">0</strong></article>
-        <article class="session-info-item"><span>Eventi registrati</span><strong id="session-metric-total-events">0</strong></article>
-        <article class="session-info-item"><span>Avvio</span><strong id="session-info-start-time">—</strong></article>
-        <article class="session-info-item"><span>Identificativo archivio</span><strong id="session-info-id">—</strong></article>
-        <article class="session-info-item"><span>Modello AI</span><strong id="session-info-model">—</strong></article>
-        <article class="session-info-item"><span>Modalità</span><strong id="session-info-mode">—</strong></article>
-        <article class="session-info-item"><span>Eventi attivi</span><strong id="session-metric-active-events">0</strong></article>
-        <article class="session-info-item"><span>Barche</span><strong id="session-metric-boat-count">0</strong></article>
-        <article class="session-info-item"><span>Navi</span><strong id="session-metric-ship-count">0</strong></article>
-        <article class="session-info-item"><span>Boe</span><strong id="session-metric-buoy-count">0</strong></article>
+      <div class="analysis-session-reference-meta">
+        <span id="session-info-status">IDLE</span>
+        <code id="session-info-id">—</code>
       </div>
-      </details>
+      <a class="panel-link" href="/mission">Vai a Missione</a>
     </section>
 
     <details class="operations-panel panel">

@@ -1,0 +1,19 @@
+<footer class="app-footer" aria-label="Informazioni dashboard">
+  <div class="app-footer-identity">
+    <a class="app-footer-brand" href="/" aria-label="EASY dashboard home">
+      <img src="{{ url_for('static', filename='img/easy-logo.svg') }}" alt="">
+      <span><strong>EASY</strong><small>Maritime awareness</small></span>
+    </a>
+    <div class="app-footer-meta">
+      <span>© {{ current_year }} EASY</span><span aria-hidden="true">·</span><span>Elaborazione locale su Raspberry Pi</span>
+    </div>
+  </div>
+  <nav class="app-footer-links app-footer-nav" aria-label="Collegamenti utili">
+    <a href="/system-diagnostics">Sistema</a>
+    <a href="/help">Guida</a>
+    <a class="app-footer-repository-link" href="https://github.com/carminecoppola/EASY-Maritime-Awareness-Dashboard" target="_blank" rel="noreferrer" aria-label="Apri il repository EASY su GitHub in una nuova scheda">
+      <svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 0 0-2.85 17.54c.45.08.62-.2.62-.43v-1.68c-2.52.55-3.05-1.07-3.05-1.07-.41-1.05-1.01-1.33-1.01-1.33-.83-.57.06-.56.06-.56.92.06 1.4.94 1.4.94.81 1.4 2.14 1 2.66.76.08-.59.32-1 .58-1.23-2.01-.23-4.13-1.01-4.13-4.45 0-.98.35-1.79.94-2.42-.1-.23-.41-1.15.09-2.39 0 0 .76-.24 2.48.92A8.7 8.7 0 0 1 12 8.3a8.7 8.7 0 0 1 2.26.3c1.72-1.16 2.48-.92 2.48-.92.5 1.24.19 2.16.09 2.39.59.63.94 1.44.94 2.42 0 3.45-2.12 4.21-4.14 4.44.33.28.62.83.62 1.68v2.5c0 .24.17.52.63.43A9 9 0 0 0 12 3Z"></path></svg>
+      <span>Repository GitHub</span>
+    </a>
+  </nav>
+</footer>

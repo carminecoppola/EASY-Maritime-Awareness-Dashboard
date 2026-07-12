@@ -131,6 +131,7 @@ function renderLivePage(health) {
   const rgbLeft = rgbCams[0] || {};
   const rgbRight = rgbCams[1] || {};
   const thermalCam = cameras.thermal_camera || {};
+  const thermalVisual = thermalVisualState(thermal, thermalCam);
 
   setText(liveSummaryElementId("healthTitle"), mission.title || "Needs attention");
   setText(liveSummaryElementId("healthCopy"), mission.copy || "Controlla lo stato delle sorgenti live.");
@@ -162,11 +163,11 @@ function renderLivePage(health) {
     },
     {
       key: "thermal",
-      state: thermal.status || thermalCam.state || thermal.mode || "LOADING",
+      state: thermalVisual.state,
       fps: thermal.fps ?? thermal.frame_rate ?? thermalCam.fps ?? null,
-      last: thermal.last_frame_ts || thermal.last_acquisition_ts || thermalCam.last_frame_ts || null,
+      last: thermalVisual.lastFrame,
       device: thermal.error || (thermal.detected ? `${thermal.device || "FLIR"} rilevato, ma senza frame` : "FLIR Lepton non rilevato"),
-      detected: Boolean(thermal.detected || thermal.last_frame_ts || thermal.last_acquisition_ts || thermalCam.last_frame_ts),
+      detected: thermalVisual.detected,
     },
     {
       key: "rgb_right",
@@ -179,33 +180,28 @@ function renderLivePage(health) {
   ].forEach((cardInfo) => {
     const hasFreshFrame = isFreshTimestamp(cardInfo.last);
     const tone = liveFeedTone(cardInfo.state, cardInfo.key, cardInfo.last, cardInfo.detected);
-    if (cardInfo.key === "thermal" && !hasFreshFrame) {
-      tone.offline = true;
-      tone.loading = false;
-      tone.dot = cardInfo.detected ? "state-dot-error" : "state-dot-muted";
-      tone.badge = cardInfo.detected ? "error" : "muted";
-    }
-    const label = tone.offline ? (cardInfo.detected ? "Non disponibile" : "Non rilevata") : humanStateLabel(cardInfo.state);
-    const statusText = cardInfo.key === "thermal" && !hasFreshFrame
-      ? (cardInfo.detected ? "NON DISPONIBILE" : "NON RILEVATA")
+    const effectiveTone = cardInfo.key === "thermal" ? thermalVisual.tone : tone;
+    const label = cardInfo.key === "thermal" ? thermalVisual.label : effectiveTone.offline ? (cardInfo.detected ? "Non disponibile" : "Non rilevata") : humanStateLabel(cardInfo.state);
+    const statusText = cardInfo.key === "thermal"
+      ? thermalVisual.statusText
       : liveStatusText(cardInfo.key, cardInfo.state, cardInfo.fps, cardInfo.last, cardInfo.detected);
     const card = document.querySelector(`[data-feed="${cardInfo.key}"]`);
-    const badgeTone = tone.badge === "loading" ? "loading" : tone.badge;
+    const badgeTone = effectiveTone.badge === "loading" ? "loading" : effectiveTone.badge;
     setBadge(liveFeedElementId(cardInfo.key, "badge"), label, badgeTone);
     setText(liveFeedElementId(cardInfo.key, "statusLine"), statusText);
     setText(liveFeedElementId(cardInfo.key, "fps"), cardInfo.fps != null && Number.isFinite(Number(cardInfo.fps)) ? `${Number(cardInfo.fps).toFixed(1)} fps` : "--");
     setText(liveFeedElementId(cardInfo.key, "lastFrame"), cardInfo.last ? formatRomeTimeOnly(cardInfo.last) : "--");
     const offlineNode = byId(liveFeedElementId(cardInfo.key, "offlineState"));
     if (card) {
-      card.classList.toggle("is-offline", Boolean(tone.offline));
-      card.classList.toggle("is-loading", Boolean(tone.loading));
-      card.classList.toggle("is-live", !tone.offline && !tone.loading);
+      card.classList.toggle("is-offline", Boolean(effectiveTone.offline));
+      card.classList.toggle("is-loading", Boolean(effectiveTone.loading));
+      card.classList.toggle("is-live", !effectiveTone.offline && !effectiveTone.loading);
     }
-    if (offlineNode) offlineNode.hidden = !tone.offline;
+    if (offlineNode) offlineNode.hidden = !effectiveTone.offline;
     const deviceNode = byId(liveFeedElementId(cardInfo.key, "deviceName"));
     if (deviceNode) deviceNode.textContent = cardInfo.device;
     const image = card ? card.querySelector("[data-feed-image], #live-feed-thermal-image") : null;
-    if (image) image.classList.toggle("is-hidden", Boolean(tone.offline));
+    if (image) image.classList.toggle("is-hidden", Boolean(effectiveTone.offline));
   });
 
   const sessionStatus = dashboardState.sessionStatus || health.session || {};
@@ -216,10 +212,10 @@ function renderLivePage(health) {
   if (snapshotButton) {
     snapshotButton.dataset.primaryFeed = ["REAL", "LIVE", "READY"].includes(thermalState) ? "thermal" : "rgb_left";
     snapshotButton.disabled = !sessionRunning;
-    snapshotButton.textContent = sessionRunning ? "Salva set RGB + termico" : "Avvia prima la missione";
+    snapshotButton.textContent = "Salva set sensori";
     snapshotButton.title = sessionRunning
       ? "Salva nello stesso campione RGB sinistra, RGB destra e termico"
-      : "Prima premi Avvia missione";
+      : "Disponibile dopo l’avvio della missione";
   }
   const recordButton = byId(liveActionElementId("record"));
   if (recordButton) {
@@ -291,4 +287,28 @@ function renderDatasetSessionPanel() {
       <span class="dataset-feed-pill">${escapeHtml(label)}: <strong>${escapeHtml(String(byFeed[feed] || 0))}</strong></span>
     `).join("");
   }
+}
+
+function renderMissionHistory(sessions) {
+  const list = byId("mission-history-list");
+  if (!list) return;
+  const items = Array.isArray(sessions) ? sessions.slice().reverse() : [];
+  setText("mission-history-count", `${items.length} mission${items.length === 1 ? "e" : "i"}`);
+  if (!items.length) {
+    list.innerHTML = '<div class="empty-state">Nessuna missione archiviata.</div>';
+    return;
+  }
+  list.innerHTML = items.map((session) => {
+    const sessionId = String(session.session_id || "");
+    const running = String(session.status || "").toUpperCase() === "RUNNING";
+    return `<button class="mission-history-row" type="button" data-mission-history-id="${escapeHtml(sessionId)}"><span><strong>${escapeHtml(sessionId || "Sessione EASY")}</strong><small>${escapeHtml(formatRomeDateTime(session.start_time))}</small></span><span><span class="badge badge-${running ? "online" : "muted"}">${running ? "In corso" : "Archiviata"}</span><small>${escapeHtml(formatSessionDuration(session.duration))}</small></span></button>`;
+  }).join("");
+}
+
+function renderMissionHistoryDetail(session, manifest) {
+  const detail = byId("mission-history-detail");
+  if (!detail) return;
+  const counts = manifest?.counts || {};
+  const sessionId = String(session?.session_id || manifest?.session_id || "");
+  detail.innerHTML = `<div class="mission-history-detail-head"><span class="panel-kicker">Dettaglio missione</span><strong>${escapeHtml(sessionId || "Sessione EASY")}</strong><p>${escapeHtml(formatRomeDateTime(session?.start_time))} · ${escapeHtml(formatSessionDuration(session?.duration))}</p></div><dl class="mission-history-counts"><div><dt>Campioni</dt><dd>${escapeHtml(String(counts.samples || 0))}</dd></div><div><dt>Foto</dt><dd>${escapeHtml(String(counts.snapshots || 0))}</dd></div><div><dt>Inferenze</dt><dd>${escapeHtml(String(counts.inference || 0))}</dd></div><div><dt>Rilevazioni</dt><dd>${escapeHtml(String(counts.detections || 0))}</dd></div></dl><p class="mission-history-feedback" id="mission-history-feedback">Manifest ${manifest?.ok === false ? "non disponibile" : "caricato"}.</p><div class="mission-history-actions"><button class="btn btn-ghost btn-small" type="button" data-history-validate="${escapeHtml(sessionId)}">Valida dataset</button><button class="btn btn-secondary btn-small" type="button" data-history-export="${escapeHtml(sessionId)}">Esporta ZIP</button><a class="panel-link" href="/snapshots">Apri archivio</a></div>`;
 }

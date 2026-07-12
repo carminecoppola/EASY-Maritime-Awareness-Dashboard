@@ -92,6 +92,7 @@ const dashboardState = {
   inferenceCurrent: null,
   frameProviderStatus: null,
   sessionStatus: null,
+  sessionHistory: [],
   acquisition: null,
   systemStatus: null,
   systemComponents: null,
@@ -238,6 +239,13 @@ async function refreshDashboard() {
   }
 }
 
+async function loadMissionHistory() {
+  if (dashboardState.page !== "mission") return;
+  const response = await DashboardApi.request("/api/session/list");
+  dashboardState.sessionHistory = response.data?.sessions || [];
+  renderMissionHistory(dashboardState.sessionHistory);
+}
+
 function setupFilters() {
   const searchInput = byId(logElementId("searchInput"));
   if (searchInput) {
@@ -294,6 +302,39 @@ function setupFilters() {
 
 function setupSharedInteractions() {
   document.addEventListener("click", async (event) => {
+    const historyRow = event.target.closest?.("[data-mission-history-id]");
+    if (historyRow) {
+      const sessionId = historyRow.dataset.missionHistoryId;
+      document.querySelectorAll("[data-mission-history-id]").forEach((row) => row.classList.toggle("is-active", row === historyRow));
+      const response = await DashboardApi.request(`/api/session/manifest?session_id=${encodeURIComponent(sessionId)}`);
+      const session = dashboardState.sessionHistory.find((item) => item.session_id === sessionId) || { session_id: sessionId };
+      renderMissionHistoryDetail(session, response.data || {});
+      return;
+    }
+    const validateButton = event.target.closest?.("[data-history-validate]");
+    if (validateButton) {
+      const sessionId = validateButton.dataset.historyValidate;
+      validateButton.disabled = true;
+      try {
+        const response = await DashboardApi.request(`/api/dataset/validate?session_id=${encodeURIComponent(sessionId)}`);
+        const payload = response.data || {};
+        setText("mission-history-feedback", payload.valid ? `${payload.valid_samples || 0} campioni validi.` : `Dataset incompleto: ${payload.incomplete_samples || 0} campioni incompleti.`);
+      } finally { validateButton.disabled = false; }
+      return;
+    }
+    const exportButton = event.target.closest?.("[data-history-export]");
+    if (exportButton) {
+      const sessionId = exportButton.dataset.historyExport;
+      exportButton.disabled = true;
+      try {
+        const payload = await callInferenceAction("/api/dataset/export", { session_id: sessionId, validation_percent: 20 });
+        setText("mission-history-feedback", `${payload.counts?.samples || 0} campioni esportati. Lo ZIP è pronto.`);
+        showToast("Missione esportata", sessionId, "success", "/api/dataset/export/download");
+      } catch (error) {
+        setText("mission-history-feedback", error.message || "Esportazione non riuscita");
+      } finally { exportButton.disabled = false; }
+      return;
+    }
     const button = event.target.closest?.("[data-source-select]");
     if (!button) return;
     const sourceId = button.getAttribute("data-source-select");
@@ -702,6 +743,7 @@ function setupLogPage() {
     document.querySelectorAll("[data-archive-panel]").forEach((panel) => {
       panel.hidden = panel.dataset.archivePanel !== tab;
     });
+    setText("archive-current-section", tab === "events" ? "Registro attività" : "Foto salvate");
   };
   document.querySelectorAll("[data-archive-tab]").forEach((button) => {
     button.addEventListener("click", () => selectArchiveTab(button.dataset.archiveTab));
@@ -785,6 +827,7 @@ function initializeDashboardRuntime() {
   setupFilters();
   setupPageInteractions();
   refreshDashboard();
+  loadMissionHistory();
   window.setInterval(refreshDashboard, 2500);
   if (byId(liveActionElementId("thermalImage")) && !dashboardState.liteMode) {
     window.setInterval(reloadThermalFrame, 700);

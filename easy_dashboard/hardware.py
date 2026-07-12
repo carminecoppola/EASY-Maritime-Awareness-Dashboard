@@ -903,7 +903,7 @@ class ThermalState:
             bottom = int((ys.max() + 1) * 4)
             draw_rounded_box(draw, (left + 4, top + 4, right - 4, bottom - 4), radius=18, outline=(255, 96, 96) if anomaly_active else (255, 192, 96), width=4)
         draw_rounded_box(draw, (16, 16, 248, 56), radius=14, fill=(255, 96, 96) if anomaly_active else (38, 208, 178))
-        draw.text((28, 24), "THERMAL ALERT" if anomaly_active else "THERMAL OK", fill=(8, 19, 30))
+        draw.text((28, 24), "ANOMALIA TERMICA" if anomaly_active else "NELLA SOGLIA", fill=(8, 19, 30))
         footer = f"signal {signal_spread} | hot {hotspot_percent:.2f}% | thr {hot_threshold:.0f} raw"
         draw.rectangle((16, 426, 624, 464), fill=(0, 0, 0))
         draw.text((28, 438), footer, fill=(244, 248, 251))

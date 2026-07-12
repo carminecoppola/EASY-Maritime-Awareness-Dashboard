@@ -87,9 +87,14 @@ def main() -> int:
             assert_ok("dataset-session-state-badge" in html, "Mission page must render dataset status")
             assert_ok("live-source-grid" in html, "Mission page must render source controls")
             assert_ok("live-source-selected-badge" in html, "Mission page must render selected source status")
+            assert_ok("mission-history-list" in html, "Mission page must render session history")
         if route == "/thermal-events":
             assert_ok("analysis-guide-details" in html, "Detection guide must be optional")
-            assert_ok("session-details" in html, "Mission metrics must be collapsed")
+            assert_ok("analysis-session-reference" in html, "Analysis page must link to mission management")
+            assert_ok("button-session-start" not in html, "Analysis page must not duplicate mission start controls")
+            assert_ok("button-session-stop" not in html, "Analysis page must not duplicate mission stop controls")
+        if route == "/snapshots":
+            assert_ok("archive-current-section" in html, "Archive must identify its active subsection")
         if route == "/system-diagnostics":
             assert_ok("system-technical-details" in html, "System diagnostics must be collapsed")
 

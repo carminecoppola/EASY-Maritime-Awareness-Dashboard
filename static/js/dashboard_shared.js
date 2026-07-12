@@ -11,36 +11,78 @@ function humanStateLabel(state) {
   const value = String(state || "--").toUpperCase();
   const map = {
     ONLINE: "Live",
-    DETECTED: "Detected",
+    DETECTED: "Rilevato",
     READY: "Pronto",
     OK: "Pronto",
-    BUSY: "Recovering",
-    WARNING: "Needs check",
-    WARN: "Needs check",
+    BUSY: "Recupero in corso",
+    WARNING: "Da verificare",
+    WARN: "Da verificare",
     OFFLINE: "Non disponibile",
     ERROR: "Errore",
     FAILED: "Errore",
-    DISABLED: "Disabled",
+    DISABLED: "Disabilitato",
     STARTING: "Avvio",
     LOADING: "Caricamento",
-    WAITING: "Waiting",
-    CHECKING: "Checking",
-    INITIALIZING: "Initializing",
-    PAUSED: "Paused",
+    WAITING: "In attesa",
+    CHECKING: "Verifica in corso",
+    INITIALIZING: "Inizializzazione",
+    PAUSED: "In pausa",
     STREAMING: "In esecuzione",
-    CONNECTED: "Connected",
-    DISCONNECTED: "Disconnected",
+    CONNECTED: "Collegato",
+    DISCONNECTED: "Scollegato",
     NOT_AVAILABLE: "Non disponibile",
     NOT_PRESENT: "Non collegato",
-    UNKNOWN: "Unknown",
+    UNKNOWN: "Sconosciuto",
     REAL: "Live",
-    MOCK: "Simulation",
-    NOT_DETECTED: "Not detected",
+    MOCK: "Simulazione",
+    NOT_DETECTED: "Non rilevato",
     PENDING: "Avvio",
     RUNNING: "In esecuzione",
     STOPPED: "Fermo",
   };
   return map[value] || (state || "--");
+}
+
+function eventSeverityLabel(severity) {
+  const labels = {
+    critical: "Critica",
+    high: "Alta priorità",
+    medium: "Media priorità",
+    low: "Bassa priorità",
+    info: "Informativa",
+  };
+  const value = String(severity || "info").toLowerCase();
+  return labels[value] || humanStateLabel(value);
+}
+
+function eventStatusLabel(status) {
+  const labels = { new: "Nuovo", active: "Attivo", resolved: "Risolto", idle: "In attesa" };
+  const value = String(status || "new").toLowerCase();
+  return labels[value] || humanStateLabel(value);
+}
+
+function thermalVisualState(thermal, fallback = {}) {
+  const payload = thermal || {};
+  const state = String(payload.status || fallback.state || payload.mode || "UNKNOWN").toUpperCase();
+  const lastFrame = payload.last_frame_ts || payload.last_acquisition_ts || fallback.last_frame_ts || null;
+  const detected = Boolean(payload.detected || lastFrame);
+  const fresh = isFreshTimestamp(lastFrame);
+  const tone = liveFeedTone(state, "thermal", lastFrame, detected);
+  if (!fresh) {
+    tone.offline = true;
+    tone.loading = false;
+    tone.dot = detected ? "state-dot-error" : "state-dot-muted";
+    tone.badge = detected ? "error" : "muted";
+  }
+  return {
+    state,
+    lastFrame,
+    detected,
+    fresh,
+    tone,
+    label: tone.offline ? (detected ? "Non disponibile" : "Non rilevata") : humanStateLabel(state),
+    statusText: !fresh ? (detected ? "NON DISPONIBILE" : "NON RILEVATA") : liveStatusText("thermal", state, payload.fps ?? payload.frame_rate, lastFrame, detected),
+  };
 }
 
 function liveFeedTone(state, feed, lastFrameTs = null, detected = true) {
@@ -149,7 +191,7 @@ function renderSourcePanel(payload) {
   if (!grid || !selectedBadge) return;
   const sources = Array.isArray(payload?.sources) ? payload.sources : [];
   const selected = payload?.selected_source || null;
-  selectedBadge.textContent = selected?.name ? `Attiva: ${selected.name}` : "Attiva: --";
+  selectedBadge.textContent = selected?.name ? `In uso: ${selected.name}` : "In uso: --";
 
   if (!sources.length) {
     grid.innerHTML = `
@@ -168,6 +210,8 @@ function renderSourcePanel(payload) {
     const capabilities = source.capabilities || {};
     const availability = source.availability || {};
     const selectable = availability.selectable !== false && capabilities.inference === true;
+    const availabilityLabel = isSelected ? "In uso" : selectable ? "Disponibile" : "Non disponibile";
+    const availabilityTone = isSelected ? "online" : selectable ? "muted" : "error";
     const updated = source.last_update ? formatRomeDateTime(source.last_update) : "--";
     const sourceTypeLabels = {
       replay_folder: "Archivio replay",
@@ -186,7 +230,7 @@ function renderSourcePanel(payload) {
             <span class="source-card-name">${escapeHtml(source.name || source.id || "--")}</span>
             <p class="source-card-subtitle">${escapeHtml(configBits.join(" · ") || "No configuration")}</p>
           </div>
-          <span class="badge badge-${tone.badge}">${escapeHtml(label)}</span>
+          <span class="badge badge-${availabilityTone}">${escapeHtml(availabilityLabel)}</span>
         </div>
         <div class="source-card-body">
           <div class="source-capability-list" aria-label="Funzioni disponibili">
@@ -201,10 +245,9 @@ function renderSourcePanel(payload) {
           <p class="source-card-meta"><span>Aggiornamento</span><strong>${escapeHtml(updated)}</strong></p>
         </div>
         <div class="source-card-actions">
-          <button class="btn btn-small ${isSelected ? "btn-primary" : "btn-ghost"}" type="button" data-source-select="${escapeHtml(source.id || "")}" ${isSelected || !selectable ? "disabled" : ""}>
-            ${escapeHtml(isSelected ? "Attiva" : selectable ? "Seleziona" : "Non disponibile")}
+          <button class="btn btn-small btn-ghost" type="button" data-source-select="${escapeHtml(source.id || "")}" ${isSelected || !selectable ? "disabled" : ""}>
+            ${escapeHtml(isSelected ? "In uso" : selectable ? "Seleziona" : "Non disponibile")}
           </button>
-          ${isSelected ? '<span class="source-selected-badge">Sorgente in uso</span>' : ""}
         </div>
       </article>
     `;
