@@ -113,7 +113,7 @@ def create_app(*, run_startup_checks: bool = True, start_runtime_services: bool 
 
     @app.context_processor
     def inject_asset_version() -> Dict[str, str]:
-        return {"asset_version": runtime.asset_version()}
+        return {"asset_version": runtime.asset_version(), "current_year": str(time.gmtime().tm_year)}
 
     @app.teardown_appcontext
     def _shutdown(_exc: BaseException | None) -> None:

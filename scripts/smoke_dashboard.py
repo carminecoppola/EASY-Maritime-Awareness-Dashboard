@@ -73,6 +73,7 @@ def main() -> int:
         html = response.get_data(as_text=True)
         assert_no_duplicate_ids(route, html)
         assert_ok("dashboard_api.js" in html, f"{route} does not load the shared API client")
+        assert_ok("app-footer-nav" in html, f"{route} does not render the shared footer navigation")
         if route == "/":
             assert_ok("live-secondary-details" in html, "Live page must keep advanced data collapsed")
         if route == "/thermal-events":
