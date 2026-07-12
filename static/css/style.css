@@ -701,25 +701,28 @@ h2 {
 
 .sources-grid {
   display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  grid-template-columns: minmax(0, 1fr);
+  border-top: 1px solid var(--surface-border);
 }
 
 .source-card {
   display: grid;
-  gap: 12px;
+  grid-template-columns: minmax(220px, 1fr) minmax(260px, 1.4fr) auto;
+  align-items: center;
+  gap: 16px;
   min-width: 0;
-  padding: 14px;
-  border-radius: var(--radius-sm);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01)),
-    rgba(9, 17, 14, 0.72);
+  padding: 12px 2px;
+  border: 0;
+  border-bottom: 1px solid var(--surface-border);
+  border-radius: 0;
+  background: transparent;
 }
 
 .source-card.is-selected {
-  border-color: rgba(0, 229, 160, 0.28);
-  box-shadow: 0 0 0 1px rgba(0, 229, 160, 0.08), var(--shadow-soft);
+  border-bottom-color: rgba(0, 229, 160, 0.28);
+  box-shadow: inset 3px 0 0 var(--online);
+  padding-left: 12px;
 }
 
 .source-card-head {
@@ -744,8 +747,10 @@ h2 {
 }
 
 .source-card-body {
-  display: grid;
-  gap: 10px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
 }
 
 .source-capability-list {
@@ -1652,9 +1657,9 @@ body[data-page="live"] .live-page {
 .dataset-session-main,
 .dataset-metric,
 .dataset-feed-pill {
-  border: 1px solid var(--surface-border);
-  border-radius: 12px;
-  background: rgba(6, 12, 10, 0.42);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .dataset-session-main {
@@ -1662,6 +1667,7 @@ body[data-page="live"] .live-page {
   align-content: center;
   gap: 8px;
   padding: 16px;
+  border-right: 1px solid var(--surface-border);
 }
 
 .dataset-session-main strong {
@@ -1682,11 +1688,12 @@ body[data-page="live"] .live-page {
 }
 
 .dataset-metric {
-  min-height: 88px;
+  min-height: 72px;
   display: grid;
   align-content: center;
   gap: 6px;
   padding: 12px;
+  border-left: 1px solid var(--surface-border);
 }
 
 .dataset-metric span {
@@ -2181,6 +2188,34 @@ body[data-page="detections"] .header-meta {
   padding: 16px;
   border-color: rgba(0, 180, 216, 0.25);
   background: linear-gradient(135deg, rgba(0, 180, 216, 0.07), transparent 42%), var(--surface);
+}
+
+.analysis-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(340px, 0.75fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.analysis-workspace > .analysis-monitor {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  margin: 0;
+}
+
+.analysis-workspace > .events-panel:not(.events-history-details) {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.analysis-workspace > .events-history-details {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.analysis-workspace > .session-panel,
+.analysis-workspace > .operations-panel {
+  grid-column: 1 / -1;
 }
 
 .analysis-monitor-head {
@@ -2860,6 +2895,31 @@ body[data-page="detections"] .header-meta {
 .detections-empty-state p {
   max-width: 56ch;
   color: var(--text-weak);
+}
+
+#events-current-empty-state {
+  grid-template-columns: auto minmax(0, 1fr);
+  place-items: center start;
+  gap: 4px 12px;
+  min-height: 112px;
+  padding: 16px;
+  text-align: left;
+}
+
+#events-current-empty-state .detections-empty-icon {
+  grid-row: 1 / span 2;
+  width: 30px;
+  height: 30px;
+}
+
+#events-current-empty-state strong {
+  align-self: end;
+  font-size: 14px;
+}
+
+#events-current-empty-state p {
+  align-self: start;
+  font-size: 11px;
 }
 
 .ai-preview-panel {
@@ -3565,7 +3625,15 @@ body[data-page="log"] .header-meta {
 
 .log-row-time {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  opacity: 0.85;
+  color: var(--text-muted);
+  font-size: 11px;
+  opacity: 0.78;
+}
+
+.log-row-event {
+  color: var(--text);
+  font-weight: 600;
+  line-height: 1.35;
 }
 
 .log-day-divider {
@@ -3702,8 +3770,8 @@ body[data-page="log"] .header-meta {
 
 .snapshot-grid {
   display: grid;
-  gap: 14px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .snapshot-library {
@@ -3754,6 +3822,7 @@ body[data-page="log"] .header-meta {
   color: var(--text);
   border-color: rgba(0, 180, 216, 0.5);
   background: rgba(0, 180, 216, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(0, 180, 216, 0.18);
 }
 
 .snapshot-filter strong {
@@ -3814,7 +3883,7 @@ body[data-page="log"] .header-meta {
     radial-gradient(circle at top left, rgba(0, 180, 216, 0.12), transparent 28%),
     #07110e;
   overflow: hidden;
-  min-height: 240px;
+  min-height: 180px;
 }
 
 .snapshot-image-link {
@@ -3914,6 +3983,30 @@ body[data-page="log"] .header-meta {
   padding: 14px;
   display: grid;
   gap: 8px;
+}
+
+.snapshot-thermal-context {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 22px;
+  padding: 3px 8px;
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  color: var(--text-weak);
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.snapshot-thermal-context.is-normal {
+  color: var(--online);
+  border-color: rgba(0, 229, 160, 0.24);
+}
+
+.snapshot-thermal-context.is-alert {
+  color: var(--error);
+  border-color: rgba(255, 68, 68, 0.28);
 }
 
 .snapshot-card-head {
@@ -4382,6 +4475,42 @@ body[data-page="log"] .header-meta {
 
   .log-row-detail {
     padding-left: 12px;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1280px) {
+  body[data-page="log"] .snapshot-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Operator views use compact rows instead of nested source cards. */
+body[data-page="live"] .sources-grid,
+body[data-page="mission"] .sources-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (max-width: 900px) {
+  body[data-page="live"] .source-card,
+  body[data-page="mission"] .source-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  body[data-page="live"] .source-card-body,
+  body[data-page="mission"] .source-card-body {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 560px) {
+  body[data-page="live"] .source-card,
+  body[data-page="mission"] .source-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  body[data-page="live"] .source-card-actions,
+  body[data-page="mission"] .source-card-actions {
+    justify-content: flex-start;
   }
 }
 
@@ -5037,6 +5166,19 @@ body[data-page="live"] .live-grid {
 }
 
 @media (max-width: 900px) {
+  .analysis-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .analysis-workspace > .analysis-monitor,
+  .analysis-workspace > .events-panel:not(.events-history-details),
+  .analysis-workspace > .events-history-details,
+  .analysis-workspace > .session-panel,
+  .analysis-workspace > .operations-panel {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
   .mission-command-actions {
     display: grid;
     width: 100%;

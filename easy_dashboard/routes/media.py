@@ -159,6 +159,14 @@ def thermal_status():
     return jsonify(get_runtime().thermal.status_payload())
 
 
+@media_bp.route("/thermal/refresh", methods=["POST"])
+def thermal_refresh():
+    thermal = get_runtime().thermal
+    detected = thermal.refresh_device(force=True)
+    payload = thermal.status_payload()
+    return jsonify({"ok": True, "detected": detected, "status": payload["status"]})
+
+
 @media_bp.route("/thermal/frame")
 def thermal_frame():
     frame, stats = get_runtime().thermal.frame()

@@ -198,14 +198,7 @@ function renderSourcePanel(payload) {
             <span class="state-dot ${tone.dot}"></span>
             <span>${escapeHtml(source.enabled ? "Abilitata" : "Disabilitata")}</span>
           </div>
-          <div class="source-card-meta">
-            <span>Ultimo aggiornamento</span>
-            <strong>${escapeHtml(updated)}</strong>
-          </div>
-          <div class="source-card-meta">
-            <span>Tipo</span>
-            <strong>${escapeHtml(sourceTypeLabel)}</strong>
-          </div>
+          <p class="source-card-meta"><span>Aggiornamento</span><strong>${escapeHtml(updated)}</strong></p>
         </div>
         <div class="source-card-actions">
           <button class="btn btn-small ${isSelected ? "btn-primary" : "btn-ghost"}" type="button" data-source-select="${escapeHtml(source.id || "")}" ${isSelected || !selectable ? "disabled" : ""}>
@@ -346,7 +339,7 @@ function detectionSourceBadge(item) {
 function detectionConfidenceTone(confidence) {
   const value = aiConfidencePercent(confidence);
   if (!Number.isFinite(value)) return "muted";
-  if (value > 80) return "online";
+  if (value >= 80) return "online";
   if (value >= 50) return "warning";
   return "error";
 }
