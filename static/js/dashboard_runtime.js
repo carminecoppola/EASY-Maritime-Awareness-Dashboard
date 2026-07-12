@@ -244,6 +244,13 @@ async function loadMissionHistory() {
   const response = await DashboardApi.request("/api/session/list");
   dashboardState.sessionHistory = response.data?.sessions || [];
   renderMissionHistory(dashboardState.sessionHistory);
+  const latest = dashboardState.sessionHistory
+    .slice()
+    .sort((left, right) => new Date(right.start_time || 0) - new Date(left.start_time || 0))[0];
+  if (latest?.session_id) {
+    const manifestResponse = await DashboardApi.request(`/api/session/manifest?session_id=${encodeURIComponent(latest.session_id)}`);
+    renderMissionHistoryDetail(latest, manifestResponse.data || {});
+  }
 }
 
 function setupFilters() {
@@ -305,7 +312,11 @@ function setupSharedInteractions() {
     const historyRow = event.target.closest?.("[data-mission-history-id]");
     if (historyRow) {
       const sessionId = historyRow.dataset.missionHistoryId;
-      document.querySelectorAll("[data-mission-history-id]").forEach((row) => row.classList.toggle("is-active", row === historyRow));
+      document.querySelectorAll("[data-mission-history-id]").forEach((row) => {
+        const active = row === historyRow;
+        row.classList.toggle("is-active", active);
+        row.setAttribute("aria-pressed", String(active));
+      });
       const response = await DashboardApi.request(`/api/session/manifest?session_id=${encodeURIComponent(sessionId)}`);
       const session = dashboardState.sessionHistory.find((item) => item.session_id === sessionId) || { session_id: sessionId };
       renderMissionHistoryDetail(session, response.data || {});
@@ -454,7 +465,15 @@ function setupLivePage() {
           const sessionId = payload?.session?.session_id;
           showToast("Missione avviata", sessionId ? `Archivio attivo: ${sessionId}` : "Il salvataggio operativo è attivo.", "success");
         }
+        const inlineFeedback = byId(liveActionElementId("captureTitle"));
+        if (inlineFeedback) {
+          inlineFeedback.dataset.actionFeedback = "true";
+          inlineFeedback.textContent = running
+            ? "Missione terminata e archiviata"
+            : "Missione avviata · ora salva il primo set sensori";
+        }
         await refreshDashboard();
+        await loadMissionHistory();
       } catch (error) {
         console.error(error);
         showToast("Operazione non riuscita", error.message || "Impossibile aggiornare la missione", "error");

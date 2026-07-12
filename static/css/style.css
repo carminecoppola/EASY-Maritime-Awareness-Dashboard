@@ -5324,6 +5324,103 @@ body[data-page="live"] .live-grid {
   font-weight: 800;
 }
 
+body[data-page="mission"] .mission-page {
+  display: grid;
+  gap: 12px;
+}
+
+body[data-page="mission"] .mission-command-bar {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.4fr) auto;
+  gap: 14px 24px;
+  align-items: center;
+  padding: 18px;
+}
+
+body[data-page="mission"] .mission-command-actions {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+body[data-page="mission"] .mission-command-feedback,
+body[data-page="mission"] .mission-workflow {
+  grid-column: 1 / -1;
+}
+
+body[data-page="mission"] .mission-command-feedback {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--surface-border);
+}
+
+body[data-page="mission"] .mission-command-feedback span {
+  color: var(--text-muted);
+}
+
+body[data-page="mission"] .mission-workflow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+}
+
+body[data-page="mission"] .sources-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+}
+
+body[data-page="mission"] .source-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.2fr) minmax(260px, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 12px;
+}
+
+body[data-page="mission"] .source-row .source-card-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+body[data-page="mission"] .source-row .source-card-meta {
+  display: none;
+}
+
+.mission-history-list {
+  max-height: 390px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.mission-history-row.is-active {
+  box-shadow: inset 3px 0 0 var(--cta);
+}
+
+.mission-history-detail {
+  border: 1px solid var(--border-accent);
+  border-radius: var(--radius-sm);
+  background: rgba(0, 180, 216, 0.035);
+}
+
+.mission-history-feeds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mission-history-feeds span {
+  padding: 6px 9px;
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.mission-history-feeds strong { color: var(--text); }
+
 @media (max-width: 900px) {
   .dataset-session-main {
     grid-template-columns: minmax(0, 1fr);
@@ -5336,6 +5433,22 @@ body[data-page="live"] .live-grid {
   .mission-history-detail {
     border-top: 1px solid var(--surface-border);
     border-left: 0;
+  }
+
+  body[data-page="mission"] .mission-command-bar,
+  body[data-page="mission"] .source-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  body[data-page="mission"] .mission-command-actions {
+    grid-column: 1;
+    grid-row: auto;
+    justify-content: flex-start;
+  }
+
+  body[data-page="mission"] .mission-command-feedback,
+  body[data-page="mission"] .mission-workflow {
+    grid-column: 1;
   }
 }
 
