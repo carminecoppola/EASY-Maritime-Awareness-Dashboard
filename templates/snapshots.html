@@ -15,7 +15,7 @@
         <div>
           <span class="panel-kicker">Archivio locale</span>
           <h2 class="panel-title">Foto salvate sulla Raspberry</h2>
-          <p class="panel-copy">Le acquisizioni più recenti. Apri l’anteprima o scarica il file originale.</p>
+          <p class="panel-copy">Le foto sono ordinate dalla più recente. Usa i filtri e carica altri risultati solo quando servono.</p>
         </div>
         <div class="snapshot-library-summary">
           <span><strong id="snapshot-count">0</strong> foto</span>
@@ -30,6 +30,10 @@
         <button class="snapshot-filter" type="button" data-snapshot-feed="rgb_right" aria-pressed="false">Camera destra <strong id="snapshot-filter-count-rgb-right">0</strong></button>
       </div>
       <div class="snapshot-grid" id="snapshot-grid"></div>
+      <div class="snapshot-pagination" id="snapshot-pagination" aria-live="polite">
+        <span id="snapshot-visible-count">0 foto visualizzate</span>
+        <button class="btn btn-secondary btn-small" id="button-snapshot-load-more" type="button">Mostra altre foto</button>
+      </div>
     </section>
 
     <section id="archive-panel-events" data-archive-panel="events" hidden>

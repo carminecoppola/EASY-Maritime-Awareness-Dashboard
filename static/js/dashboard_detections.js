@@ -315,6 +315,7 @@ function renderCurrentEventsPanel() {
     `;
     grid.appendChild(card);
   });
+  updateAnalysisEventsEmptyState();
 }
 
 function renderEventTimeline() {
@@ -342,6 +343,17 @@ function renderEventTimeline() {
     `;
     timeline.appendChild(row);
   });
+  updateAnalysisEventsEmptyState();
+}
+
+function updateAnalysisEventsEmptyState() {
+  const empty = byId("analysis-events-empty-state");
+  if (!empty) return;
+  const hasCurrent = Array.isArray(dashboardState.currentEvents) && dashboardState.currentEvents.length > 0;
+  const hasHistory = Array.isArray(dashboardState.eventHistory) && dashboardState.eventHistory.length > 0;
+  const hasEvents = hasCurrent || hasHistory;
+  empty.hidden = hasEvents;
+  empty.closest(".analysis-events-column")?.classList.toggle("is-empty", !hasEvents);
 }
 
 function renderDetectionsPage(health) {

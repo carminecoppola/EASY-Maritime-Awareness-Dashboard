@@ -158,7 +158,8 @@ function renderLivePage(health) {
       state: rgbLeft.state || rgb.camera_state || "LOADING",
       fps: rgbLeft.fps ?? rgb.fps ?? null,
       last: rgbLeft.last_acquisition_ts || rgb.last_frame_ts || rgbLeft.last_frame_ts || null,
-      device: rgbLeft.hardware_name || "Arducam UC-517 LEFT",
+      device: "Nessun segnale dalla camera sinistra",
+      technicalDetail: rgbLeft.error || rgb.error || rgbLeft.hardware_name || "Arducam UC-517 LEFT",
       detected: Boolean(rgbLeft.last_acquisition_ts || rgb.last_frame_ts || rgbLeft.last_frame_ts),
     },
     {
@@ -166,7 +167,8 @@ function renderLivePage(health) {
       state: thermalVisual.state,
       fps: thermal.fps ?? thermal.frame_rate ?? thermalCam.fps ?? null,
       last: thermalVisual.lastFrame,
-      device: thermal.error || (thermal.detected ? `${thermal.device || "FLIR"} rilevato, ma senza frame` : "FLIR Lepton non rilevato"),
+      device: thermal.detected ? "Nessun segnale dalla camera termica" : "Sensore termico non rilevato",
+      technicalDetail: thermal.error || (thermal.detected ? `${thermal.device || "FLIR"} rilevato, ma senza frame` : "PureThermal video node not found. Check USB cable and v4l2-ctl --list-devices."),
       detected: thermalVisual.detected,
     },
     {
@@ -174,14 +176,15 @@ function renderLivePage(health) {
       state: rgbRight.state || rgb.camera_state || "LOADING",
       fps: rgbRight.fps ?? rgb.fps ?? null,
       last: rgbRight.last_acquisition_ts || rgb.last_frame_ts || rgbRight.last_frame_ts || null,
-      device: rgbRight.hardware_name || "Arducam UC-517 RIGHT",
+      device: "Nessun segnale dalla camera destra",
+      technicalDetail: rgbRight.error || rgb.error || rgbRight.hardware_name || "Arducam UC-517 RIGHT",
       detected: Boolean(rgbRight.last_acquisition_ts || rgb.last_frame_ts || rgbRight.last_frame_ts),
     },
   ].forEach((cardInfo) => {
     const hasFreshFrame = isFreshTimestamp(cardInfo.last);
     const tone = liveFeedTone(cardInfo.state, cardInfo.key, cardInfo.last, cardInfo.detected);
     const effectiveTone = cardInfo.key === "thermal" ? thermalVisual.tone : tone;
-    const label = cardInfo.key === "thermal" ? thermalVisual.label : effectiveTone.offline ? (cardInfo.detected ? "Non disponibile" : "Non rilevata") : humanStateLabel(cardInfo.state);
+    const label = cardInfo.key === "thermal" ? thermalVisual.label : effectiveTone.offline ? "Nessun segnale" : humanStateLabel(cardInfo.state);
     const statusText = cardInfo.key === "thermal"
       ? thermalVisual.statusText
       : liveStatusText(cardInfo.key, cardInfo.state, cardInfo.fps, cardInfo.last, cardInfo.detected);
@@ -199,7 +202,16 @@ function renderLivePage(health) {
     }
     if (offlineNode) offlineNode.hidden = !effectiveTone.offline;
     const deviceNode = byId(liveFeedElementId(cardInfo.key, "deviceName"));
-    if (deviceNode) deviceNode.textContent = cardInfo.device;
+    if (deviceNode) {
+      deviceNode.textContent = cardInfo.device;
+      if (cardInfo.technicalDetail) {
+        deviceNode.title = cardInfo.technicalDetail;
+        deviceNode.setAttribute("aria-label", `${cardInfo.device}. Dettaglio tecnico: ${cardInfo.technicalDetail}`);
+      } else {
+        deviceNode.removeAttribute("title");
+        deviceNode.removeAttribute("aria-label");
+      }
+    }
     const image = card ? card.querySelector("[data-feed-image], #live-feed-thermal-image") : null;
     if (image) image.classList.toggle("is-hidden", Boolean(effectiveTone.offline));
   });
@@ -322,5 +334,5 @@ function renderMissionHistoryDetail(session, manifest) {
   const counts = manifest?.counts || {};
   const byFeed = counts.by_feed || {};
   const sessionId = String(session?.session_id || manifest?.session_id || "");
-  detail.innerHTML = `<div class="mission-history-detail-head"><span class="panel-kicker">Missione selezionata</span><strong>${escapeHtml(formatRomeDateTime(session?.start_time))}</strong><p>${escapeHtml(sessionId || "Sessione EASY")} · ${escapeHtml(formatSessionDuration(session?.duration))}</p></div><dl class="mission-history-counts"><div><dt>Campioni</dt><dd>${escapeHtml(String(counts.samples || 0))}</dd></div><div><dt>Foto</dt><dd>${escapeHtml(String(counts.snapshots || 0))}</dd></div><div><dt>Inferenze</dt><dd>${escapeHtml(String(counts.inference || 0))}</dd></div><div><dt>Rilevazioni</dt><dd>${escapeHtml(String(counts.detections || 0))}</dd></div></dl><div class="mission-history-feeds"><span>RGB sinistra <strong>${escapeHtml(String(byFeed.rgb_left || 0))}</strong></span><span>RGB destra <strong>${escapeHtml(String(byFeed.rgb_right || 0))}</strong></span><span>Termico <strong>${escapeHtml(String(byFeed.thermal || 0))}</strong></span></div><p class="mission-history-feedback" id="mission-history-feedback">${manifest?.ok === false ? "Manifest non disponibile per questa missione." : "Manifest caricato: puoi validare il dataset o esportarlo."}</p><div class="mission-history-actions"><button class="btn btn-ghost btn-small" type="button" data-history-validate="${escapeHtml(sessionId)}">Valida dataset</button><button class="btn btn-secondary btn-small" type="button" data-history-export="${escapeHtml(sessionId)}">Esporta ZIP</button><a class="panel-link" href="/snapshots">Vedi foto</a></div>`;
+  detail.innerHTML = `<div class="mission-history-detail-head"><span class="mission-data-label">Missione selezionata</span><strong>${escapeHtml(formatRomeDateTime(session?.start_time))}</strong><p>${escapeHtml(sessionId || "Sessione EASY")} · ${escapeHtml(formatSessionDuration(session?.duration))}</p></div><dl class="mission-history-counts"><div><dt>Campioni</dt><dd>${escapeHtml(String(counts.samples || 0))}</dd></div><div><dt>Foto</dt><dd>${escapeHtml(String(counts.snapshots || 0))}</dd></div><div><dt>Inferenze</dt><dd>${escapeHtml(String(counts.inference || 0))}</dd></div><div><dt>Rilevazioni</dt><dd>${escapeHtml(String(counts.detections || 0))}</dd></div></dl><div class="mission-history-feeds"><span>RGB sinistra <strong>${escapeHtml(String(byFeed.rgb_left || 0))}</strong></span><span>RGB destra <strong>${escapeHtml(String(byFeed.rgb_right || 0))}</strong></span><span>Termico <strong>${escapeHtml(String(byFeed.thermal || 0))}</strong></span></div><p class="mission-history-feedback" id="mission-history-feedback">${manifest?.ok === false ? "Manifest non disponibile per questa missione." : "Manifest caricato: puoi validare il dataset o esportarlo."}</p><div class="mission-history-actions"><button class="btn btn-ghost btn-small" type="button" data-history-validate="${escapeHtml(sessionId)}">Valida dataset</button><button class="btn btn-secondary btn-small" type="button" data-history-export="${escapeHtml(sessionId)}">Esporta ZIP</button><a class="panel-link" href="/snapshots">Vedi foto</a></div>`;
 }

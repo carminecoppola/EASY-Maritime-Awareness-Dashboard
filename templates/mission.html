@@ -4,77 +4,51 @@
   <section class="mission-page" aria-label="Gestione missione">
     <section class="mission-command-bar" id="live-mission-command-bar" aria-live="polite">
       <div class="mission-command-state">
-        <span class="mission-state-indicator" id="live-mission-state-indicator" aria-hidden="true"></span>
         <div>
-          <span class="panel-kicker">Missione corrente</span>
+          <span class="mission-data-label">Stato missione</span>
           <strong id="live-mission-state-title">Nessuna missione attiva</strong>
           <p id="live-mission-state-copy">Avvia una missione per salvare rilevazioni, eventi e metriche sulla Raspberry.</p>
         </div>
       </div>
       <div class="mission-command-actions">
         <button class="btn btn-primary btn-small" id="button-live-toggle-recording" type="button">Avvia missione</button>
-        <button class="btn btn-secondary btn-small" id="button-live-save-snapshot" type="button" aria-describedby="live-mission-state-copy">Salva set sensori</button>
-        <a class="mission-archive-link" href="/snapshots">Apri archivio</a>
       </div>
-      <div class="mission-command-feedback" id="live-capture-feedback" role="status">
-        <span>Attività</span>
-        <strong id="live-capture-feedback-title">In attesa dell’avvio</strong>
-        <a id="live-capture-feedback-link" href="/snapshots" hidden>Apri il campione</a>
-      </div>
-      <ol class="mission-workflow" aria-label="Flusso di acquisizione">
-        <li id="mission-workflow-start"><span>1</span> Avvia</li>
-        <li id="mission-workflow-capture"><span>2</span> Acquisisci</li>
-        <li id="mission-workflow-review"><span>3</span> Termina e verifica</li>
-      </ol>
+      <span class="mission-state-indicator visually-hidden" id="live-mission-state-indicator" aria-hidden="true"></span>
+      <div class="visually-hidden" id="live-capture-feedback" aria-live="polite"><strong id="live-capture-feedback-title">In attesa dell’avvio</strong><a id="live-capture-feedback-link" href="/snapshots" hidden>Apri il campione</a></div>
+      <ol class="visually-hidden" aria-hidden="true"><li id="mission-workflow-start">Avvia</li><li id="mission-workflow-capture">Acquisisci</li><li id="mission-workflow-review">Verifica</li></ol>
     </section>
 
-    <section class="panel dataset-session-panel" aria-label="Dataset della sessione">
+    <section class="panel dataset-session-panel" aria-label="Ultima sessione">
       <div class="panel-head">
         <div>
-          <span class="panel-kicker">Dataset sessione</span>
-          <h2 class="panel-title">Risultato della missione</h2>
-          <p class="panel-copy" id="dataset-session-explanation">Avvia una missione per creare un manifest con foto, inferenze e coppie RGB/termiche.</p>
+          <span class="mission-data-label">Ultima sessione</span>
+          <h2 class="panel-title" id="dataset-session-id">Nessuna sessione</h2>
+          <p class="panel-copy" id="dataset-session-explanation">Avvia una missione per iniziare la raccolta.</p>
         </div>
         <div class="panel-head-actions">
-          <span class="badge badge-muted" id="dataset-session-state-badge">Standby</span>
           <button class="btn btn-ghost btn-small" id="button-dataset-validate" type="button">Valida dataset</button>
           <button class="btn btn-secondary btn-small" id="button-dataset-export" type="button">Esporta ZIP</button>
           <a class="btn btn-ghost btn-small" id="dataset-export-download" href="/api/dataset/export/download" hidden>Scarica ZIP</a>
         </div>
       </div>
-      <div class="dataset-session-layout">
-        <div class="dataset-session-main">
-          <div class="dataset-session-identity">
-            <span class="panel-kicker">Sessione</span>
-            <strong id="dataset-session-id">Nessuna sessione</strong>
-            <p id="dataset-manifest-path">Il manifest apparirà qui appena la missione salva il primo dato.</p>
-          </div>
-          <dl class="mission-context-list" aria-label="Contesto operativo">
-            <div>
-              <dt>Sistema</dt>
-              <dd><strong id="live-summary-health-title">Verifica in corso</strong><span id="live-summary-health-copy">Sto raccogliendo lo stato operativo del sistema.</span></dd>
-            </div>
-            <div>
-              <dt>Sorgente attiva</dt>
-              <dd><strong id="live-summary-source-title">--</strong><span id="live-summary-source-copy">Nessuna sorgente selezionata.</span></dd>
-            </div>
-          </dl>
-        </div>
-        <div class="dataset-metrics-grid">
-          <div class="dataset-metric"><span>Campioni sessione</span><strong id="dataset-samples-count">0</strong></div>
-          <div class="dataset-metric"><span>Set sincronizzati</span><strong id="dataset-paired-count">0</strong></div>
-          <div class="dataset-metric"><span>Foto sessione</span><strong id="dataset-snapshots-count">0</strong></div>
-          <div class="dataset-metric"><span>Inferenze sessione</span><strong id="dataset-inference-count">0</strong></div>
-          <div class="dataset-metric"><span>Rilevazioni sessione</span><strong id="dataset-detections-count">0</strong></div>
-        </div>
+      <p class="dataset-session-path" id="dataset-manifest-path">Il riepilogo apparirà dopo la prima acquisizione.</p>
+      <div class="dataset-metrics-grid">
+        <div class="dataset-metric"><span>Campioni</span><strong id="dataset-samples-count">0</strong><small><strong id="dataset-paired-count">0</strong> sincronizzati</small></div>
+        <div class="dataset-metric"><span>Foto</span><strong id="dataset-snapshots-count">0</strong><small>immagini salvate</small></div>
+        <div class="dataset-metric"><span>Inferenze</span><strong id="dataset-inference-count">0</strong><small>frame elaborati</small></div>
+        <div class="dataset-metric"><span>Rilevazioni</span><strong id="dataset-detections-count">0</strong><small>oggetti riconosciuti</small></div>
       </div>
-      <div class="dataset-feed-breakdown" id="dataset-feed-breakdown">
-        <span class="dataset-feed-pill">RGB sinistra: 0</span>
-        <span class="dataset-feed-pill">RGB destra: 0</span>
-        <span class="dataset-feed-pill">Termico: 0</span>
+      <div class="dataset-session-secondary">
+        <button class="btn btn-ghost btn-small" id="button-live-save-snapshot" type="button" aria-describedby="dataset-session-explanation">Salva set sensori</button>
+        <span class="dataset-export-feedback" id="dataset-export-feedback">Disponibile durante una missione attiva.</span>
       </div>
-      <p class="dataset-export-feedback" id="dataset-export-feedback">Valida la missione per sapere se i campioni sono pronti per il fine-tuning.</p>
       <div class="visually-hidden" aria-hidden="true">
+        <span id="dataset-session-state-badge">Standby</span>
+        <span id="dataset-feed-breakdown"></span>
+        <span id="live-summary-health-title">Verifica in corso</span>
+        <span id="live-summary-health-copy">Sto raccogliendo lo stato operativo del sistema.</span>
+        <span id="live-summary-source-title">--</span>
+        <span id="live-summary-source-copy">Nessuna sorgente selezionata.</span>
         <span id="live-summary-session-title">--</span>
         <span id="live-summary-session-copy">Sessione non disponibile.</span>
         <span id="live-summary-detections-count">0</span>

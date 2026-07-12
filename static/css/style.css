@@ -3860,6 +3860,32 @@ body[data-page="log"] .header-meta {
   background: rgba(255, 255, 255, 0.04);
 }
 
+.snapshot-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--surface-border);
+}
+
+.snapshot-pagination > span {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+body[data-page="log"] .snapshot-grid {
+  max-height: min(68vh, 820px);
+  overflow-y: auto;
+  padding-right: 5px;
+  scrollbar-gutter: stable;
+}
+
+body[data-page="log"] .snapshot-card {
+  min-width: 0;
+}
+
 .section-divider {
   display: flex;
   align-items: baseline;
@@ -4489,6 +4515,396 @@ body[data-page="log"] .header-meta {
 
   .log-row-detail {
     padding-left: 12px;
+  }
+}
+
+/* Analysis is organized around one action, one monitor and a bounded event rail. */
+body[data-page="detections"] .ai-control-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px 20px;
+  padding: 12px 14px;
+}
+
+.analysis-control-copy {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.analysis-control-copy div { min-width: 0; }
+.analysis-control-copy strong { display: block; font-size: 14px; }
+.analysis-control-copy p { margin-top: 2px; color: var(--text-muted); font-size: 11px; }
+
+body[data-page="detections"] .ai-control-meta {
+  grid-column: 1;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+body[data-page="detections"] .ai-control-actions {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+
+body[data-page="detections"] .analysis-session-reference {
+  padding: 9px 12px;
+  background: transparent;
+}
+
+body[data-page="detections"] .analysis-workspace {
+  grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.7fr);
+  align-items: stretch;
+}
+
+body[data-page="detections"] .analysis-workspace > .analysis-monitor {
+  grid-column: 1;
+  grid-row: 1;
+  height: 100%;
+}
+
+.analysis-events-column {
+  display: grid;
+  grid-column: 2;
+  grid-row: 1;
+  grid-template-rows: minmax(180px, auto) minmax(260px, 1fr);
+  gap: 12px;
+  min-height: 0;
+}
+
+.analysis-events-column > .events-panel {
+  min-height: 0;
+  margin: 0;
+}
+
+.analysis-events-column .events-grid,
+.analysis-events-column .events-timeline {
+  align-content: start;
+  max-height: 300px;
+  overflow: auto;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+}
+
+.analysis-events-column .events-grid {
+  grid-template-columns: minmax(0, 1fr);
+  max-height: 220px;
+}
+
+.analysis-events-column .events-history-details > section {
+  display: grid;
+  gap: 10px;
+  min-height: 0;
+  padding: 0;
+}
+
+.analysis-events-column .events-history-details .events-panel-head {
+  display: flex;
+}
+
+.analysis-events-column .timeline-row {
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 8px;
+  padding: 9px;
+}
+
+.analysis-events-column .timeline-row > :nth-child(n + 3) {
+  grid-column: 2;
+}
+
+body[data-page="detections"] .operations-panel {
+  margin-top: 0;
+}
+
+body[data-page="detections"] .operations-panel-body {
+  padding: 0 14px 14px;
+}
+
+body[data-page="detections"] .frame-source-panel {
+  padding: 12px 0 0;
+  border: 0;
+  background: transparent;
+}
+
+body[data-page="detections"] .frame-source-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 900px) {
+  body[data-page="detections"] .ai-control-bar,
+  body[data-page="detections"] .analysis-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  body[data-page="detections"] .ai-control-actions,
+  body[data-page="detections"] .ai-control-meta,
+  body[data-page="detections"] .analysis-workspace > .analysis-monitor,
+  .analysis-events-column {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  body[data-page="detections"] .ai-control-actions {
+    width: 100%;
+  }
+
+  .analysis-events-column {
+    grid-template-rows: auto auto;
+  }
+
+  .analysis-events-column .events-grid,
+  .analysis-events-column .events-timeline {
+    max-height: 320px;
+  }
+
+  body[data-page="detections"] .frame-source-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .analysis-control-copy { align-items: flex-start; }
+  body[data-page="detections"] .frame-source-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Mission result: one identity and three essential outcomes. */
+body[data-page="mission"] .dataset-session-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.65fr) minmax(0, 1.35fr);
+  gap: 18px;
+  align-items: stretch;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--surface-border);
+}
+
+body[data-page="mission"] .dataset-metrics-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin: 0;
+}
+
+body[data-page="mission"] .dataset-metric {
+  min-height: 88px;
+}
+
+body[data-page="mission"] .dataset-feed-breakdown {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--surface-border);
+}
+
+body[data-page="mission"] .dataset-export-feedback {
+  margin-top: 9px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+@media (max-width: 760px) {
+  body[data-page="mission"] .dataset-session-layout,
+  body[data-page="mission"] .dataset-metrics-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.analysis-mission-link {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.analysis-mission-link:hover,
+.analysis-mission-link:focus-visible {
+  color: var(--cta);
+  text-decoration: underline;
+}
+
+.analysis-events-empty {
+  display: flex;
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  align-items: center;
+  gap: 12px;
+  min-height: 130px;
+  padding: 18px;
+  border: 1px dashed var(--surface-border);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.analysis-events-empty[hidden] { display: none; }
+
+.analysis-events-column.is-empty > .events-panel { display: none; }
+
+.analysis-events-empty .detections-empty-icon,
+body[data-page="detections"] .ai-empty-state .detections-empty-icon,
+body[data-page="detections"] .debug-panel .detections-empty-icon {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+}
+
+.analysis-events-empty strong { display: block; font-size: 13px; }
+.analysis-events-empty p { margin-top: 3px; color: var(--text-muted); font-size: 11px; line-height: 1.4; }
+
+body[data-page="detections"] .ai-empty-state,
+body[data-page="detections"] .debug-panel .detections-empty-state {
+  min-height: 110px;
+  padding: 16px;
+}
+
+.app-footer-identity,
+.app-footer-links {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.app-footer-links a,
+.app-footer-repository-link span {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+@media (min-width: 1280px) {
+  .app-footer { flex-wrap: nowrap; }
+  .app-footer-links { flex: 0 0 auto; }
+}
+
+@media (max-width: 1279px) {
+  .app-footer { flex-wrap: wrap; }
+  .app-footer-links { justify-content: flex-start; }
+}
+
+/* Final mission layout: status, last session, sources, history. */
+body[data-page="mission"] .mission-command-bar {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 20px;
+  padding: 16px 18px;
+  box-shadow: none;
+}
+
+body[data-page="mission"] .mission-command-state strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 18px;
+}
+
+body[data-page="mission"] .mission-command-state p {
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+body[data-page="mission"] .dataset-session-panel,
+body[data-page="mission"] .mission-sources-panel,
+body[data-page="mission"] .mission-history-panel {
+  margin: 0;
+  border-color: var(--surface-border);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+}
+
+body[data-page="mission"] .dataset-session-path {
+  margin-top: 8px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+body[data-page="mission"] .dataset-metrics-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 14px;
+}
+
+body[data-page="mission"] .dataset-metric {
+  min-height: 78px;
+}
+
+body[data-page="mission"] .dataset-metric small strong {
+  color: var(--text-muted);
+  font-size: inherit;
+}
+
+.dataset-session-secondary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+body[data-page="mission"] .dataset-session-secondary .dataset-export-feedback {
+  margin: 0;
+}
+
+body[data-page="mission"] .source-row {
+  grid-template-columns: minmax(220px, 1fr) minmax(180px, auto) auto;
+  min-height: 62px;
+  padding: 10px 12px;
+}
+
+body[data-page="mission"] .source-card-head {
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.source-row-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--surface-border);
+  border-radius: 9px;
+  color: var(--cta);
+  background: rgba(0, 180, 216, 0.07);
+  font-size: 16px;
+}
+
+body[data-page="mission"] .source-card-name {
+  font-size: 14px;
+}
+
+body[data-page="mission"] .source-card-subtitle {
+  margin-top: 2px;
+  font-size: 10px;
+}
+
+body[data-page="mission"] .source-row .source-card-body {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.source-row-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 92px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+body[data-page="mission"] .source-card-actions {
+  justify-content: flex-end;
+}
+
+@media (max-width: 760px) {
+  body[data-page="mission"] .mission-command-bar,
+  body[data-page="mission"] .dataset-metrics-grid,
+  body[data-page="mission"] .source-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  body[data-page="mission"] .mission-command-actions {
+    grid-column: 1;
+  }
+
+  body[data-page="mission"] .source-row .source-card-body,
+  body[data-page="mission"] .source-card-actions {
+    justify-content: flex-start;
   }
 }
 
@@ -5421,6 +5837,121 @@ body[data-page="mission"] .source-row .source-card-meta {
 
 .mission-history-feeds strong { color: var(--text); }
 
+body[data-page="mission"] .dataset-session-panel {
+  overflow: hidden;
+}
+
+body[data-page="mission"] .dataset-session-layout {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--surface-border);
+}
+
+.mission-data-block,
+.mission-history-detail-head {
+  display: grid;
+  gap: 5px;
+}
+
+.mission-data-label {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.mission-data-block > strong,
+.mission-history-detail-head > strong {
+  color: var(--text);
+  font-size: 17px;
+  font-weight: 750;
+  line-height: 1.25;
+}
+
+.mission-data-block > p,
+.mission-history-detail-head > p {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+body[data-page="mission"] .mission-context-list {
+  padding-left: 18px;
+  border-left: 1px solid var(--surface-border);
+}
+
+body[data-page="mission"] .mission-context-list dt,
+body[data-page="mission"] .dataset-metric > span,
+.mission-history-counts dt {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+body[data-page="mission"] .dataset-metrics-grid {
+  gap: 7px;
+  margin-top: 16px;
+}
+
+body[data-page="mission"] .dataset-metric {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: 3px;
+  min-height: 96px;
+  padding: 12px;
+  border-color: rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+body[data-page="mission"] .dataset-metric > strong {
+  color: var(--text);
+  font-size: 24px;
+  line-height: 1;
+}
+
+body[data-page="mission"] .dataset-metric > small {
+  align-self: end;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+body[data-page="mission"] .source-capability-list {
+  display: grid;
+  grid-template-columns: repeat(3, 86px);
+  gap: 6px;
+}
+
+body[data-page="mission"] .source-capability {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 0 8px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+body[data-page="mission"] .source-status-line {
+  min-width: 92px;
+}
+
+body[data-page="mission"] .mission-history-counts > div {
+  display: grid;
+  gap: 4px;
+  min-height: 68px;
+  align-content: center;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+body[data-page="mission"] .mission-history-counts dd {
+  color: var(--text);
+  font-size: 22px;
+}
+
 @media (max-width: 900px) {
   .dataset-session-main {
     grid-template-columns: minmax(0, 1fr);
@@ -5449,6 +5980,15 @@ body[data-page="mission"] .source-row .source-card-meta {
   body[data-page="mission"] .mission-command-feedback,
   body[data-page="mission"] .mission-workflow {
     grid-column: 1;
+  }
+
+  body[data-page="mission"] .mission-context-list {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  body[data-page="mission"] .source-capability-list {
+    grid-template-columns: repeat(3, minmax(72px, 1fr));
   }
 }
 

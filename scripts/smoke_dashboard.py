@@ -89,7 +89,8 @@ def main() -> int:
             assert_ok("live-source-selected-badge" in html, "Mission page must render selected source status")
             assert_ok("mission-history-list" in html, "Mission page must render session history")
         if route == "/thermal-events":
-            assert_ok("analysis-guide-details" in html, "Detection guide must be optional")
+            assert_ok("analysis-control-copy" in html, "Detection page must explain the primary AI action")
+            assert_ok("analysis-events-column" in html, "Detection events must use the bounded event column")
             assert_ok("analysis-session-reference" in html, "Analysis page must link to mission management")
             assert_ok("button-session-start" not in html, "Analysis page must not duplicate mission start controls")
             assert_ok("button-session-stop" not in html, "Analysis page must not duplicate mission stop controls")
