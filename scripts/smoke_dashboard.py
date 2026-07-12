@@ -19,6 +19,9 @@ sys.path.insert(0, str(PROJECT_ROOT))
 os.environ.setdefault("EASY_DASHBOARD_SKIP_GLOBAL_APP", "1")
 
 from app import create_app
+from device_manager import status_to_health
+from easy_dashboard.runtime_status import build_rgb_device_status, build_thermal_device_status
+from runtime_support import error_from_payload, health_from_status, is_active_status, status_from_payload
 
 
 class IdCollector(HTMLParser):
@@ -50,6 +53,15 @@ def assert_no_duplicate_ids(route: str, html: str) -> None:
 
 
 def main() -> int:
+    assert_ok(status_to_health("STREAMING") == "GOOD", "device health compatibility changed")
+    assert_ok(health_from_status("INITIALIZING") == "DEGRADED", "initializing health mapping changed")
+    assert_ok(status_from_payload({"ok": False}) == "ERROR", "payload status mapping changed")
+    assert_ok(error_from_payload({"config_error": "invalid"}) == "invalid", "payload error mapping changed")
+    assert_ok(is_active_status("STARTING") is True, "starting component must remain active")
+    assert_ok(is_active_status("WAITING") is False, "waiting component activity contract changed")
+    assert_ok(build_rgb_device_status(None, "rgb_left")["status"] == "NOT_PRESENT", "missing RGB mapping changed")
+    assert_ok(build_thermal_device_status(None)["status"] == "NOT_PRESENT", "missing thermal mapping changed")
+
     app = create_app(run_startup_checks=False, start_runtime_services=False)
     app.testing = True
     client = app.test_client()

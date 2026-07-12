@@ -15,6 +15,55 @@ from pathlib import Path
 from typing import Any
 
 
+HEALTHY_STATUSES = {"READY", "ONLINE", "CONNECTED", "STREAMING", "RUNNING", "DETECTED", "MOCK", "REAL"}
+DEGRADED_STATUSES = {"INITIALIZING", "STARTING", "LOADING", "PENDING", "WAITING", "CHECKING", "COOLDOWN"}
+OFFLINE_STATUSES = {"ERROR", "FAILED", "OFFLINE", "DISCONNECTED", "NOT_PRESENT", "NOT_AVAILABLE"}
+ACTIVE_STATUSES = HEALTHY_STATUSES | {"INITIALIZING", "STARTING", "LOADING"}
+
+
+def normalize_status(value: Any, default: str = "UNKNOWN") -> str:
+    resolved = str(value or default).strip().upper()
+    return resolved or default
+
+
+def health_from_status(status: Any) -> str:
+    value = normalize_status(status)
+    if value in HEALTHY_STATUSES:
+        return "GOOD"
+    if value in DEGRADED_STATUSES:
+        return "DEGRADED"
+    if value in OFFLINE_STATUSES:
+        return "OFFLINE"
+    return "UNKNOWN"
+
+
+def is_active_status(status: Any) -> bool:
+    return normalize_status(status) in ACTIVE_STATUSES
+
+
+def status_from_payload(payload: Any, default: str = "UNKNOWN") -> str:
+    if isinstance(payload, dict):
+        for key in ("status", "state", "health", "mode"):
+            if payload.get(key) not in (None, ""):
+                return normalize_status(payload[key], default)
+        if payload.get("ok") is True:
+            return "READY"
+        if payload.get("ok") is False:
+            return "ERROR"
+    if isinstance(payload, str):
+        return normalize_status(payload, default)
+    return default
+
+
+def error_from_payload(payload: Any) -> str:
+    if not isinstance(payload, dict):
+        return ""
+    for key in ("error", "config_error", "last_error"):
+        if payload.get(key):
+            return str(payload[key])
+    return ""
+
+
 def utc_now_iso() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from runtime_catalog import build_runtime_endpoint_catalog
-from runtime_support import directory_has_frames, utc_now_iso
+from runtime_support import directory_has_frames, health_from_status, utc_now_iso
 
 
 class DeviceStatus:
@@ -33,14 +33,8 @@ VALID_DEVICE_STATUSES = {
 
 
 def status_to_health(status: str) -> str:
-    value = str(status or DeviceStatus.UNKNOWN).upper()
-    if value in {DeviceStatus.CONNECTED, DeviceStatus.STREAMING}:
-        return "GOOD"
-    if value == DeviceStatus.INITIALIZING:
-        return "DEGRADED"
-    if value in {DeviceStatus.DISCONNECTED, DeviceStatus.NOT_PRESENT, DeviceStatus.ERROR}:
-        return "OFFLINE"
-    return "UNKNOWN"
+    """Compatibility wrapper for existing manager imports."""
+    return health_from_status(status)
 
 
 @dataclass

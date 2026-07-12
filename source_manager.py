@@ -9,7 +9,7 @@ from typing import Any
 
 from device_manager import DeviceManager, DeviceStatus
 from runtime_catalog import build_runtime_endpoint_catalog
-from runtime_support import directory_has_frames, utc_now_iso
+from runtime_support import directory_has_frames, normalize_status, utc_now_iso
 
 
 class SourceStatus:
@@ -155,7 +155,7 @@ class SourceManager:
         return record.to_dict(selected=record.id == self._selected_source_id)
 
     def _map_device_status_to_source_status(self, status: str | None) -> str:
-        value = str(status or DeviceStatus.UNKNOWN).upper()
+        value = normalize_status(status, DeviceStatus.UNKNOWN)
         mapping = {
             DeviceStatus.CONNECTED: SourceStatus.ONLINE,
             DeviceStatus.STREAMING: SourceStatus.STREAMING,

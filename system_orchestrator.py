@@ -15,6 +15,8 @@ from frame_provider import UnifiedFrameProvider
 from inference_worker import InferenceWorker
 from session_manager import SessionManager
 from source_manager import SourceManager
+from runtime_support import error_from_payload, health_from_status, is_active_status, status_from_payload
+from easy_dashboard.runtime_status import build_rgb_device_status, build_thermal_device_status
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -52,53 +54,19 @@ def _safe_call(func: Callable[[], Any] | None, default: Any = None) -> Any:
 
 
 def _status_from_payload(payload: Any, default: str = "UNKNOWN") -> str:
-    if isinstance(payload, dict):
-        for key in ("status", "state", "health", "mode"):
-            value = payload.get(key)
-            if value not in (None, ""):
-                return str(value).upper()
-        if payload.get("ok") is False:
-            return "ERROR"
-        if payload.get("ok") is True:
-            return "READY"
-    if isinstance(payload, str) and payload:
-        return payload.upper()
-    return default
+    return status_from_payload(payload, default)
 
 
 def _error_from_payload(payload: Any) -> str:
-    if isinstance(payload, dict):
-        for key in ("error", "config_error", "last_error"):
-            value = payload.get(key)
-            if value:
-                return str(value)
-    return ""
+    return error_from_payload(payload)
 
 
 def _health_from_status(status: str) -> str:
-    value = str(status or "UNKNOWN").upper()
-    if value in {"READY", "ONLINE", "CONNECTED", "STREAMING", "RUNNING", "DETECTED", "MOCK", "REAL"}:
-        return "GOOD"
-    if value in {"INITIALIZING", "STARTING", "LOADING", "PENDING", "WAITING", "CHECKING"}:
-        return "DEGRADED"
-    if value in {"ERROR", "FAILED", "OFFLINE", "DISCONNECTED", "NOT_PRESENT", "NOT_AVAILABLE"}:
-        return "OFFLINE"
-    return "UNKNOWN"
+    return health_from_status(status)
 
 
 def _is_active(status: str) -> bool:
-    return str(status or "UNKNOWN").upper() in {
-        "READY",
-        "ONLINE",
-        "CONNECTED",
-        "STREAMING",
-        "RUNNING",
-        "DETECTED",
-        "MOCK",
-        "INITIALIZING",
-        "STARTING",
-        "LOADING",
-    }
+    return is_active_status(status)
 
 
 @dataclass
@@ -245,109 +213,10 @@ class SystemOrchestrator:
         }
 
     def _rgb_device_status(self, feed_id: str) -> Dict[str, Any]:
-        if self.rgb is None or not hasattr(self.rgb, "latest_state"):
-            return {
-                "status": "NOT_PRESENT",
-                "fps": 0.0,
-                "configuration": {"feed": feed_id, "reason": "RGB runtime not available"},
-            }
-        try:
-            state = self.rgb.latest_state()
-        except Exception as exc:
-            return {
-                "status": "ERROR",
-                "fps": 0.0,
-                "error": str(exc),
-                "configuration": {"feed": feed_id},
-            }
-
-        enabled_feeds = getattr(self.rgb, "enabled_feeds", {}) or {}
-        enabled = bool(enabled_feeds.get(feed_id, True))
-        camera_state = str(state.get("camera_state") or state.get("status") or "UNKNOWN").upper()
-        last_frame_ts = state.get("last_frame_ts")
-        detected = bool(state.get("detected") or camera_state in {"DETECTED", "BUSY"})
-        fresh = False
-        try:
-            fresh = bool(last_frame_ts and time.time() - float(last_frame_ts) <= 5.0)
-        except Exception:
-            fresh = False
-
-        if not enabled:
-            status = "NOT_PRESENT"
-        elif camera_state in {"ERROR", "FAILED", "OFFLINE"}:
-            status = "ERROR"
-        elif camera_state == "BUSY":
-            status = "INITIALIZING"
-        elif detected and fresh:
-            status = "STREAMING"
-        elif detected:
-            status = "CONNECTED"
-        else:
-            status = "NOT_PRESENT"
-
-        return {
-            "status": status,
-            "fps": float(state.get("fps") or 0.0),
-            "error": state.get("error") or "",
-            "configuration": {
-                "feed": feed_id,
-                "enabled": enabled,
-                "camera_state": camera_state,
-                "last_frame_ts": last_frame_ts,
-                "message": state.get("message") or "",
-            },
-        }
+        return build_rgb_device_status(self.rgb, feed_id)
 
     def _thermal_device_status(self) -> Dict[str, Any]:
-        if self.thermal is None or not hasattr(self.thermal, "status_payload"):
-            return {
-                "status": "NOT_PRESENT",
-                "fps": 0.0,
-                "configuration": {"reason": "Thermal runtime not available"},
-            }
-        try:
-            state = self.thermal.status_payload()
-        except Exception as exc:
-            return {"status": "ERROR", "fps": 0.0, "error": str(exc), "configuration": {}}
-
-        thermal_state = str(state.get("status") or state.get("mode") or "UNKNOWN").upper()
-        last_frame_ts = state.get("last_frame_ts")
-        detected = bool(state.get("detected") or thermal_state in {"REAL", "MOCK"})
-        fresh = False
-        try:
-            fresh = bool(last_frame_ts and time.time() - float(last_frame_ts) <= 5.0)
-        except Exception:
-            fresh = False
-
-        if thermal_state in {"ERROR", "FAILED", "OFFLINE"}:
-            status = "ERROR"
-        elif thermal_state in {"DISABLED", "NOT_DETECTED"}:
-            status = "NOT_PRESENT"
-        elif thermal_state in {"STARTING", "LOADING", "PENDING", "CHECKING"}:
-            status = "INITIALIZING"
-        elif detected and fresh:
-            status = "STREAMING"
-        elif detected:
-            status = "CONNECTED"
-        else:
-            status = "UNKNOWN"
-
-        return {
-            "status": status,
-            "fps": float(state.get("fps") or state.get("frame_rate") or 0.0),
-            "temperature": state.get("avg_c"),
-            "error": state.get("error") or "",
-            "configuration": {
-                "mode": state.get("mode"),
-                "detected": detected,
-                "device": state.get("device"),
-                "configured_device": state.get("configured_device"),
-                "input_format": state.get("input_format"),
-                "video_size": state.get("video_size"),
-                "discovery_method": state.get("discovery_method"),
-                "last_frame_ts": last_frame_ts,
-            },
-        }
+        return build_thermal_device_status(self.thermal)
 
     def _register_component(
         self,
