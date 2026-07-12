@@ -5,6 +5,8 @@ __pycache__/
 venv/
 env/
 .playwright-cli/
+.agents/
+skills-lock.json
 
 data/logs/*
 !data/logs/.gitkeep
