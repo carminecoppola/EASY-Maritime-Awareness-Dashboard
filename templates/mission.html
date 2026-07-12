@@ -8,14 +8,16 @@
           <span class="mission-data-label">Stato missione</span>
           <strong id="live-mission-state-title">Nessuna missione attiva</strong>
           <p id="live-mission-state-copy">Avvia una missione per salvare rilevazioni, eventi e metriche sulla Raspberry.</p>
+          <p class="mission-inline-feedback"><span id="live-capture-feedback-title">In attesa dell’avvio</span><a id="live-capture-feedback-link" href="/snapshots" hidden>Apri il campione</a></p>
         </div>
       </div>
       <div class="mission-command-actions">
         <button class="btn btn-primary btn-small" id="button-live-toggle-recording" type="button">Avvia missione</button>
+        <small>Salva foto, rilevazioni AI e log sulla Raspberry finché non la fermi.</small>
       </div>
       <span class="mission-state-indicator visually-hidden" id="live-mission-state-indicator" aria-hidden="true"></span>
-      <div class="visually-hidden" id="live-capture-feedback" aria-live="polite"><strong id="live-capture-feedback-title">In attesa dell’avvio</strong><a id="live-capture-feedback-link" href="/snapshots" hidden>Apri il campione</a></div>
-      <ol class="visually-hidden" aria-hidden="true"><li id="mission-workflow-start">Avvia</li><li id="mission-workflow-capture">Acquisisci</li><li id="mission-workflow-review">Verifica</li></ol>
+      <div id="live-capture-feedback" hidden aria-hidden="true"></div>
+      <ol class="mission-workflow" aria-label="Fasi della missione"><li id="mission-workflow-start"><span>1</span><small>Avvia</small></li><li id="mission-workflow-capture"><span>2</span><small>Acquisisci</small></li><li id="mission-workflow-review"><span>3</span><small>Verifica</small></li></ol>
     </section>
 
     <section class="panel dataset-session-panel" aria-label="Ultima sessione">
@@ -42,7 +44,7 @@
         <button class="btn btn-ghost btn-small" id="button-live-save-snapshot" type="button" aria-describedby="dataset-session-explanation">Salva set sensori</button>
         <span class="dataset-export-feedback" id="dataset-export-feedback">Disponibile durante una missione attiva.</span>
       </div>
-      <div class="visually-hidden" aria-hidden="true">
+      <div hidden aria-hidden="true">
         <span id="dataset-session-state-badge">Standby</span>
         <span id="dataset-feed-breakdown"></span>
         <span id="live-summary-health-title">Verifica in corso</span>

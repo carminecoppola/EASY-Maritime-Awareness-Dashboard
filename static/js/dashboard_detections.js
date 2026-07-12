@@ -164,6 +164,25 @@ function renderAiPanel(status, current) {
   renderAiDetections(effectiveStatus, effectiveCurrent);
   renderAiPreview(effectiveStatus, effectiveCurrent);
   renderAnalysisMonitor(effectiveStatus, effectiveCurrent);
+  renderAnalysisSourceMode(effectiveStatus, effectiveCurrent);
+}
+
+function renderAnalysisSourceMode(status, current) {
+  const container = byId("analysis-source-mode");
+  const badge = byId("analysis-source-mode-badge");
+  const copy = byId("analysis-source-mode-copy");
+  if (!container || !badge || !copy) return;
+  const provider = status?.frame_provider || dashboardState.frameProviderStatus || {};
+  const source = String(current?.source_label || current?.source || status?.source_label || status?.source || provider.source_type || "").toLowerCase();
+  const isDemo = ["replay", "demo", "manual"].some((token) => source.includes(token));
+  const isLive = ["rgb_left", "rgb_right", "camera", "live"].some((token) => source.includes(token));
+  badge.className = `badge badge-${isDemo ? "warning" : isLive ? "online" : "muted"}`;
+  badge.textContent = isDemo ? "Modalità demo" : isLive ? "Analisi live" : "Sorgente in verifica";
+  copy.textContent = isDemo
+    ? "Analisi su immagini di esempio, non sulle camere live."
+    : isLive
+      ? "Elaborazione in corso dalla camera selezionata."
+      : "Sto verificando se l’analisi usa un replay o una camera live.";
 }
 
 function renderAnalysisMonitor(status, current) {
@@ -338,8 +357,7 @@ function renderEventTimeline() {
         <strong>${escapeHtml(typeMeta.label)}</strong>
         <p>${escapeHtml(eventSourceLabel(event))} · ${escapeHtml(eventUpdateLabel(event))}</p>
       </div>
-      <span class="badge badge-severity-${severityTone}">${escapeHtml(eventSeverityLabel(event?.severity))}</span>
-      <span class="badge badge-status-${statusTone}">${escapeHtml(eventStatusLabel(event?.status))}</span>
+      <span class="timeline-badges"><span class="badge badge-severity-${severityTone}">${escapeHtml(eventSeverityLabel(event?.severity))}</span><span class="badge badge-status-${statusTone}">${escapeHtml(eventStatusLabel(event?.status))}</span></span>
     `;
     timeline.appendChild(row);
   });

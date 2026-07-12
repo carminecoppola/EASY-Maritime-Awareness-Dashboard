@@ -235,12 +235,9 @@ function renderSourcePanel(payload) {
         </div>
         <div class="source-card-body">
           <span class="badge badge-${availabilityTone}">${escapeHtml(availabilityLabel)}</span>
-          <span class="source-row-state"><span class="state-dot ${tone.dot}"></span>${escapeHtml(label)}</span>
         </div>
         <div class="source-card-actions">
-          <button class="btn btn-small btn-ghost" type="button" data-source-select="${escapeHtml(source.id || "")}" ${isSelected || !selectable ? "disabled" : ""}>
-            ${escapeHtml(isSelected ? "In uso" : selectable ? "Seleziona" : "Non disponibile")}
-          </button>
+          ${!isSelected && selectable ? `<button class="btn btn-small btn-ghost" type="button" data-source-select="${escapeHtml(source.id || "")}">Seleziona</button>` : ""}
         </div>
       </article>
     `;
