@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import logging
 import os
+import re
 import select
 import shutil
 import subprocess
@@ -522,7 +523,7 @@ class ThermalState:
         self.delta_threshold = float(config["thermal"].get("delta_threshold", 8.0))
         self.detected = False
         self.discovery_method = "not_checked"
-        self.device_candidates: list[Dict[str, str]] = []
+        self.device_candidates: list[Dict[str, Any]] = []
         self.last_stats: Dict[str, Any] = {}
         self.last_frame_bytes: Optional[bytes] = None
         self.last_frame_ts: float = 0.0
@@ -578,22 +579,23 @@ class ThermalState:
         return False
 
     def _discover_purethermal_device(self) -> str | None:
-        candidate = self._discover_with_v4l2_ctl()
-        if candidate:
+        candidates = self._discover_with_v4l2_ctl()
+        if candidates:
             self.discovery_method = "v4l2-ctl"
-            return candidate
-        candidate = self._discover_with_sysfs()
-        if candidate:
+            return self._select_thermal_candidate(candidates)
+        candidates = self._discover_with_sysfs()
+        if candidates:
             self.discovery_method = "sysfs"
-            return candidate
+            return self._select_thermal_candidate(candidates)
         return None
 
-    def _discover_with_v4l2_ctl(self) -> str | None:
+    def _discover_with_v4l2_ctl(self) -> list[Dict[str, Any]]:
         if shutil.which("v4l2-ctl") is None:
-            return None
+            return []
         result = subprocess.run(["v4l2-ctl", "--list-devices"], capture_output=True, text=True, timeout=4.0, check=False)
         if result.returncode != 0:
-            return None
+            return []
+        candidates: list[Dict[str, Any]] = []
         current_name = ""
         for raw_line in result.stdout.splitlines():
             line = raw_line.rstrip()
@@ -605,18 +607,68 @@ class ThermalState:
                 continue
             device_path = line.strip()
             if device_path.startswith("/dev/video") and self._name_looks_thermal(current_name):
-                self.device_candidates.append({"path": device_path, "name": current_name, "source": "v4l2-ctl"})
-                return device_path
-        return None
+                candidates.append(self._inspect_video_candidate(device_path, current_name, "v4l2-ctl"))
+        self.device_candidates.extend(candidates)
+        return candidates
 
-    def _discover_with_sysfs(self) -> str | None:
+    def _discover_with_sysfs(self) -> list[Dict[str, Any]]:
+        candidates: list[Dict[str, Any]] = []
         for video_node in sorted(Path("/sys/class/video4linux").glob("video*")):
             name = read_text_file(video_node / "name")
             device_path = f"/dev/{video_node.name}"
             if self._name_looks_thermal(name):
-                self.device_candidates.append({"path": device_path, "name": name, "source": "sysfs"})
-                return device_path
-        return None
+                candidates.append(self._inspect_video_candidate(device_path, name, "sysfs"))
+        self.device_candidates.extend(candidates)
+        return candidates
+
+    def _inspect_video_candidate(self, device_path: str, name: str, source: str) -> Dict[str, Any]:
+        """Record capabilities without opening the device or starting a thermal stream."""
+        formats: list[str] = []
+        sizes: list[str] = []
+        error = ""
+        if shutil.which("v4l2-ctl") is not None:
+            try:
+                result = subprocess.run(
+                    ["v4l2-ctl", "-d", device_path, "--list-formats-ext"],
+                    capture_output=True,
+                    text=True,
+                    timeout=3.0,
+                    check=False,
+                )
+                output = result.stdout or ""
+                formats = sorted(set(re.findall(r"'([^']+)'", output)))
+                sizes = sorted(set(re.findall(r"Size:\s+Discrete\s+(\d+x\d+)", output, flags=re.IGNORECASE)))
+                if result.returncode != 0:
+                    error = (result.stderr or "capability query failed").strip()
+            except (OSError, subprocess.SubprocessError) as exc:
+                error = str(exc)
+        normalized_formats = {item.lower() for item in formats}
+        return {
+            "path": device_path,
+            "name": name,
+            "source": source,
+            "formats": formats,
+            "sizes": sizes,
+            "supports_y16": "y16 " in normalized_formats or "y16" in normalized_formats,
+            "supports_configured_size": self.video_size.lower() in {item.lower() for item in sizes},
+            "error": error,
+        }
+
+    def _select_thermal_candidate(self, candidates: list[Dict[str, Any]]) -> str:
+        """Prefer the node that exposes radiometric Y16 at the configured size."""
+        def score(candidate: Dict[str, Any]) -> tuple[int, int, int]:
+            path_match = re.search(r"(\d+)$", str(candidate.get("path", "")))
+            node_number = int(path_match.group(1)) if path_match else 9999
+            return (
+                int(bool(candidate.get("supports_y16"))),
+                int(bool(candidate.get("supports_configured_size"))),
+                -node_number,
+            )
+
+        selected = max(candidates, key=score)
+        for candidate in candidates:
+            candidate["selected"] = candidate is selected
+        return str(selected["path"])
 
     def _is_purethermal_device(self, device_path: str) -> bool:
         name_path = Path("/sys/class/video4linux") / Path(device_path).name / "name"

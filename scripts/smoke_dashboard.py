@@ -21,6 +21,7 @@ os.environ.setdefault("EASY_DASHBOARD_SKIP_GLOBAL_APP", "1")
 from app import create_app
 from device_manager import status_to_health
 from easy_dashboard.runtime_status import build_rgb_device_status, build_thermal_device_status
+from easy_dashboard.hardware import ThermalState
 from runtime_support import error_from_payload, health_from_status, is_active_status, status_from_payload
 
 
@@ -133,6 +134,15 @@ def main() -> int:
     assert_ok(source_capabilities["rgb_left"]["inference"] is True, "RGB left must support live inference")
     assert_ok(source_capabilities["rgb_right"]["inference"] is True, "RGB right must support live inference")
     assert_ok(source_capabilities["thermal"]["inference"] is False, "thermal must not use the RGB model")
+
+    thermal_selector = ThermalState.__new__(ThermalState)
+    selected_thermal_node = thermal_selector._select_thermal_candidate(
+        [
+            {"path": "/dev/video0", "supports_y16": False, "supports_configured_size": True},
+            {"path": "/dev/video1", "supports_y16": True, "supports_configured_size": True},
+        ]
+    )
+    assert_ok(selected_thermal_node == "/dev/video1", "thermal discovery must prefer the Y16 node")
 
     inference = client.get("/api/inference/status").get_json()
     assert_ok(isinstance(inference, dict), "/api/inference/status did not return JSON")
