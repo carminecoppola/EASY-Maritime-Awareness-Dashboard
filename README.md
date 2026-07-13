@@ -9,6 +9,7 @@ on the operator's Mac; camera capture and data storage remain on the Raspberry.
 - [Operator guide](docs/operator-guide.md) — use the dashboard and collect data.
 - [Developer guide](docs/developer-guide.md) — understand the runtime and APIs.
 - [Raspberry operations](docs/raspberry-operations.md) — install, launch, diagnose, and test safely.
+- [Project status](docs/project-status.md) — current capabilities, model, dataset sources, and next steps.
 - [Latest validation report](docs/validation-report.md) — measured Mac and Raspberry results.
 
 ## Installation
