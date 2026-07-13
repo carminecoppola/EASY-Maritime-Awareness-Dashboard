@@ -80,6 +80,7 @@ class SourceManager:
         device_manager: DeviceManager | None = None,
         events: Any | None = None,
         logger: Any | None = None,
+        auto_refresh: bool = True,
     ) -> None:
         self.runtime_root = Path(runtime_root)
         self.replay_root = Path(replay_root)
@@ -91,7 +92,8 @@ class SourceManager:
         self._selected_source_id = "replay"
         self._selected_last_update = utc_now_iso()
         self._register_default_sources()
-        self.refresh_status()
+        if auto_refresh:
+            self.refresh_status()
         self.select_source(self._selected_source_id, emit_event=False)
 
     def _log(self, level: str, message: str) -> None:

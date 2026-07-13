@@ -160,7 +160,8 @@ class RgbMasterSource:
         self.config = config
         self.events = events
         self.probe = probe
-        self.camera_list_output = probe.camera_list()
+        self._camera_list_output: Optional[str] = None
+        self._camera_list_lock = threading.Lock()
         self.camera_index = int(config["rgb"].get("camera_index", 0))
         self.width = int(config["rgb"].get("width", 1280))
         self.height = int(config["rgb"].get("height", 480))
@@ -183,11 +184,31 @@ class RgbMasterSource:
         self._next_retry_ts = 0.0
         self._retry_backoff = 30.0
         self.enabled_feeds: dict[str, bool] = {"rgb_left": True, "rgb_right": True}
-        self.detected = self._camera_detected()
+        self.detected = False
+        self._detection_checked = False
+
+    @property
+    def camera_list_output(self) -> str:
+        if self._camera_list_output is not None:
+            return self._camera_list_output
+        with self._camera_list_lock:
+            if self._camera_list_output is None:
+                try:
+                    self._camera_list_output = self.probe.camera_list()
+                except Exception:
+                    LOGGER.exception("Failed to query libcamera device list")
+                    self._camera_list_output = ""
+        return self._camera_list_output
 
     def _camera_detected(self) -> bool:
         output = self.camera_list_output.lower()
         return "imx477" in output or "arducam" in output or ("available cameras" in output and "no cameras available" not in output)
+
+    def refresh_detection(self) -> bool:
+        """Refresh the RGB camera inventory without blocking app startup."""
+        self._detection_checked = True
+        self.detected = self._camera_detected()
+        return self.detected
 
     def _busy_reason(self) -> bool:
         lowered = self._error.lower()
@@ -244,6 +265,8 @@ class RgbMasterSource:
                 proc.kill()
 
     def start(self, force_restart: bool = False) -> bool:
+        if not self.detected and not self._detection_checked:
+            self.refresh_detection()
         with self._lock:
             if self.process and self.process.poll() is None:
                 if not force_restart:
@@ -689,6 +712,17 @@ class ThermalState:
             candidate["selected"] = candidate is selected
         return str(selected["path"])
 
+    def _thermal_stream_candidates(self) -> list[str]:
+        """Return candidate video nodes, trying the selected one first and then fallbacks."""
+        ordered: list[str] = []
+        if self.device:
+            ordered.append(self.device)
+        for candidate in self.device_candidates:
+            path = str(candidate.get("path") or "").strip()
+            if path and path not in ordered:
+                ordered.append(path)
+        return ordered
+
     def _is_purethermal_device(self, device_path: str) -> bool:
         name_path = Path("/sys/class/video4linux") / Path(device_path).name / "name"
         return self._name_looks_thermal(read_text_file(name_path))
@@ -941,51 +975,83 @@ class ThermalState:
     def _real_worker_loop(self) -> None:
         width, height = self._video_dimensions()
         frame_size = width * height * 2
-        try:
-            process = subprocess.Popen(self._stream_command(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            self._stream_process = process
-            self.status = "STARTING"
-            while not self._stop_event.is_set():
-                assert process.stdout is not None
-                payload = self._read_exact_with_timeout(process.stdout, frame_size, 4.0)
-                if len(payload) < frame_size:
-                    stderr = ""
-                    if process.poll() is not None and process.stderr is not None:
-                        stderr = process.stderr.read().decode("utf-8", errors="replace").strip()
-                    raise RuntimeError(stderr or f"thermal stream timeout: received {len(payload)}/{frame_size} bytes")
-                raw_map = np.frombuffer(payload, dtype="<u2").reshape((height, width)).astype(np.float32)
-                image, extra = self._real_thermal_palette(raw_map)
-                frame = self._encode_image(image)
-                stats = {
-                    "mode": self.mode,
-                    "status": "REAL",
-                    "detected": True,
-                    "threshold_celsius": self.threshold_celsius,
-                    "delta_threshold": self.delta_threshold,
-                    **extra,
-                }
-                with self._frame_lock:
-                    self.last_frame_bytes = frame
-                    self.last_frame_ts = time.time()
-                    self.last_stats = stats
-                    self.frame_seq += 1
-                    self.status = "REAL"
-                    self.error = ""
-                self._anomaly_active = bool(extra.get("anomaly_active"))
-        except Exception as exc:
-            process = self._stream_process
-            if process and process.poll() is None:
-                process.terminate()
-                try:
-                    process.wait(timeout=1.0)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-            self.error = self._friendly_thermal_error(str(exc))
-            self.status = "ERROR"
-            self._retry_after = time.time() + self._retry_delay_seconds
-        finally:
-            self._stream_process = None
-            self._worker_started = False
+        saw_frame = False
+        while not self._stop_event.is_set():
+            stream_candidates = self._thermal_stream_candidates()
+            if not stream_candidates:
+                self.status = "STARTING"
+                self.error = "No thermal video candidates available"
+                self._retry_after = time.time() + 5.0
+                time.sleep(1.0)
+                continue
+            process: subprocess.Popen[bytes] | None = None
+            current_device = stream_candidates[0]
+            try:
+                self.device = current_device
+                process = subprocess.Popen(self._stream_command(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                self._stream_process = process
+                self.status = "STARTING" if not saw_frame else "REAL"
+                if not saw_frame:
+                    self.error = "Waiting for first thermal frame from PureThermal"
+                while not self._stop_event.is_set():
+                    assert process.stdout is not None
+                    payload = self._read_exact_with_timeout(process.stdout, frame_size, 4.0)
+                    if len(payload) < frame_size:
+                        stderr = ""
+                        if process.poll() is not None and process.stderr is not None:
+                            stderr = process.stderr.read().decode("utf-8", errors="replace").strip()
+                        raise RuntimeError(
+                            stderr
+                            or (
+                                f"thermal stream timeout while waiting for first frame: received {len(payload)}/{frame_size} bytes"
+                                if not saw_frame
+                                else f"thermal stream ended: received {len(payload)}/{frame_size} bytes"
+                            )
+                        )
+                    raw_map = np.frombuffer(payload, dtype="<u2").reshape((height, width)).astype(np.float32)
+                    image, extra = self._real_thermal_palette(raw_map)
+                    frame = self._encode_image(image)
+                    stats = {
+                        "mode": self.mode,
+                        "status": "REAL",
+                        "detected": True,
+                        "threshold_celsius": self.threshold_celsius,
+                        "delta_threshold": self.delta_threshold,
+                        **extra,
+                    }
+                    with self._frame_lock:
+                        self.last_frame_bytes = frame
+                        self.last_frame_ts = time.time()
+                        self.last_stats = stats
+                        self.frame_seq += 1
+                        self.status = "REAL"
+                        self.error = ""
+                    saw_frame = True
+                    self._anomaly_active = bool(extra.get("anomaly_active"))
+            except Exception as exc:
+                backoff = 1.0 if not saw_frame else 5.0
+                message = str(exc)
+                recoverable = "timeout while waiting for first frame" in message or "thermal stream ended" in message
+                if recoverable:
+                    self.error = f"Recovering thermal stream from PureThermal on {current_device}"
+                    self.status = "STARTING"
+                elif saw_frame:
+                    self.error = self._friendly_thermal_error(message)
+                    self.status = "ERROR"
+                else:
+                    self.error = self._friendly_thermal_error(message) or "Waiting for first thermal frame from PureThermal"
+                    self.status = "STARTING"
+                self._retry_after = time.time() + backoff
+                time.sleep(backoff)
+            finally:
+                if process and process.poll() is None:
+                    process.terminate()
+                    try:
+                        process.wait(timeout=1.0)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                self._stream_process = None
+        self._worker_started = False
 
     def frame(self) -> tuple[bytes, Dict[str, Any]]:
         if not self.enabled:
@@ -1037,8 +1103,8 @@ class ThermalState:
         snapshot_stats["snapshot_ts"] = time.time()
         return frame, snapshot_stats
 
-    def status_payload(self) -> Dict[str, Any]:
-        if self.enabled and self.mode == "real" and not self.detected:
+    def status_payload(self, *, refresh: bool = True) -> Dict[str, Any]:
+        if refresh and self.enabled and self.mode == "real" and not self.detected:
             self.refresh_device()
         streaming = bool(self.last_frame_ts and time.time() - self.last_frame_ts <= 5.0)
         effective_status = "REAL" if streaming else self.status

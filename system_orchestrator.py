@@ -149,6 +149,7 @@ class SystemOrchestrator:
             status_providers=self._build_device_status_providers(),
             events=self.events,
             logger=self.logger,
+            auto_refresh=False,
         )
         self.source_manager = SourceManager(
             runtime_root=self.runtime_root,
@@ -156,6 +157,7 @@ class SystemOrchestrator:
             device_manager=self.device_manager,
             events=self.events,
             logger=self.logger,
+            auto_refresh=False,
         )
         self.session_manager = SessionManager(
             self.runtime_root / "sessions",
