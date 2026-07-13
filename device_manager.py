@@ -265,6 +265,7 @@ class DeviceManager:
         status_providers: dict[str, Any] | None = None,
         events: Any | None = None,
         logger: Any | None = None,
+        auto_refresh: bool = True,
     ) -> None:
         self.runtime_root = Path(runtime_root)
         self.replay_root = Path(replay_root)
@@ -276,7 +277,8 @@ class DeviceManager:
         self.runtime_root.mkdir(parents=True, exist_ok=True)
         self.replay_root.mkdir(parents=True, exist_ok=True)
         self._register_default_devices()
-        self.refresh()
+        if auto_refresh:
+            self.refresh()
 
     def _log(self, level: str, message: str) -> None:
         if not self.logger:

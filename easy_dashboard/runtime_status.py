@@ -51,7 +51,7 @@ def build_thermal_device_status(thermal: Any) -> dict[str, Any]:
     if thermal is None or not hasattr(thermal, "status_payload"):
         return {"status": "NOT_PRESENT", "fps": 0.0, "configuration": {"reason": "Thermal runtime not available"}}
     try:
-        state = thermal.status_payload()
+        state = thermal.status_payload(refresh=False)
     except Exception as exc:
         return {"status": "ERROR", "fps": 0.0, "error": str(exc), "configuration": {}}
 

@@ -68,7 +68,13 @@ function thermalVisualState(thermal, fallback = {}) {
   const detected = Boolean(payload.detected || lastFrame);
   const fresh = isFreshTimestamp(lastFrame);
   const tone = liveFeedTone(state, "thermal", lastFrame, detected);
-  if (!fresh) {
+  const startupStates = new Set(["STARTING", "LOADING", "WAITING", "CHECKING", "PENDING", "INITIALIZING"]);
+  if (!fresh && startupStates.has(state)) {
+    tone.offline = false;
+    tone.loading = true;
+    tone.dot = "state-dot-loading";
+    tone.badge = "loading";
+  } else if (!fresh) {
     tone.offline = true;
     tone.loading = false;
     tone.dot = detected ? "state-dot-error" : "state-dot-muted";
@@ -81,7 +87,11 @@ function thermalVisualState(thermal, fallback = {}) {
     fresh,
     tone,
     label: tone.offline ? "Nessun segnale" : humanStateLabel(state),
-    statusText: !fresh ? "NESSUN SEGNALE" : liveStatusText("thermal", state, payload.fps ?? payload.frame_rate, lastFrame, detected),
+    statusText: !fresh && startupStates.has(state)
+      ? "CARICANDO"
+      : !fresh
+        ? "NESSUN SEGNALE"
+        : liveStatusText("thermal", state, payload.fps ?? payload.frame_rate, lastFrame, detected),
   };
 }
 
@@ -105,8 +115,9 @@ function liveStatusText(feed, state, fps, lastFrameTs = null, detected = true) {
   if (feed === "thermal") {
     if (["NOT_DETECTED", "DISABLED"].includes(value)) return "NON RILEVATO";
     if (["OFFLINE", "ERROR", "FAILED"].includes(value)) return "NESSUN SEGNALE";
-    if (!fresh) return "NESSUN SEGNALE";
     if (["STARTING", "LOADING", "WAITING", "CHECKING", "PENDING"].includes(value)) return "CARICANDO";
+    if (["INITIALIZING"].includes(value)) return fresh ? "REALE" : "CARICANDO";
+    if (!fresh) return "NESSUN SEGNALE";
     if (value === "MOCK") return "SIMULAZIONE";
     return "REALE";
   }

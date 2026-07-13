@@ -96,20 +96,84 @@ def build_runtime(*, run_startup_checks: bool = True, start_runtime_services: bo
     return runtime
 
 
+def _bootstrap_runtime(runtime: DashboardRuntime, *, run_startup_checks: bool, start_runtime_services: bool) -> None:
+    """Finish expensive startup work without blocking Flask from binding the port."""
+    try:
+        if run_startup_checks:
+            run_preflight_script()
+            append_startup_notice(runtime.events, runtime.probe, runtime.config)
+            runtime.thermal.detect_device()
+            if runtime.thermal.detected:
+                runtime.events.add(
+                    "THERMAL_FLIR",
+                    "DETECTED",
+                    f"PureThermal detected on {runtime.thermal.device}",
+                    "info",
+                    meta={
+                        "device": runtime.thermal.device,
+                        "configured_device": runtime.thermal.configured_device,
+                        "input_format": runtime.thermal.input_format,
+                        "video_size": runtime.thermal.video_size,
+                        "discovery_method": runtime.thermal.discovery_method,
+                    },
+                )
+            else:
+                runtime.events.add(
+                    "THERMAL_FLIR",
+                    "NOT_DETECTED",
+                    runtime.thermal.error or "PureThermal device not detected",
+                    "warning",
+                    meta={
+                        "configured_device": runtime.thermal.configured_device,
+                        "device_candidates": runtime.thermal.device_candidates,
+                        "discovery_method": runtime.thermal.discovery_method,
+                    },
+                )
+
+        if start_runtime_services:
+            runtime.rgb.refresh_detection()
+            runtime.orchestrator.start()
+            threading.Thread(target=_rgb_keepalive, args=(runtime.orchestrator,), daemon=True, name="rgb-keepalive").start()
+            runtime.events.add("UC512_MULTIPLEXER", "STREAM_AUTOSTART", "RGB stream started on application boot", "info")
+    except Exception:
+        LOGGER.exception("Background startup bootstrap failed")
+
+
 def _rgb_keepalive(orchestrator: SystemOrchestrator) -> None:
     while True:
         time.sleep(5.0)
         orchestrator.ensure_running()
 
 
-def create_app(*, run_startup_checks: bool = True, start_runtime_services: bool = True) -> Flask:
+def create_app(
+    *,
+    run_startup_checks: bool = True,
+    start_runtime_services: bool = True,
+    bootstrap_async: bool = True,
+) -> Flask:
     """Build the Flask app and register page/API blueprints."""
-    runtime = build_runtime(
-        run_startup_checks=run_startup_checks,
-        start_runtime_services=start_runtime_services,
-    )
+    runtime = build_runtime(run_startup_checks=False, start_runtime_services=False)
     app = Flask(__name__)
     register_blueprints(app, runtime)
+    app.easy_dashboard_runtime = runtime  # type: ignore[attr-defined]
+
+    if bootstrap_async and (run_startup_checks or start_runtime_services):
+        threading.Thread(
+            target=_bootstrap_runtime,
+            args=(runtime,),
+            kwargs={
+                "run_startup_checks": run_startup_checks,
+                "start_runtime_services": start_runtime_services,
+            },
+            daemon=True,
+            name="dashboard-bootstrap",
+        ).start()
+    elif run_startup_checks or start_runtime_services:
+        _bootstrap_runtime(
+            runtime,
+            run_startup_checks=run_startup_checks,
+            start_runtime_services=start_runtime_services,
+        )
 
     @app.context_processor
     def inject_asset_version() -> Dict[str, str]:
