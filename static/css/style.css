@@ -5310,11 +5310,12 @@ body[data-page="live"] .live-page {
 }
 
 body[data-page="live"] .live-statusbar { order: 1; }
-body[data-page="live"] .mission-command-bar { order: 2; }
-body[data-page="live"] .operator-guide-panel { order: 3; }
-body[data-page="live"] .live-explainer { order: 4; }
-body[data-page="live"] .live-grid { order: 5; }
-body[data-page="live"] .live-secondary-details { order: 6; }
+body[data-page="live"] .live-explainer { order: 2; }
+body[data-page="live"] .live-section-heading { order: 3; }
+body[data-page="live"] .live-grid { order: 4; }
+body[data-page="live"] .mission-command-bar { order: 5; }
+body[data-page="live"] .operator-guide-panel { order: 6; }
+body[data-page="live"] .live-secondary-details { order: 7; }
 
 body[data-page="live"] .live-statusbar {
   padding: 9px 11px;
@@ -5356,6 +5357,106 @@ body[data-page="live"] .live-status-pill {
 
 body[data-page="live"] .live-grid {
   gap: 10px;
+}
+
+body[data-page="live"] .live-section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  padding-inline: 2px;
+}
+
+body[data-page="live"] .live-section-heading > div {
+  display: grid;
+  gap: 2px;
+}
+
+body[data-page="live"] .live-section-heading strong {
+  font-size: 18px;
+}
+
+body[data-page="live"] .live-section-heading > span {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+body[data-page="live"] .live-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+body[data-page="live"] .live-feed-card:not(.live-feed-card-thermal) {
+  min-height: clamp(360px, 37vw, 620px);
+}
+
+body[data-page="live"] .live-feed-card-thermal {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(240px, 340px) minmax(0, 1fr);
+  grid-template-rows: auto;
+  min-height: 0;
+}
+
+body[data-page="live"] .live-feed-card-thermal .live-feed-body {
+  grid-column: 1;
+  grid-row: 1;
+  min-height: 170px;
+  aspect-ratio: 16 / 9;
+}
+
+body[data-page="live"] .live-thermal-content {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 14px;
+  padding: 20px 22px;
+  background: rgba(12, 20, 17, 0.92);
+}
+
+body[data-page="live"] .live-thermal-content .live-feed-head,
+body[data-page="live"] .live-thermal-content .live-feed-foot {
+  padding: 0;
+  background: transparent;
+}
+
+body[data-page="live"] .live-thermal-content .live-feed-head > div {
+  display: grid;
+  gap: 3px;
+}
+
+body[data-page="live"] .live-thermal-content .live-feed-name {
+  color: var(--text-primary);
+  font-size: 17px;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+body[data-page="live"] .live-thermal-content > p {
+  max-width: 68ch;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+body[data-page="live"] .live-thermal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+body[data-page="live"] .live-thermal-actions .live-feed-foot {
+  justify-content: flex-start;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+body[data-page="live"] .live-thermal-actions .btn {
+  flex: 0 0 auto;
 }
 
 .live-feed-card {
@@ -5580,6 +5681,28 @@ body[data-page="live"] .live-grid {
     min-height: 260px;
   }
 
+  body[data-page="live"] .live-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  body[data-page="live"] .live-grid {
+    grid-template-columns: 1fr;
+  }
+
+  body[data-page="live"] .live-feed-card-thermal {
+    grid-column: 1;
+  }
+
+  body[data-page="live"] .live-feed-card:not(.live-feed-card-thermal) {
+    min-height: 360px;
+  }
+
+  body[data-page="live"] .live-feed-card-thermal .live-feed-body {
+    min-height: 150px;
+  }
+
   .operator-guide-panel summary {
     align-items: flex-start;
     flex-direction: column;
@@ -5601,6 +5724,35 @@ body[data-page="live"] .live-grid {
   .ai-control-bar,
   .archive-tabs {
     top: 72px;
+  }
+}
+
+@media (max-width: 620px) {
+  body[data-page="live"] .live-feed-card-thermal {
+    grid-template-columns: 1fr;
+  }
+
+  body[data-page="live"] .live-feed-card-thermal .live-feed-body,
+  body[data-page="live"] .live-thermal-content {
+    grid-column: 1;
+  }
+
+  body[data-page="live"] .live-feed-card-thermal .live-feed-body {
+    grid-row: 1;
+  }
+
+  body[data-page="live"] .live-thermal-content {
+    grid-row: 2;
+    padding: 16px;
+  }
+
+  body[data-page="live"] .live-thermal-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  body[data-page="live"] .live-thermal-actions .btn {
+    width: 100%;
   }
 }
 

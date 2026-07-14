@@ -376,13 +376,14 @@ function setupLivePage() {
   if (thermalCaptureButton) {
     thermalCaptureButton.addEventListener("click", async () => {
       thermalCaptureButton.disabled = true;
-      thermalCaptureButton.textContent = "Acquisizione…";
+      const label = thermalCaptureButton.querySelector("span");
+      if (label) label.textContent = "Lettura in corso…";
       try {
         reloadThermalFrame();
       } finally {
         window.setTimeout(() => {
           thermalCaptureButton.disabled = false;
-          thermalCaptureButton.textContent = "Aggiorna frame";
+          if (label) label.textContent = "Aggiorna lettura";
         }, 3500);
       }
     });

@@ -33,7 +33,15 @@
 
     <div class="live-explainer" aria-live="polite">
       <strong>Le camere RGB sono in diretta.</strong>
-      <span>La termica acquisisce un frame su richiesta per evitare conflitti tra i dispositivi.</span>
+      <span>La lettura termica è disponibile su richiesta nel pannello secondario.</span>
+    </div>
+
+    <div class="live-section-heading">
+      <div>
+        <span class="eyebrow">Diretta RGB</span>
+        <strong>Vista panoramica</strong>
+      </div>
+      <span>Camera sinistra e destra aggiornate in tempo reale</span>
     </div>
 
     <section class="live-grid" aria-label="Flussi video in tempo reale">
@@ -68,41 +76,6 @@
         </div>
       </article>
 
-      <article class="panel live-feed-card live-feed-card-thermal" data-feed="thermal">
-        <div class="live-feed-head">
-          <span class="live-feed-name">Camera termica</span>
-          <span class="badge badge-muted" id="live-feed-thermal-badge">Caricamento</span>
-          <button class="btn btn-ghost btn-small" id="button-thermal-capture" type="button">Acquisisci frame</button>
-        </div>
-        <div class="live-feed-body">
-          <img
-            class="feed-image live-feed-image thermal-image"
-            id="live-feed-thermal-image"
-            alt="Ultimo frame acquisito dalla camera termica"
-          >
-          <div class="live-thermal-ready" id="live-feed-thermal-ready" hidden>
-            <svg class="live-offline-icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M10 4.5a2 2 0 0 1 4 0v7.1a4.5 4.5 0 1 1-4 0Z"></path>
-              <path d="M12 9.8v4.7"></path>
-            </svg>
-            <strong>Termica pronta</strong>
-            <span>Acquisisci un frame quando ti serve.</span>
-          </div>
-          <div class="live-offline-card" id="live-feed-thermal-offline" hidden>
-            <svg class="live-offline-icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M10 4.5a2 2 0 0 1 4 0v7.1a4.5 4.5 0 1 1-4 0Z"></path>
-              <path d="M12 9.8v4.7"></path>
-              <path d="M12 14.5c-1.3 0-2.4 1-2.4 2.3s1.1 2.2 2.4 2.2 2.4-1 2.4-2.2S13.3 14.5 12 14.5Z"></path>
-            </svg>
-            <strong id="live-feed-thermal-device-name">Camera termica non disponibile</strong>
-          </div>
-        </div>
-        <div class="live-feed-foot">
-          <span class="live-feed-fps" id="live-feed-thermal-fps">--</span>
-          <span class="live-feed-time" id="live-feed-thermal-last-frame">--</span>
-        </div>
-      </article>
-
       <article class="panel live-feed-card" data-feed="rgb_right">
         <div class="live-feed-head">
           <span class="live-feed-name">Camera destra</span>
@@ -131,6 +104,56 @@
         <div class="live-feed-foot">
           <span class="live-feed-fps" id="live-feed-rgb-right-fps">--</span>
           <span class="live-feed-time" id="live-feed-rgb-right-last-frame">--</span>
+        </div>
+      </article>
+
+      <article class="panel live-feed-card live-feed-card-thermal" data-feed="thermal">
+        <div class="live-feed-body">
+          <img
+            class="feed-image live-feed-image thermal-image"
+            id="live-feed-thermal-image"
+            alt="Ultima lettura acquisita dalla camera termica"
+          >
+          <div class="live-thermal-ready" id="live-feed-thermal-ready" hidden>
+            <svg class="live-offline-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M10 4.5a2 2 0 0 1 4 0v7.1a4.5 4.5 0 1 1-4 0Z"></path>
+              <path d="M12 9.8v4.7"></path>
+            </svg>
+            <strong>Termica pronta</strong>
+            <span>Avvia una lettura quando serve.</span>
+          </div>
+          <div class="live-offline-card" id="live-feed-thermal-offline" hidden>
+            <svg class="live-offline-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M10 4.5a2 2 0 0 1 4 0v7.1a4.5 4.5 0 1 1-4 0Z"></path>
+              <path d="M12 9.8v4.7"></path>
+              <path d="M12 14.5c-1.3 0-2.4 1-2.4 2.3s1.1 2.2 2.4 2.2 2.4-1 2.4-2.2S13.3 14.5 12 14.5Z"></path>
+            </svg>
+            <strong id="live-feed-thermal-device-name">Camera termica non disponibile</strong>
+          </div>
+        </div>
+        <div class="live-thermal-content">
+          <div class="live-feed-head">
+            <div>
+              <span class="eyebrow">Sensore secondario</span>
+              <span class="live-feed-name">Lettura termica</span>
+            </div>
+            <span class="badge badge-muted" id="live-feed-thermal-badge">Caricamento</span>
+          </div>
+          <p>La termica viene letta solo quando serve; l’ultima immagine resta disponibile senza interrompere le camere RGB.</p>
+          <div class="live-thermal-actions">
+            <div class="live-feed-foot">
+              <span>Ultima lettura</span>
+              <span class="live-feed-time" id="live-feed-thermal-last-frame">--</span>
+              <span class="live-feed-fps" id="live-feed-thermal-fps" hidden>--</span>
+            </div>
+            <button class="btn btn-secondary btn-small" id="button-thermal-capture" type="button">
+              <svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M20 11a8 8 0 1 0-2.3 5.7"></path>
+                <path d="M20 4v7h-7"></path>
+              </svg>
+              <span>Leggi termica</span>
+            </button>
+          </div>
         </div>
       </article>
     </section>
