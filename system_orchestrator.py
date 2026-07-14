@@ -455,9 +455,8 @@ class SystemOrchestrator:
         return None
 
     def _thermal_stop(self) -> Any:
-        # ThermalState.stop() is intentionally avoided during orchestration restart
-        # because the current implementation is not restart-safe once its worker
-        # event has been latched. Keep the hook as a no-op for future backends.
+        if self.thermal is not None and hasattr(self.thermal, "stop"):
+            return self.thermal.stop()
         return None
 
     def _thermal_restart(self) -> Any:

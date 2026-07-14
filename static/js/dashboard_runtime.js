@@ -367,6 +367,21 @@ function setupSharedInteractions() {
 }
 
 function setupLivePage() {
+  const thermalCaptureButton = byId("button-thermal-capture");
+  if (thermalCaptureButton) {
+    thermalCaptureButton.addEventListener("click", async () => {
+      thermalCaptureButton.disabled = true;
+      thermalCaptureButton.textContent = "Acquisizione…";
+      try {
+        reloadThermalFrame();
+      } finally {
+        window.setTimeout(() => {
+          thermalCaptureButton.disabled = false;
+          thermalCaptureButton.textContent = "Acquisisci";
+        }, 3500);
+      }
+    });
+  }
   const liveRefreshButton = byId(liveActionElementId("liveRefreshButton"));
   if (liveRefreshButton) {
     liveRefreshButton.addEventListener("click", async () => {
@@ -864,9 +879,7 @@ function initializeDashboardRuntime() {
   refreshDashboard();
   loadMissionHistory();
   window.setInterval(refreshDashboard, 2500);
-  if (byId(liveActionElementId("thermalImage")) && !dashboardState.liteMode) {
-    window.setInterval(reloadThermalFrame, 700);
-  }
+  if (byId(liveActionElementId("thermalImage")) && !dashboardState.liteMode) reloadThermalFrame();
   document.body?.setAttribute("data-runtime-ready", "true");
 }
 

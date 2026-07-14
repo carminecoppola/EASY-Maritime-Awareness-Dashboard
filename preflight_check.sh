@@ -49,7 +49,7 @@ run_block "CPU Temperature" bash -lc 'if [ -r /sys/class/thermal/thermal_zone0/t
 run_block "RAM" free -h
 run_block "Disk" df -h
 run_block "Camera Tools" bash -lc 'command -v rpicam-hello || true; command -v libcamera-hello || true; command -v rpicam-vid || true; command -v libcamera-vid || true; command -v vcgencmd || true'
-run_block "Camera List" bash -lc 'if command -v rpicam-hello >/dev/null 2>&1; then rpicam-hello --list-cameras; elif command -v libcamera-hello >/dev/null 2>&1; then libcamera-hello --list-cameras; else echo "No camera tool available"; fi'
+run_block "Camera List" timeout 4s bash -lc 'if command -v libcamera-hello >/dev/null 2>&1; then libcamera-hello --list-cameras; elif command -v rpicam-hello >/dev/null 2>&1; then rpicam-hello --list-cameras; else echo "No camera tool available"; fi'
 run_block "USB" lsusb
 run_block "I2C Bus 1" i2cdetect -y 1
 run_block "Video Devices" bash -lc 'ls /dev/video* 2>/dev/null || true'

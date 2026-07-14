@@ -68,12 +68,12 @@
         <div class="live-feed-head">
           <span class="live-feed-name">Camera termica</span>
           <span class="badge badge-muted" id="live-feed-thermal-badge">Caricamento</span>
+          <button class="btn btn-ghost btn-small" id="button-thermal-capture" type="button">Acquisisci</button>
         </div>
         <div class="live-feed-body">
           <img
             class="feed-image live-feed-image thermal-image"
             id="live-feed-thermal-image"
-            {% if not request.args.get("lite") %}src="/thermal/frame"{% endif %}
             alt="Video termico in diretta"
           >
           <div class="live-offline-card" id="live-feed-thermal-offline" hidden>

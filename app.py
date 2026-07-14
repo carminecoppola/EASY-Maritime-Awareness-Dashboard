@@ -32,6 +32,7 @@ def build_runtime(*, run_startup_checks: bool = True, start_runtime_services: bo
     probe = SystemProbe()
     thermal = ThermalState(config, events)
     rgb = RgbMasterSource(config, events, probe)
+    thermal.set_rgb_coordinator(rgb.pause_for_thermal, rgb.resume_after_thermal)
     orchestrator = SystemOrchestrator(
         runtime_root=PROJECT_ROOT / "runtime",
         replay_root=PROJECT_ROOT / "runtime" / "replay",
@@ -167,51 +168,12 @@ def _bootstrap_runtime(runtime: DashboardRuntime, *, run_startup_checks: bool, s
                 LOGGER.info("BOOTSTRAP thermal detection required before runtime services")
                 runtime.thermal.detect_device()
 
-            thermal_wait_result = "not_applicable"
-            thermal_wait_seconds = 0.0
-            if runtime.thermal.enabled and runtime.thermal.mode == "real" and runtime.thermal.detected:
-                timeout_seconds = min(20.0, max(1.0, float(os.environ.get("EASY_THERMAL_BOOTSTRAP_TIMEOUT", "6"))))
-                thermal_phase_started = time.monotonic()
-                LOGGER.info(
-                    "BOOTSTRAP thermal first-attempt gate begin timeout=%.1fs device=%s frame_seq=%s",
-                    timeout_seconds,
-                    runtime.thermal.device,
-                    runtime.thermal.frame_seq,
-                )
-                runtime.thermal.start()
-                thermal_wait_result = runtime.thermal.wait_for_bootstrap_attempt(timeout_seconds)
-                thermal_wait_seconds = time.monotonic() - thermal_phase_started
-                LOGGER.info(
-                    "BOOTSTRAP thermal first-attempt gate complete result=%s elapsed=%.3fs status=%s frame_seq=%s last_frame_ts=%.3f error=%r",
-                    thermal_wait_result,
-                    thermal_wait_seconds,
-                    runtime.thermal.status,
-                    runtime.thermal.frame_seq,
-                    runtime.thermal.last_frame_ts,
-                    runtime.thermal.error,
-                )
-                if thermal_wait_result != "frame_received":
-                    runtime.events.add(
-                        "THERMAL_FLIR",
-                        "BOOTSTRAP_FIRST_FRAME_PENDING",
-                        "Thermal bootstrap completed without a first frame; RGB startup will continue",
-                        "warning",
-                        meta={
-                            "result": thermal_wait_result,
-                            "elapsed_seconds": round(thermal_wait_seconds, 3),
-                            "device": runtime.thermal.device,
-                            "status": runtime.thermal.status,
-                            "frame_seq": runtime.thermal.frame_seq,
-                            "error": runtime.thermal.error,
-                        },
-                    )
+            thermal_wait_result = "on_demand"
 
             LOGGER.info(
-                "BOOTSTRAP RGB/orchestrator phase begin thermal_gate=%s thermal_detected=%s thermal_status=%s thermal_frame_seq=%s elapsed=%.3fs",
+                "BOOTSTRAP RGB/orchestrator phase begin thermal_mode=%s thermal_detected=%s elapsed=%.3fs",
                 thermal_wait_result,
                 runtime.thermal.detected,
-                runtime.thermal.status,
-                runtime.thermal.frame_seq,
                 time.monotonic() - bootstrap_started,
             )
             rgb_phase_started = time.monotonic()
