@@ -1,6 +1,11 @@
 function reloadThermalFrame() {
   const node = byId(liveActionElementId("thermalImage"));
-  if (node) node.src = `/thermal/frame?ts=${Date.now()}`;
+  if (!node) return;
+  node.onload = async () => {
+    node.classList.remove("is-hidden");
+    await refreshDashboard();
+  };
+  node.src = `/thermal/frame?ts=${Date.now()}`;
 }
 
 async function streamControl(feed, action) {
@@ -377,7 +382,7 @@ function setupLivePage() {
       } finally {
         window.setTimeout(() => {
           thermalCaptureButton.disabled = false;
-          thermalCaptureButton.textContent = "Acquisisci";
+          thermalCaptureButton.textContent = "Aggiorna frame";
         }, 3500);
       }
     });
@@ -388,7 +393,6 @@ function setupLivePage() {
       liveRefreshButton.disabled = true;
       liveRefreshButton.textContent = "Aggiornamento…";
       await refreshDashboard();
-      reloadThermalFrame();
       setText(liveActionElementId("liveRefreshText"), `Stato aggiornato alle ${formatRomeTimeOnly(Date.now())}`);
       window.setTimeout(() => {
         liveRefreshButton.disabled = false;
@@ -879,7 +883,6 @@ function initializeDashboardRuntime() {
   refreshDashboard();
   loadMissionHistory();
   window.setInterval(refreshDashboard, 2500);
-  if (byId(liveActionElementId("thermalImage")) && !dashboardState.liteMode) reloadThermalFrame();
   document.body?.setAttribute("data-runtime-ready", "true");
 }
 

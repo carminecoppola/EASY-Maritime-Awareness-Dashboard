@@ -32,8 +32,8 @@
     </div>
 
     <div class="live-explainer" aria-live="polite">
-      <strong>Questa pagina è sempre in diretta.</strong>
-      <span>I video scorrono continuamente; stato e FPS si aggiornano automaticamente ogni 2,5 secondi.</span>
+      <strong>Le camere RGB sono in diretta.</strong>
+      <span>La termica acquisisce un frame su richiesta per evitare conflitti tra i dispositivi.</span>
     </div>
 
     <section class="live-grid" aria-label="Flussi video in tempo reale">
@@ -49,6 +49,10 @@
             {% if not request.args.get("lite") %}src="/video/rgb_left"{% endif %}
             alt="Video in diretta dalla camera sinistra"
           >
+          <div class="live-dark-frame-note" id="live-feed-rgb-left-dark-note" hidden>
+            <strong>Streaming attivo, immagine molto scura</strong>
+            <span>Controlla il copriobiettivo e l'illuminazione.</span>
+          </div>
           <div class="live-offline-card" id="live-feed-rgb-left-offline" hidden>
             <svg class="live-offline-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 7.5h2.8l1.6-2h3.2l1.6 2H18a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9.5a2 2 0 0 1 2-2Z"></path>
@@ -68,14 +72,22 @@
         <div class="live-feed-head">
           <span class="live-feed-name">Camera termica</span>
           <span class="badge badge-muted" id="live-feed-thermal-badge">Caricamento</span>
-          <button class="btn btn-ghost btn-small" id="button-thermal-capture" type="button">Acquisisci</button>
+          <button class="btn btn-ghost btn-small" id="button-thermal-capture" type="button">Acquisisci frame</button>
         </div>
         <div class="live-feed-body">
           <img
             class="feed-image live-feed-image thermal-image"
             id="live-feed-thermal-image"
-            alt="Video termico in diretta"
+            alt="Ultimo frame acquisito dalla camera termica"
           >
+          <div class="live-thermal-ready" id="live-feed-thermal-ready" hidden>
+            <svg class="live-offline-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M10 4.5a2 2 0 0 1 4 0v7.1a4.5 4.5 0 1 1-4 0Z"></path>
+              <path d="M12 9.8v4.7"></path>
+            </svg>
+            <strong>Termica pronta</strong>
+            <span>Acquisisci un frame quando ti serve.</span>
+          </div>
           <div class="live-offline-card" id="live-feed-thermal-offline" hidden>
             <svg class="live-offline-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M10 4.5a2 2 0 0 1 4 0v7.1a4.5 4.5 0 1 1-4 0Z"></path>
@@ -103,6 +115,10 @@
             {% if not request.args.get("lite") %}src="/video/rgb_right"{% endif %}
             alt="Video in diretta dalla camera destra"
           >
+          <div class="live-dark-frame-note" id="live-feed-rgb-right-dark-note" hidden>
+            <strong>Streaming attivo, immagine molto scura</strong>
+            <span>Controlla il copriobiettivo e l'illuminazione.</span>
+          </div>
           <div class="live-offline-card" id="live-feed-rgb-right-offline" hidden>
             <svg class="live-offline-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 7.5h2.8l1.6-2h3.2l1.6 2H18a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9.5a2 2 0 0 1 2-2Z"></path>

@@ -177,6 +177,21 @@ def thermal_frame():
     )
 
 
+@media_bp.route("/thermal/last-frame")
+def thermal_last_frame():
+    frame, stats = get_runtime().thermal.last_frame()
+    if frame is None:
+        return current_app.response_class(status=204)
+    return current_app.response_class(
+        frame,
+        mimetype="image/jpeg",
+        headers={
+            "Cache-Control": "no-store",
+            "X-EASY-THERMAL-STATUS": stats.get("status", "cached"),
+        },
+    )
+
+
 @media_bp.route("/thermal/snapshot", methods=["GET", "POST"])
 @media_bp.route("/snapshot/thermal", methods=["GET", "POST"])
 def thermal_snapshot():

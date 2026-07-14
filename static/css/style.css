@@ -2043,6 +2043,53 @@ body[data-page="live"] .live-page {
   opacity: 0.3;
 }
 
+.live-thermal-ready,
+.live-dark-frame-note {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 6px;
+  padding: 18px;
+  text-align: center;
+}
+
+.live-thermal-ready[hidden],
+.live-dark-frame-note[hidden] {
+  display: none;
+}
+
+.live-thermal-ready {
+  background: radial-gradient(circle at 50% 45%, rgba(40, 201, 151, 0.1), transparent 55%), #091613;
+}
+
+.live-thermal-ready strong,
+.live-dark-frame-note strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.live-thermal-ready span,
+.live-dark-frame-note span {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.live-dark-frame-note {
+  inset: auto 10px 10px 10px;
+  display: block;
+  border: 1px solid rgba(255, 188, 86, 0.25);
+  border-radius: var(--radius-sm);
+  background: rgba(7, 12, 10, 0.88);
+  backdrop-filter: blur(8px);
+}
+
+.live-dark-frame-note strong,
+.live-dark-frame-note span {
+  display: block;
+}
+
 .live-reconnect {
   position: absolute;
   right: 10px;

@@ -1353,6 +1353,14 @@ class ThermalState:
         }
         return make_placeholder_jpeg("THERMAL STARTING", self.error or "Waiting for thermal stream", "#ffbc56"), stats
 
+    def last_frame(self) -> tuple[Optional[bytes], Dict[str, Any]]:
+        """Return the cached preview without opening the PureThermal device."""
+        with self._frame_lock:
+            frame = self.last_frame_bytes
+            stats = dict(self.last_stats)
+        stats.update({"last_frame_ts": self.last_frame_ts, "frame_seq": self.frame_seq})
+        return frame, stats
+
     def _capture_on_demand(self) -> tuple[bytes, Dict[str, Any]]:
         """Capture exactly one real frame while RGB owns no camera handle."""
         with self._capture_lock:
