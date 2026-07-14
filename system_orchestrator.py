@@ -396,7 +396,9 @@ class SystemOrchestrator:
     def _thermal_status(self) -> Dict[str, Any]:
         if self.thermal is None:
             return {"ok": False, "status": "UNKNOWN", "error": "Thermal component missing"}
-        payload = _safe_call(getattr(self.thermal, "status_payload", None), default={}) or {}
+        status_payload = getattr(self.thermal, "status_payload", None)
+        payload = _safe_call(lambda: status_payload(refresh=False), default={}) if callable(status_payload) else {}
+        payload = payload or {}
         if not isinstance(payload, dict):
             payload = {"status": str(payload)}
         payload.setdefault("ok", True)

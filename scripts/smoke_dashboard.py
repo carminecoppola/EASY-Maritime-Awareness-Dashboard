@@ -64,6 +64,9 @@ def main() -> int:
     assert_ok(build_thermal_device_status(None)["status"] == "NOT_PRESENT", "missing thermal mapping changed")
 
     app = create_app(run_startup_checks=False, start_runtime_services=False)
+    runtime = app.easy_dashboard_runtime
+    assert_ok(runtime.thermal.discovery_method == "not_checked", "runtime construction must not trigger thermal detection")
+    assert_ok(runtime.thermal._worker_started is False, "runtime construction must not start the thermal worker")
     app.testing = True
     client = app.test_client()
 
