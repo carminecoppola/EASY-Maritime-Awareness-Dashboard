@@ -262,7 +262,8 @@ function renderLivePage(health) {
   if (thermalReady) thermalReady.hidden = Boolean(thermalVisual.hasCachedFrame || thermalVisual.tone.offline || thermalVisual.tone.loading);
   const thermalCaptureButton = byId("button-thermal-capture");
   if (thermalCaptureButton && !thermalCaptureButton.disabled) {
-    thermalCaptureButton.textContent = thermalVisual.hasCachedFrame ? "Aggiorna frame" : "Acquisisci frame";
+    const label = thermalCaptureButton.querySelector("span");
+    if (label) label.textContent = thermalVisual.hasCachedFrame ? "Aggiorna lettura" : "Leggi termica";
   }
 
   const sessionStatus = dashboardState.sessionStatus || health.session || {};
