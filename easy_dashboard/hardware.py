@@ -913,6 +913,29 @@ class ThermalState:
             "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "gray16le", "pipe:1",
         ]
 
+    def _v4l2_stream_command(self) -> list[str]:
+        width, height = self._video_dimensions()
+        return [
+            shutil.which("v4l2-ctl") or "v4l2-ctl",
+            f"--device={self.device}",
+            f"--set-fmt-video=width={width},height={height},pixelformat=Y16 ",
+            "--stream-mmap=3",
+            "--stream-count=1000000000",
+            "--stream-to=-",
+        ]
+
+    @staticmethod
+    def _read_raw_frame(stream: Any, frame_size: int) -> bytes:
+        chunks: list[bytes] = []
+        remaining = frame_size
+        while remaining > 0:
+            chunk = stream.read(remaining)
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        return b"".join(chunks)
+
     def _capture_y16_matrix(self) -> np.ndarray:
         """Capture one frame and close V4L2 cleanly after each transaction.
 
@@ -1034,54 +1057,66 @@ class ThermalState:
                 self._retry_after = time.time() + 5.0
                 time.sleep(1.0)
                 continue
+            process: subprocess.Popen[bytes] | None = None
             current_device = stream_candidates[0]
             self._stream_attempt_count += 1
             attempt = self._stream_attempt_count
             attempt_started = time.monotonic()
             try:
                 self.device = current_device
-                command = self._single_frame_command()
+                command = self._v4l2_stream_command()
                 if attempt <= 5 or attempt % 10 == 0:
-                    LOGGER.info("THERMAL frame capture attempt=%s device=%s command=%r", attempt, current_device, command)
+                    LOGGER.info("THERMAL V4L2 stream attempt=%s device=%s command=%r", attempt, current_device, command)
+                process = subprocess.Popen(
+                    command,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                    bufsize=0,
+                )
+                self._stream_process = process
                 self.status = "STARTING" if not saw_frame else "REAL"
                 if not saw_frame:
                     self.error = "Waiting for first thermal frame from PureThermal"
-                raw_map = self._capture_y16_matrix()
-                image, extra = self._real_thermal_palette(raw_map)
-                frame = self._encode_image(image)
-                stats = {
-                    "mode": self.mode,
-                    "status": "REAL",
-                    "detected": True,
-                    "threshold_celsius": self.threshold_celsius,
-                    "delta_threshold": self.delta_threshold,
-                    **extra,
-                }
-                with self._frame_lock:
-                    self.last_frame_bytes = frame
-                    self.last_frame_ts = time.time()
-                    self.last_stats = stats
-                    self.frame_seq += 1
-                    self.status = "REAL"
-                    self.error = ""
-                self._first_frame_event.set()
-                self._first_stream_attempt_event.set()
-                if not saw_frame:
-                    LOGGER.info(
-                        "THERMAL first frame received attempt=%s device=%s bytes=%s elapsed=%.3fs frame_seq=%s",
-                        attempt,
-                        current_device,
-                        frame_size,
-                        time.monotonic() - attempt_started,
-                        self.frame_seq,
-                    )
-                saw_frame = True
-                self._anomaly_active = bool(extra.get("anomaly_active"))
-                self._stop_event.wait(0.25)
+                assert process.stdout is not None
+                while not self._stop_event.is_set():
+                    payload = self._read_raw_frame(process.stdout, frame_size)
+                    if len(payload) < frame_size:
+                        raise RuntimeError(f"thermal V4L2 stream ended: received {len(payload)}/{frame_size} bytes")
+                    raw_map = np.frombuffer(payload, dtype="<u2").reshape((height, width)).astype(np.float32)
+                    image, extra = self._real_thermal_palette(raw_map)
+                    frame = self._encode_image(image)
+                    stats = {
+                        "mode": self.mode,
+                        "status": "REAL",
+                        "detected": True,
+                        "threshold_celsius": self.threshold_celsius,
+                        "delta_threshold": self.delta_threshold,
+                        **extra,
+                    }
+                    with self._frame_lock:
+                        self.last_frame_bytes = frame
+                        self.last_frame_ts = time.time()
+                        self.last_stats = stats
+                        self.frame_seq += 1
+                        self.status = "REAL"
+                        self.error = ""
+                    self._first_frame_event.set()
+                    self._first_stream_attempt_event.set()
+                    if not saw_frame:
+                        LOGGER.info(
+                            "THERMAL first frame received attempt=%s device=%s bytes=%s elapsed=%.3fs frame_seq=%s backend=v4l2-ctl",
+                            attempt,
+                            current_device,
+                            len(payload),
+                            time.monotonic() - attempt_started,
+                            self.frame_seq,
+                        )
+                    saw_frame = True
+                    self._anomaly_active = bool(extra.get("anomaly_active"))
             except Exception as exc:
                 backoff = 1.0 if not saw_frame else 5.0
                 message = str(exc)
-                recoverable = "timed out" in message or "incomplete thermal frame" in message
+                recoverable = "stream ended" in message
                 if recoverable:
                     self.error = f"Recovering thermal stream from PureThermal on {current_device}"
                     self.status = "STARTING"
@@ -1106,6 +1141,14 @@ class ThermalState:
                         backoff,
                     )
                 self._stop_event.wait(backoff)
+            finally:
+                if process and process.poll() is None:
+                    process.terminate()
+                    try:
+                        process.wait(timeout=1.0)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                self._stream_process = None
         self._worker_started = False
         LOGGER.info("THERMAL worker stopped attempts=%s frame_seq=%s last_error=%r", self._stream_attempt_count, self.frame_seq, self.error)
 
