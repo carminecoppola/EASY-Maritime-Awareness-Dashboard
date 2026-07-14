@@ -921,7 +921,7 @@ class ThermalState:
             f"--set-fmt-video=width={width},height={height},pixelformat=Y16 ",
             "--stream-mmap=3",
             "--stream-count=1000000000",
-            "--stream-to=-",
+            "--stream-to=/dev/stdout",
         ]
 
     @staticmethod
