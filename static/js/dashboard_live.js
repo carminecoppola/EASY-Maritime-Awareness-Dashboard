@@ -105,6 +105,38 @@ function updateCameraState(feedKey, state, message) {
   }
 }
 
+function monitorDarkRgbFrames() {
+  ["rgb_left", "rgb_right"].forEach((feedKey) => {
+    const image = document.querySelector(`[data-feed-image="${feedKey}"]`);
+    const note = byId(`live-feed-${feedKey.replaceAll("_", "-")}-dark-note`);
+    if (!image || !note || image.dataset.darkFrameMonitor === "active") return;
+    image.dataset.darkFrameMonitor = "active";
+    const canvas = document.createElement("canvas");
+    canvas.width = 32;
+    canvas.height = 12;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    const inspectFrame = () => {
+      if (!context || !image.naturalWidth || image.classList.contains("is-hidden")) {
+        note.hidden = true;
+        return;
+      }
+      try {
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+        let luminance = 0;
+        for (let index = 0; index < pixels.length; index += 4) {
+          luminance += (pixels[index] * 0.2126) + (pixels[index + 1] * 0.7152) + (pixels[index + 2] * 0.0722);
+        }
+        note.hidden = (luminance / (pixels.length / 4)) >= 14;
+      } catch (_error) {
+        note.hidden = true;
+      }
+    };
+    inspectFrame();
+    window.setInterval(inspectFrame, 5000);
+  });
+}
+
 function renderAiCompactStatus(status, current) {
   const node = byId(liveActionElementId("aiLabel"));
   const dot = byId(liveActionElementId("aiDot"));
@@ -132,6 +164,7 @@ function renderLivePage(health) {
   const rgbRight = rgbCams[1] || {};
   const thermalCam = cameras.thermal_camera || {};
   const thermalVisual = thermalVisualState(thermal, thermalCam);
+  monitorDarkRgbFrames();
 
   setText(liveSummaryElementId("healthTitle"), mission.title || "Needs attention");
   setText(liveSummaryElementId("healthCopy"), mission.copy || "Controlla lo stato delle sorgenti live.");
@@ -213,8 +246,24 @@ function renderLivePage(health) {
       }
     }
     const image = card ? card.querySelector("[data-feed-image], #live-feed-thermal-image") : null;
-    if (image) image.classList.toggle("is-hidden", Boolean(effectiveTone.offline));
+    if (image) {
+      const hideImage = cardInfo.key === "thermal"
+        ? Boolean(effectiveTone.offline || !thermalVisual.hasCachedFrame)
+        : Boolean(effectiveTone.offline);
+      image.classList.toggle("is-hidden", hideImage);
+      if (cardInfo.key === "thermal" && thermalVisual.hasCachedFrame && !image.dataset.cachedFrameLoaded && !image.src) {
+        image.dataset.cachedFrameLoaded = "true";
+        image.src = `/thermal/last-frame?ts=${Date.now()}`;
+      }
+    }
   });
+
+  const thermalReady = byId("live-feed-thermal-ready");
+  if (thermalReady) thermalReady.hidden = Boolean(thermalVisual.hasCachedFrame || thermalVisual.tone.offline || thermalVisual.tone.loading);
+  const thermalCaptureButton = byId("button-thermal-capture");
+  if (thermalCaptureButton && !thermalCaptureButton.disabled) {
+    thermalCaptureButton.textContent = thermalVisual.hasCachedFrame ? "Aggiorna frame" : "Acquisisci frame";
+  }
 
   const sessionStatus = dashboardState.sessionStatus || health.session || {};
   const session = sessionStatus.current || sessionStatus.session || null;

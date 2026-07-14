@@ -69,7 +69,15 @@ function thermalVisualState(thermal, fallback = {}) {
   const fresh = isFreshTimestamp(lastFrame);
   const tone = liveFeedTone(state, "thermal", lastFrame, detected);
   const startupStates = new Set(["STARTING", "LOADING", "WAITING", "CHECKING", "PENDING", "INITIALIZING"]);
-  if (!fresh && startupStates.has(state)) {
+  const unavailableStates = new Set(["OFFLINE", "ERROR", "FAILED", "NOT_DETECTED", "DISABLED"]);
+  const readyOnDemand = detected && state === "READY";
+  const hasCachedFrame = Boolean(lastFrame);
+  if (readyOnDemand || (detected && hasCachedFrame && !unavailableStates.has(state))) {
+    tone.offline = false;
+    tone.loading = false;
+    tone.dot = "state-dot-warning";
+    tone.badge = "warning";
+  } else if (!fresh && startupStates.has(state)) {
     tone.offline = false;
     tone.loading = true;
     tone.dot = "state-dot-loading";
@@ -86,8 +94,14 @@ function thermalVisualState(thermal, fallback = {}) {
     detected,
     fresh,
     tone,
-    label: tone.offline ? "Nessun segnale" : humanStateLabel(state),
-    statusText: !fresh && startupStates.has(state)
+    hasCachedFrame,
+    readyOnDemand,
+    label: readyOnDemand ? "Pronta su richiesta" : hasCachedFrame && !fresh && !tone.offline ? "Ultimo frame" : tone.offline ? "Nessun segnale" : humanStateLabel(state),
+    statusText: readyOnDemand && !hasCachedFrame
+      ? "SU RICHIESTA"
+      : hasCachedFrame && !fresh && !tone.offline
+        ? "ULTIMO FRAME"
+        : !fresh && startupStates.has(state)
       ? "CARICANDO"
       : !fresh
         ? "NESSUN SEGNALE"

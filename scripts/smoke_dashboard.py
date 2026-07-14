@@ -138,6 +138,11 @@ def main() -> int:
     routes = {rule.rule for rule in app.url_map.iter_rules()}
     assert_ok("/api/acquisition/capture-set" in routes, "coordinated capture route is not registered")
     assert_ok("/api/dataset/export" in routes, "dataset export route is not registered")
+    assert_ok("/thermal/last-frame" in routes, "cached thermal preview route is not registered")
+    thermal_seq_before = runtime.thermal.frame_seq
+    cached_thermal = client.get("/thermal/last-frame")
+    assert_ok(cached_thermal.status_code == 204, "empty thermal cache must return 204 without starting capture")
+    assert_ok(runtime.thermal.frame_seq == thermal_seq_before, "cached thermal preview must not acquire a hardware frame")
     export_status = client.get("/api/dataset/export/status").get_json()
     require_keys(export_status, ["ok", "export_root", "last_export", "exports_count", "exports_size_bytes", "disk", "retention"], "/api/dataset/export/status")
     retention = client.get("/api/dataset/export/retention?keep_latest=5").get_json()
