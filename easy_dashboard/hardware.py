@@ -569,6 +569,8 @@ class ThermalState:
         self._stop_event = threading.Event()
         self._stream_process: Optional[subprocess.Popen[bytes]] = None
         self._stream_attempt_count = 0
+        self._first_stream_attempt_event = threading.Event()
+        self._first_frame_event = threading.Event()
 
     def detect_device(self) -> bool:
         """Resolve the real PureThermal V4L2 node and update detection state."""
@@ -814,6 +816,14 @@ class ThermalState:
             cpu_temperature,
         )
         threading.Thread(target=self._real_worker_loop, daemon=True, name="thermal-real-worker").start()
+
+    def wait_for_bootstrap_attempt(self, timeout_seconds: float) -> str:
+        """Wait until the first thermal frame arrives or the first stream attempt ends."""
+        if self._first_frame_event.is_set() or self.frame_seq > 0:
+            return "frame_received"
+        if self._first_stream_attempt_event.wait(max(0.0, timeout_seconds)):
+            return "frame_received" if self._first_frame_event.is_set() or self.frame_seq > 0 else "attempt_completed"
+        return "timeout"
 
     def stop(self) -> None:
         self._stop_event.set()
@@ -1087,6 +1097,8 @@ class ThermalState:
                         self.frame_seq += 1
                         self.status = "REAL"
                         self.error = ""
+                    self._first_frame_event.set()
+                    self._first_stream_attempt_event.set()
                     if not saw_frame:
                         LOGGER.info(
                             "THERMAL first frame received attempt=%s device=%s bytes=%s elapsed=%.3fs frame_seq=%s",
@@ -1112,6 +1124,7 @@ class ThermalState:
                     self.error = self._friendly_thermal_error(message) or "Waiting for first thermal frame from PureThermal"
                     self.status = "STARTING"
                 self._retry_after = time.time() + backoff
+                self._first_stream_attempt_event.set()
                 if attempt <= 5 or attempt % 10 == 0 or not recoverable:
                     LOGGER.warning(
                         "THERMAL stream failed attempt=%s device=%s elapsed=%.3fs saw_frame=%s recoverable=%s process_returncode=%s error=%r next_retry_seconds=%.1f",
