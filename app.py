@@ -98,11 +98,43 @@ def build_runtime(*, run_startup_checks: bool = True, start_runtime_services: bo
 
 def _bootstrap_runtime(runtime: DashboardRuntime, *, run_startup_checks: bool, start_runtime_services: bool) -> None:
     """Finish expensive startup work without blocking Flask from binding the port."""
+    bootstrap_started = time.monotonic()
+    LOGGER.info(
+        "BOOTSTRAP begin startup_checks=%s runtime_services=%s thermal_mode=%s thermal_configured_device=%s",
+        run_startup_checks,
+        start_runtime_services,
+        runtime.thermal.mode,
+        runtime.thermal.configured_device,
+    )
     try:
         if run_startup_checks:
+            phase_started = time.monotonic()
+            LOGGER.info("BOOTSTRAP preflight begin")
             run_preflight_script()
             append_startup_notice(runtime.events, runtime.probe, runtime.config)
-            runtime.thermal.detect_device()
+            LOGGER.info("BOOTSTRAP preflight complete elapsed=%.3fs", time.monotonic() - phase_started)
+
+            phase_started = time.monotonic()
+            LOGGER.info("BOOTSTRAP thermal detection begin")
+            thermal_detected = runtime.thermal.detect_device()
+            LOGGER.info(
+                "BOOTSTRAP thermal detection complete elapsed=%.3fs detected=%s status=%s device=%s method=%s candidates=%s error=%r",
+                time.monotonic() - phase_started,
+                thermal_detected,
+                runtime.thermal.status,
+                runtime.thermal.device,
+                runtime.thermal.discovery_method,
+                [
+                    {
+                        "path": candidate.get("path"),
+                        "formats": candidate.get("formats"),
+                        "sizes": candidate.get("sizes"),
+                        "selected": candidate.get("selected"),
+                    }
+                    for candidate in runtime.thermal.device_candidates
+                ],
+                runtime.thermal.error,
+            )
             if runtime.thermal.detected:
                 runtime.events.add(
                     "THERMAL_FLIR",
@@ -131,12 +163,39 @@ def _bootstrap_runtime(runtime: DashboardRuntime, *, run_startup_checks: bool, s
                 )
 
         if start_runtime_services:
-            runtime.rgb.refresh_detection()
+            LOGGER.info(
+                "BOOTSTRAP runtime services begin thermal_detected=%s thermal_status=%s thermal_frame_seq=%s elapsed=%.3fs",
+                runtime.thermal.detected,
+                runtime.thermal.status,
+                runtime.thermal.frame_seq,
+                time.monotonic() - bootstrap_started,
+            )
+            rgb_phase_started = time.monotonic()
+            rgb_detected = runtime.rgb.refresh_detection()
+            LOGGER.info("BOOTSTRAP RGB detection complete elapsed=%.3fs detected=%s", time.monotonic() - rgb_phase_started, rgb_detected)
+            LOGGER.info("BOOTSTRAP orchestrator start begin")
             runtime.orchestrator.start()
+            LOGGER.info(
+                "BOOTSTRAP orchestrator start complete thermal_status=%s thermal_worker=%s thermal_frame_seq=%s",
+                runtime.thermal.status,
+                runtime.thermal._worker_started,
+                runtime.thermal.frame_seq,
+            )
             threading.Thread(target=_rgb_keepalive, args=(runtime.orchestrator,), daemon=True, name="rgb-keepalive").start()
+            LOGGER.info("BOOTSTRAP RGB keepalive started thread=rgb-keepalive")
             runtime.events.add("UC512_MULTIPLEXER", "STREAM_AUTOSTART", "RGB stream started on application boot", "info")
     except Exception:
         LOGGER.exception("Background startup bootstrap failed")
+    finally:
+        LOGGER.info(
+            "BOOTSTRAP end elapsed=%.3fs thermal_detected=%s thermal_status=%s thermal_device=%s thermal_frame_seq=%s thermal_error=%r",
+            time.monotonic() - bootstrap_started,
+            runtime.thermal.detected,
+            runtime.thermal.status,
+            runtime.thermal.device,
+            runtime.thermal.frame_seq,
+            runtime.thermal.error,
+        )
 
 
 def _rgb_keepalive(orchestrator: SystemOrchestrator) -> None:

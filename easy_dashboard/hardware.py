@@ -568,19 +568,31 @@ class ThermalState:
         self._max_cpu_temperature = 78.0
         self._stop_event = threading.Event()
         self._stream_process: Optional[subprocess.Popen[bytes]] = None
+        self._stream_attempt_count = 0
 
     def detect_device(self) -> bool:
         """Resolve the real PureThermal V4L2 node and update detection state."""
+        detection_started = time.monotonic()
+        LOGGER.info(
+            "THERMAL detect begin enabled=%s mode=%s configured_device=%s input_format=%s video_size=%s",
+            self.enabled,
+            self.mode,
+            self.configured_device,
+            self.input_format,
+            self.video_size,
+        )
         with self._detection_lock:
             self._last_detection_attempt = time.monotonic()
             self.device_candidates = []
             if not self.enabled:
                 self.detected = False
                 self.discovery_method = "disabled"
+                LOGGER.info("THERMAL detect skipped reason=disabled elapsed=%.3fs", time.monotonic() - detection_started)
                 return False
             if self.mode == "mock":
                 self.detected = True
                 self.discovery_method = "mock"
+                LOGGER.info("THERMAL detect complete mode=mock elapsed=%.3fs", time.monotonic() - detection_started)
                 return True
 
             configured = self.configured_device.strip()
@@ -594,6 +606,14 @@ class ThermalState:
                         f"Configured thermal device {configured} is not identified as PureThermal/FLIR. "
                         "Use thermal.device=auto or set EASY_THERMAL_ALLOW_UNVERIFIED_DEVICE=1 only for debugging."
                     )
+                LOGGER.info(
+                    "THERMAL detect configured complete elapsed=%.3fs detected=%s device=%s method=%s error=%r",
+                    time.monotonic() - detection_started,
+                    self.detected,
+                    self.device,
+                    self.discovery_method,
+                    self.error,
+                )
                 return self.detected
 
             resolved = self._discover_purethermal_device()
@@ -602,11 +622,19 @@ class ThermalState:
                 self.detected = True
                 if self.status in {"PENDING", "NOT_DETECTED"}:
                     self.error = ""
+                LOGGER.info(
+                    "THERMAL detect complete elapsed=%.3fs detected=true device=%s method=%s candidates=%s",
+                    time.monotonic() - detection_started,
+                    self.device,
+                    self.discovery_method,
+                    [(item.get("path"), item.get("formats"), item.get("sizes"), item.get("selected")) for item in self.device_candidates],
+                )
                 return True
             self.detected = False
             self.status = "NOT_DETECTED"
             self.discovery_method = "not_found"
             self.error = "PureThermal video node not found. Check USB cable and v4l2-ctl --list-devices."
+            LOGGER.warning("THERMAL detect failed elapsed=%.3fs error=%r", time.monotonic() - detection_started, self.error)
             return False
 
     def refresh_device(self, force: bool = False) -> bool:
@@ -758,16 +786,33 @@ class ThermalState:
 
     def start(self) -> None:
         if self._worker_started or not self.enabled or self.mode != "real" or not self.detected:
+            if not self._worker_started:
+                LOGGER.info(
+                    "THERMAL start skipped enabled=%s mode=%s detected=%s status=%s",
+                    self.enabled,
+                    self.mode,
+                    self.detected,
+                    self.status,
+                )
             return
         if time.time() < self._retry_after:
+            LOGGER.info("THERMAL start deferred retry_after=%.3f now=%.3f", self._retry_after, time.time())
             return
         cpu_temperature = read_cpu_temperature()
         if cpu_temperature is not None and cpu_temperature >= self._max_cpu_temperature:
             self.status = "COOLDOWN"
             self.error = f"Thermal capture paused: Raspberry CPU temperature is {cpu_temperature:.1f} C"
             self._retry_after = time.time() + self._retry_delay_seconds
+            LOGGER.warning("THERMAL start blocked reason=cpu_temperature temperature=%.1f limit=%.1f", cpu_temperature, self._max_cpu_temperature)
             return
         self._worker_started = True
+        LOGGER.info(
+            "THERMAL worker launch device=%s input_format=%s video_size=%s cpu_temperature=%s",
+            self.device,
+            self.input_format,
+            self.video_size,
+            cpu_temperature,
+        )
         threading.Thread(target=self._real_worker_loop, daemon=True, name="thermal-real-worker").start()
 
     def stop(self) -> None:
@@ -976,6 +1021,14 @@ class ThermalState:
         width, height = self._video_dimensions()
         frame_size = width * height * 2
         saw_frame = False
+        LOGGER.info(
+            "THERMAL worker begin device=%s dimensions=%sx%s expected_frame_bytes=%s candidates=%s",
+            self.device,
+            width,
+            height,
+            frame_size,
+            self._thermal_stream_candidates(),
+        )
         while not self._stop_event.is_set():
             stream_candidates = self._thermal_stream_candidates()
             if not stream_candidates:
@@ -986,10 +1039,18 @@ class ThermalState:
                 continue
             process: subprocess.Popen[bytes] | None = None
             current_device = stream_candidates[0]
+            self._stream_attempt_count += 1
+            attempt = self._stream_attempt_count
+            attempt_started = time.monotonic()
             try:
                 self.device = current_device
-                process = subprocess.Popen(self._stream_command(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                command = self._stream_command()
+                if attempt <= 5 or attempt % 10 == 0:
+                    LOGGER.info("THERMAL stream attempt=%s device=%s command=%r", attempt, current_device, command)
+                process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 self._stream_process = process
+                if attempt <= 5 or attempt % 10 == 0:
+                    LOGGER.info("THERMAL ffmpeg started attempt=%s pid=%s", attempt, process.pid)
                 self.status = "STARTING" if not saw_frame else "REAL"
                 if not saw_frame:
                     self.error = "Waiting for first thermal frame from PureThermal"
@@ -1026,6 +1087,15 @@ class ThermalState:
                         self.frame_seq += 1
                         self.status = "REAL"
                         self.error = ""
+                    if not saw_frame:
+                        LOGGER.info(
+                            "THERMAL first frame received attempt=%s device=%s bytes=%s elapsed=%.3fs frame_seq=%s",
+                            attempt,
+                            current_device,
+                            len(payload),
+                            time.monotonic() - attempt_started,
+                            self.frame_seq,
+                        )
                     saw_frame = True
                     self._anomaly_active = bool(extra.get("anomaly_active"))
             except Exception as exc:
@@ -1042,6 +1112,18 @@ class ThermalState:
                     self.error = self._friendly_thermal_error(message) or "Waiting for first thermal frame from PureThermal"
                     self.status = "STARTING"
                 self._retry_after = time.time() + backoff
+                if attempt <= 5 or attempt % 10 == 0 or not recoverable:
+                    LOGGER.warning(
+                        "THERMAL stream failed attempt=%s device=%s elapsed=%.3fs saw_frame=%s recoverable=%s process_returncode=%s error=%r next_retry_seconds=%.1f",
+                        attempt,
+                        current_device,
+                        time.monotonic() - attempt_started,
+                        saw_frame,
+                        recoverable,
+                        process.poll() if process is not None else None,
+                        message,
+                        backoff,
+                    )
                 time.sleep(backoff)
             finally:
                 if process and process.poll() is None:
@@ -1052,6 +1134,7 @@ class ThermalState:
                         process.kill()
                 self._stream_process = None
         self._worker_started = False
+        LOGGER.info("THERMAL worker stopped attempts=%s frame_seq=%s last_error=%r", self._stream_attempt_count, self.frame_seq, self.error)
 
     def frame(self) -> tuple[bytes, Dict[str, Any]]:
         if not self.enabled:
