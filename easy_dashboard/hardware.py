@@ -913,27 +913,37 @@ class ThermalState:
             "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "gray16le", "pipe:1",
         ]
 
-    def _v4l2_stream_command(self) -> list[str]:
+    def _v4l2_stream_command(self, output_path: Path) -> list[str]:
         width, height = self._video_dimensions()
         return [
             shutil.which("v4l2-ctl") or "v4l2-ctl",
             f"--device={self.device}",
             f"--set-fmt-video=width={width},height={height},pixelformat=Y16 ",
             "--stream-mmap=3",
-            "--stream-count=1000000000",
-            "--stream-to=/dev/stdout",
+            "--stream-count=900",
+            f"--stream-to={output_path}",
         ]
 
     @staticmethod
-    def _read_raw_frame(stream: Any, frame_size: int) -> bytes:
+    def _read_growing_file_frame(
+        stream: Any,
+        process: subprocess.Popen[bytes],
+        frame_size: int,
+        timeout_seconds: float,
+    ) -> bytes:
+        """Read one frame while v4l2-ctl grows a regular tmpfs file."""
         chunks: list[bytes] = []
         remaining = frame_size
-        while remaining > 0:
+        deadline = time.monotonic() + timeout_seconds
+        while remaining > 0 and time.monotonic() < deadline:
             chunk = stream.read(remaining)
-            if not chunk:
+            if chunk:
+                chunks.append(chunk)
+                remaining -= len(chunk)
+                continue
+            if process.poll() is not None:
                 break
-            chunks.append(chunk)
-            remaining -= len(chunk)
+            time.sleep(0.02)
         return b"".join(chunks)
 
     def _capture_y16_matrix(self) -> np.ndarray:
@@ -1059,28 +1069,44 @@ class ThermalState:
                 continue
             process: subprocess.Popen[bytes] | None = None
             current_device = stream_candidates[0]
+            stream: Any = None
             self._stream_attempt_count += 1
             attempt = self._stream_attempt_count
             attempt_started = time.monotonic()
+            buffer_root = Path("/dev/shm") if Path("/dev/shm").is_dir() else Path("/tmp")
+            buffer_path = buffer_root / f"easy-thermal-{os.getpid()}.raw"
             try:
                 self.device = current_device
-                command = self._v4l2_stream_command()
+                buffer_path.unlink(missing_ok=True)
+                command = self._v4l2_stream_command(buffer_path)
                 if attempt <= 5 or attempt % 10 == 0:
-                    LOGGER.info("THERMAL V4L2 stream attempt=%s device=%s command=%r", attempt, current_device, command)
+                    LOGGER.info(
+                        "THERMAL V4L2 stream attempt=%s device=%s buffer=%s command=%r",
+                        attempt,
+                        current_device,
+                        buffer_path,
+                        command,
+                    )
                 process = subprocess.Popen(
                     command,
-                    stdout=subprocess.PIPE,
+                    stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
-                    bufsize=0,
                 )
                 self._stream_process = process
                 self.status = "STARTING" if not saw_frame else "REAL"
                 if not saw_frame:
                     self.error = "Waiting for first thermal frame from PureThermal"
-                assert process.stdout is not None
+                file_deadline = time.monotonic() + 4.0
+                while not buffer_path.exists() and process.poll() is None and time.monotonic() < file_deadline:
+                    time.sleep(0.02)
+                if not buffer_path.exists():
+                    raise RuntimeError("thermal V4L2 buffer was not created")
+                stream = buffer_path.open("rb", buffering=0)
                 while not self._stop_event.is_set():
-                    payload = self._read_raw_frame(process.stdout, frame_size)
+                    payload = self._read_growing_file_frame(stream, process, frame_size, 4.0)
                     if len(payload) < frame_size:
+                        if not payload and process.poll() == 0:
+                            break
                         raise RuntimeError(f"thermal V4L2 stream ended: received {len(payload)}/{frame_size} bytes")
                     raw_map = np.frombuffer(payload, dtype="<u2").reshape((height, width)).astype(np.float32)
                     image, extra = self._real_thermal_palette(raw_map)
@@ -1142,6 +1168,8 @@ class ThermalState:
                     )
                 self._stop_event.wait(backoff)
             finally:
+                if stream is not None:
+                    stream.close()
                 if process and process.poll() is None:
                     process.terminate()
                     try:
@@ -1149,6 +1177,7 @@ class ThermalState:
                     except subprocess.TimeoutExpired:
                         process.kill()
                 self._stream_process = None
+                buffer_path.unlink(missing_ok=True)
         self._worker_started = False
         LOGGER.info("THERMAL worker stopped attempts=%s frame_seq=%s last_error=%r", self._stream_attempt_count, self.frame_seq, self.error)
 
