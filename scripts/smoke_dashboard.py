@@ -90,6 +90,8 @@ def main() -> int:
     assert_ok("dashboardRefreshPromise" in runtime_js, "dashboard polling must prevent overlapping requests")
     assert_ok("function setupLivePage()" in live_js and "function setupLivePage()" not in runtime_js, "Live interactions must stay in the Live module")
     assert_ok("function setupDetectionsPage()" in detections_js and "function setupDetectionsPage()" not in runtime_js, "Analysis interactions must stay in the Analysis module")
+    assert_ok('row.className = `timeline-row is-${severityTone}`' in detections_js, "Analysis history must share severity styling with active events")
+    assert_ok('class="timeline-meta"' in detections_js, "Analysis history metadata must use the compact timeline layout")
     assert_ok("function setupLogPage()" in log_js and "function setupLogPage()" not in runtime_js, "Archive interactions must stay in the Archive module")
 
     app = create_app(run_startup_checks=False, start_runtime_services=False)
