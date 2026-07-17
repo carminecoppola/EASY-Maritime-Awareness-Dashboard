@@ -76,10 +76,7 @@ snapshots belong under `data/snapshots/`.
 Local tests do not require Raspberry hardware:
 
 ```bash
-./.venv/bin/python -m py_compile app.py runtime_support.py system_orchestrator.py
-./.venv/bin/python -m unittest discover -s tests -v
-./.venv/bin/python scripts/smoke_dashboard.py
-for file in static/js/dashboard_*.js; do node --check "$file"; done
+./scripts/validate_local_release.sh
 ```
 
 The same regression suite runs on every push and pull request through

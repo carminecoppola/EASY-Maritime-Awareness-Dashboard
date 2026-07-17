@@ -19,7 +19,8 @@ process remains after `systemctl stop`.
 
 ## Local regression for the current change
 
-- Python compilation: PASS.
+- Python compilation: PASS through `scripts/validate_local_release.sh`.
+- Unit and integration suite: PASS, 27 tests.
 - Dashboard smoke suite: PASS.
 - JavaScript syntax checks: PASS.
 - Shell syntax checks: PASS.
@@ -30,6 +31,10 @@ process remains after `systemctl stop`.
 - API compatibility for `/health`, dashboard state, sessions, acquisition,
   inference, sources, and thermal status: PASS in the smoke suite.
 - ONNX metadata check: PASS; configured classes match `boat`, `ship`, `buoy`.
+- Inference preprocessing, letterbox, NMS, result formatting, and compatibility
+  imports: PASS in the regression suite.
+- Frontend polling: one render per payload, bounded event history, and no
+  overlapping dashboard-state request.
 
 ## Runtime semantics
 
