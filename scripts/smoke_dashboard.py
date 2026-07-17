@@ -90,8 +90,8 @@ def main() -> int:
     assert_ok("dashboardRefreshPromise" in runtime_js, "dashboard polling must prevent overlapping requests")
     assert_ok("function setupLivePage()" in live_js and "function setupLivePage()" not in runtime_js, "Live interactions must stay in the Live module")
     assert_ok("function setupDetectionsPage()" in detections_js and "function setupDetectionsPage()" not in runtime_js, "Analysis interactions must stay in the Analysis module")
-    assert_ok('row.className = `timeline-row is-${severityTone}`' in detections_js, "Analysis history must share severity styling with active events")
-    assert_ok('class="timeline-meta"' in detections_js, "Analysis history metadata must use the compact timeline layout")
+    assert_ok('row.className = `event-card timeline-event-card is-${severityTone}`' in detections_js, "Analysis history must reuse the active-event card")
+    assert_ok('class="event-card-meta timeline-event-meta"' in detections_js, "Analysis history metadata must reuse the event-card layout")
     assert_ok("function setupLogPage()" in log_js and "function setupLogPage()" not in runtime_js, "Archive interactions must stay in the Archive module")
 
     app = create_app(run_startup_checks=False, start_runtime_services=False)
@@ -120,7 +120,7 @@ def main() -> int:
         assert_ok("app-footer-nav" in html, f"{route} does not render the shared footer navigation")
         if route == "/":
             assert_ok("live-grid" in html, "Live page must render the camera feeds")
-            assert_ok("quando le camere sono disponibili" in html, "Live help text must not imply offline cameras are streaming")
+            assert_ok("when the cameras are available" in html.lower(), "Live help text must not imply offline cameras are streaming")
             assert_ok("live-mission-command-bar" not in html, "Live page must not render mission controls")
             assert_ok("live-source-grid" not in html, "Live page must not render mission source controls")
             assert_ok("dataset-session-state-badge" not in html, "Live page must not render session dataset controls")
@@ -138,6 +138,7 @@ def main() -> int:
             assert_ok('aria-current="page"' in html, "Primary navigation must expose the current page")
             assert_ok("analysis-session-reference" in html, "Analysis page must link to mission management")
             assert_ok("button-session-start" not in html, "Analysis page must not duplicate mission start controls")
+            assert_ok("events-history-details" in html, "Analysis page must render recent events as a direct panel")
             assert_ok("button-session-stop" not in html, "Analysis page must not duplicate mission stop controls")
         if route == "/snapshots":
             assert_ok("archive-current-section" in html, "Archive must identify its active subsection")

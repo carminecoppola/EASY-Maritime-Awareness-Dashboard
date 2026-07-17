@@ -1318,10 +1318,6 @@ body[data-page="log"] .snapshot-card {
     grid-template-columns: 1fr;
   }
 
-  .timeline-row {
-    grid-template-columns: 1fr;
-  }
-
   .debug-panel-copy {
     text-align: left;
   }

@@ -87,7 +87,7 @@ function renderAiDetections(status, current) {
       <strong>${escapeHtml(detection?.class_name || detection?.label || "Detection")}</strong>
       <p>${escapeHtml(formatAiBBox(detection?.box_xyxy || detection?.bbox || detection?.xyxy))}</p>
       <div class="ai-detection-meta">
-        <span class="badge badge-${confidenceTone} detection-confidence">Confidenza ${escapeHtml(confidenceDisplay)}</span>
+        <span class="badge badge-${confidenceTone} detection-confidence">Confidence ${escapeHtml(confidenceDisplay)}</span>
         <span class="badge badge-muted">Source ${escapeHtml(sourceLabel)}</span>
       </div>
       <small title="${escapeHtml(imagePath)}">${escapeHtml(compactPath(imagePath || detection?.source || "runtime/sessions"))}</small>
@@ -132,7 +132,7 @@ function renderAiControlButtons(status, current) {
   const isDemo = meta.label === "DEMO";
   if (startButton) {
     startButton.hidden = isRunning || isDemo;
-    startButton.textContent = status?.last_run_ts ? "Riprendi analisi" : "Avvia analisi";
+    startButton.textContent = status?.last_run_ts ? "Resume analysis" : "Start analysis";
   }
   if (stopButton) stopButton.hidden = !(isRunning || isDemo);
   if (runButton) runButton.hidden = !isRunning;
@@ -177,12 +177,12 @@ function renderAnalysisSourceMode(status, current) {
   const isDemo = ["replay", "demo", "manual"].some((token) => source.includes(token));
   const isLive = ["rgb_left", "rgb_right", "camera", "live"].some((token) => source.includes(token));
   badge.className = `badge badge-${isDemo ? "warning" : isLive ? "online" : "muted"}`;
-  badge.textContent = isDemo ? "Modalità demo" : isLive ? "Analisi live" : "Sorgente in verifica";
+  badge.textContent = isDemo ? "Demo mode" : isLive ? "Live analysis" : "Checking source";
   copy.textContent = isDemo
-    ? "Analisi su immagini di esempio, non sulle camere live."
+    ? "Analysis uses sample images, not live cameras."
     : isLive
-      ? "Elaborazione in corso dalla camera selezionata."
-      : "Sto verificando se l’analisi usa un replay o una camera live.";
+      ? "Processing the selected live camera."
+      : "Checking whether analysis is using replay data or a live camera.";
 }
 
 function renderAnalysisMonitor(status, current) {
@@ -198,31 +198,31 @@ function renderAnalysisMonitor(status, current) {
   const hasProgress = Number.isFinite(frameIndex) && Number.isFinite(totalFrames) && totalFrames > 0;
   const progress = hasProgress ? Math.min(100, Math.max(0, ((frameIndex + 1) / totalFrames) * 100)) : 0;
 
-  let title = "Analisi ferma";
-  let copy = "Premi “Avvia analisi”: verrà aperta una missione e i frame saranno elaborati in sequenza.";
-  let indicator = "IN ATTESA";
+  let title = "Analysis stopped";
+  let copy = "Press “Start analysis”: a mission will open and frames will be processed in sequence.";
+  let indicator = "WAITING";
   if (error) {
-    title = "Analisi non disponibile";
+    title = "Analysis unavailable";
     copy = error;
-    indicator = "ERRORE";
+    indicator = "ERROR";
   } else if (running) {
-    title = "Analisi in esecuzione";
+    title = "Analysis running";
     copy = resultCount
-      ? `Il motore AI sta continuando: ${resultCount} oggetti nell’ultimo frame elaborato.`
-      : "Il motore AI è attivo e sta cercando oggetti. Zero risultati è un esito valido.";
-    indicator = "ATTIVA";
+      ? `The AI engine is running: ${resultCount} objects in the latest processed frame.`
+      : "The AI engine is active and looking for objects. Zero results is a valid outcome.";
+    indicator = "ACTIVE";
   } else if (status?.last_run_ts) {
-    title = "Analisi completata o in pausa";
-    copy = `Ultimo frame elaborato ${formatAgeIt(parseDateValue(status.last_run_ts) / 1000)}. Puoi riavviare l’analisi quando vuoi.`;
-    indicator = "PAUSA";
+    title = "Analysis completed or paused";
+    copy = `Latest frame processed ${formatAgeIt(parseDateValue(status.last_run_ts) / 1000)}. You can resume analysis at any time.`;
+    indicator = "PAUSED";
   }
 
   setText(detectionsElementId("monitorTitle"), title);
   setText(detectionsElementId("monitorCopy"), copy);
   setText(detectionsElementId("monitorIndicator"), indicator);
   setText(detectionsElementId("monitorSource"), source);
-  setText(detectionsElementId("monitorProgress"), hasProgress ? `${frameIndex + 1} di ${totalFrames}` : running ? "Flusso continuo" : "—");
-  setText(detectionsElementId("monitorLastFrame"), status?.last_run_ts ? formatRomeTimeOnly(status.last_run_ts) : "Non ancora analizzato");
+  setText(detectionsElementId("monitorProgress"), hasProgress ? `${frameIndex + 1} of ${totalFrames}` : running ? "Continuous stream" : "—");
+  setText(detectionsElementId("monitorLastFrame"), status?.last_run_ts ? formatRomeTimeOnly(status.last_run_ts) : "Not analysed yet");
   setText(detectionsElementId("monitorResults"), `${resultCount}`);
 
   const indicatorNode = byId(detectionsElementId("monitorIndicator"));
@@ -248,11 +248,11 @@ function renderSessionPanel(status) {
   const stopButton = byId(detectionsElementId("sessionStopButton"));
   const statusNode = byId(detectionsElementId("sessionStatus"));
 
-  if (title) title.textContent = session ? (running ? "Missione in registrazione" : "Ultima missione archiviata") : "Nessuna missione attiva";
+  if (title) title.textContent = session ? (running ? "Mission recording" : "Latest archived mission") : "No active mission";
   if (helper) {
     helper.textContent = session
-      ? `${session.session_id || "Sessione EASY"} · i dati sono salvati nell’archivio runtime della Raspberry.`
-      : "Avvia una missione per salvare rilevazioni, eventi e metriche sulla Raspberry.";
+      ? `${session.session_id || "EASY session"} · data is stored in the Raspberry Pi runtime archive.`
+      : "Start a mission to save detections, events and metrics on the Raspberry Pi.";
   }
   if (startButton) startButton.hidden = running;
   if (stopButton) stopButton.hidden = !running;
@@ -284,7 +284,7 @@ function renderFrameSourcePanel(status) {
   const sourcePath = payload.source_path || payload.default_source_path || "—";
   const totalFrames = payload.total_frames;
   const frameIndex = lastFrame.frame_index ?? payload.current_frame_index;
-  const state = payload.error ? "ERRORE" : payload.ok === false ? "LIMITATO" : "PRONTA";
+  const state = payload.error ? "ERROR" : payload.ok === false ? "LIMITED" : "READY";
 
   setText(detectionsElementId("frameProviderSourceType"), sourceType);
   setText(detectionsElementId("frameProviderSourcePath"), sourcePath ? compactPath(String(sourcePath)) : "—");
@@ -297,7 +297,7 @@ function renderFrameSourcePanel(status) {
   if (helper) {
     helper.textContent = payload.error
       ? payload.error
-      : `Sorgente ${sourceType} pronta. Il prossimo frame può essere inviato all’analisi AI.`;
+      : `Source ${sourceType} is ready. The next frame can be sent to AI analysis.`;
   }
 }
 
@@ -307,7 +307,7 @@ function renderCurrentEventsPanel() {
   const badge = byId(detectionsElementId("currentEventsBadge"));
   if (!grid) return;
   const events = sortEventsByLatest(dashboardState.currentEvents);
-  if (badge) badge.textContent = `${events.length} eventi`;
+  if (badge) badge.textContent = `${events.length} events`;
   grid.innerHTML = "";
   grid.hidden = !events.length;
   if (empty) empty.hidden = events.length > 0;
@@ -327,8 +327,8 @@ function renderCurrentEventsPanel() {
         <span class="badge badge-muted">${escapeHtml(eventSourceLabel(event))}</span>
       </div>
       <div class="event-card-times">
-        <span>Creato ${escapeHtml(formatRomeTimeOnly(event?.created_at || event?.timestamp))}</span>
-        <span>Aggiornato ${escapeHtml(formatRomeTimeOnly(event?.updated_at || event?.last_timestamp))}</span>
+        <span>Created ${escapeHtml(formatRomeTimeOnly(event?.created_at || event?.timestamp))}</span>
+        <span>Updated ${escapeHtml(formatRomeTimeOnly(event?.updated_at || event?.last_timestamp))}</span>
       </div>
       <div class="event-card-updates">${escapeHtml(eventUpdateLabel(event))}</div>
     `;
@@ -350,17 +350,17 @@ function renderEventTimeline() {
     const severityTone = eventSeverityTone(event?.severity);
     const statusTone = eventStatusTone(event?.status);
     const row = document.createElement("article");
-    row.className = `timeline-row is-${severityTone}`;
+    row.className = `event-card timeline-event-card is-${severityTone}`;
     row.innerHTML = `
-      <div class="timeline-main">
-        <span class="event-card-title">${typeMeta.icon}<strong>${escapeHtml(typeMeta.label)}</strong></span>
-        <div class="timeline-meta">
-          <time class="timeline-time">${escapeHtml(formatRomeTimeOnly(event?.updated_at || event?.created_at || event?.timestamp))}</time>
-          <span>${escapeHtml(eventSourceLabel(event))}</span>
-          <span>${escapeHtml(eventUpdateLabel(event))}</span>
-        </div>
+      <div class="event-card-head">
+        <span class="event-card-title">${typeMeta.icon}<span>${escapeHtml(typeMeta.label)}</span></span>
+        <span class="badge badge-severity-${severityTone}">${escapeHtml(eventSeverityLabel(event?.severity))}</span>
       </div>
-      <span class="timeline-badges"><span class="badge badge-severity-${severityTone}">${escapeHtml(eventSeverityLabel(event?.severity))}</span><span class="badge badge-status-${statusTone}">${escapeHtml(eventStatusLabel(event?.status))}</span></span>
+      <div class="event-card-meta timeline-event-meta">
+        <span><time>${escapeHtml(formatRomeTimeOnly(event?.updated_at || event?.created_at || event?.timestamp))}</time> · ${escapeHtml(eventSourceLabel(event))}</span>
+        <span class="badge badge-status-${statusTone}">${escapeHtml(eventStatusLabel(event?.status))}</span>
+      </div>
+      <div class="event-card-updates">${escapeHtml(eventUpdateLabel(event))}</div>
     `;
     timeline.appendChild(row);
   });
@@ -447,7 +447,7 @@ function renderDetectionsPage(health) {
   const avgConfidence = confidenceValues.length ? Math.round(confidenceValues.reduce((a, b) => a + b, 0) / confidenceValues.length) : null;
   const latest = liveDetections[0] || null;
 
-  if (badge) badge.textContent = `${totalCount} oggetti`;
+  if (badge) badge.textContent = `${totalCount} objects`;
   if (totalNode) totalNode.textContent = `${totalCount}`;
   if (avgNode) avgNode.textContent = avgConfidence == null ? "—" : `${avgConfidence}%`;
   if (latestNode) latestNode.textContent = latest ? detectionTimestampLabel(latest.timestamp || latest.created || latest.ts) : "—";
@@ -466,7 +466,7 @@ function setupDetectionsPage() {
   if (aiStartButton) {
     aiStartButton.addEventListener("click", async () => {
       aiStartButton.disabled = true;
-      aiStartButton.textContent = "Avvio in corso…";
+      aiStartButton.textContent = "Starting…";
       let openedSession = false;
       try {
         if (!dashboardState.sessionStatus?.running) {
@@ -474,7 +474,7 @@ function setupDetectionsPage() {
           openedSession = true;
         }
         await callInferenceAction("/api/inference/start", { mode: "replay" });
-        showToast("Analisi avviata", "Missione aperta: i frame vengono elaborati e salvati automaticamente.", "success");
+        showToast("Analysis started", "Mission opened: frames are processed and saved automatically.", "success");
         await refreshDashboard();
       } catch (error) {
         console.error(error);
@@ -485,11 +485,11 @@ function setupDetectionsPage() {
             console.error(cleanupError);
           }
         }
-        showToast("Analisi non avviata", error.message || "Il motore AI non è disponibile", "error");
+        showToast("Analysis did not start", error.message || "The AI engine is unavailable", "error");
         await refreshDashboard();
       } finally {
         aiStartButton.disabled = false;
-        aiStartButton.textContent = dashboardState.inferenceStatus?.last_run_ts ? "Riprendi analisi" : "Avvia analisi";
+        aiStartButton.textContent = dashboardState.inferenceStatus?.last_run_ts ? "Resume analysis" : "Start analysis";
       }
     });
   }
@@ -624,7 +624,7 @@ function setupDetectionsPage() {
       sessionStartButton.disabled = true;
       try {
         await callInferenceAction("/api/session/start", { mode: "replay", operator: "dashboard" });
-        showToast("Missione avviata", "Rilevazioni, eventi e metriche vengono ora salvati sulla Raspberry.", "success");
+        showToast("Mission started", "Detections, events and metrics are now saved on the Raspberry Pi.", "success");
         await refreshDashboard();
       } catch (error) {
         console.error(error);
@@ -641,7 +641,7 @@ function setupDetectionsPage() {
       sessionStopButton.disabled = true;
       try {
         await callInferenceAction("/api/session/stop");
-        showToast("Missione archiviata", "La missione è terminata e i dati restano disponibili sulla Raspberry.", "success");
+        showToast("Mission archived", "The mission has ended and its data remains available on the Raspberry Pi.", "success");
         await refreshDashboard();
       } catch (error) {
         console.error(error);

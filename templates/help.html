@@ -3,73 +3,73 @@
 {% block content %}
   <section class="help-page">
     <section class="panel help-hero">
-      <span class="panel-kicker">Prima accensione</span>
-      <h2 class="panel-title">Percorso consigliato</h2>
-      <p class="panel-copy">Questa dashboard serve a controllare i flussi RGB e termico, salvare acquisizioni utili e raccogliere dati ordinati per inferenza e fine-tuning.</p>
+      <span class="panel-kicker">First startup</span>
+      <h2 class="panel-title">Recommended workflow</h2>
+      <p class="panel-copy">This dashboard monitors RGB and thermal feeds, saves useful captures and organises data for inference and fine-tuning.</p>
       <div class="help-flow">
         <div class="help-flow-step">
           <strong>1 · Live</strong>
-          <span>Verifica che le tre anteprime siano aggiornate e che gli stati non restino in errore.</span>
+          <span>Check that all three previews are updating and no feed remains in an error state.</span>
         </div>
         <div class="help-flow-step">
-          <strong>2 · Missione</strong>
-          <span>Avvia una missione prima di salvare dati: il sistema crea un manifest della sessione.</span>
+          <strong>2 · Mission</strong>
+          <span>Start a mission before saving data so the system can create a session manifest.</span>
         </div>
         <div class="help-flow-step">
-          <strong>3 · Acquisizione</strong>
-          <span>Usa “Salva foto” e la pagina Rilevazioni per produrre campioni e risultati AI.</span>
+          <strong>3 · Capture</strong>
+          <span>Save sensor captures and use the Analysis page to produce samples and AI results.</span>
         </div>
         <div class="help-flow-step">
-          <strong>4 · Archivio</strong>
-          <span>Controlla Foto e log per capire cosa è stato salvato e se ci sono errori da correggere.</span>
+          <strong>4 · Archive</strong>
+          <span>Review saved photos and the activity log to confirm what was stored and identify any errors.</span>
         </div>
       </div>
     </section>
 
-    <section class="help-grid" aria-label="Guida alle sezioni">
+    <section class="help-grid" aria-label="Section guide">
       <article class="panel help-card" id="live">
         <span class="panel-kicker">Live</span>
-        <h3>Quando è davvero in diretta?</h3>
-        <p>La pagina Live aggiorna automaticamente stato, FPS e missione. Se un riquadro mostra offline, non significa che il server sia fermo: significa che quel feed non sta consegnando frame recenti.</p>
-        <a class="btn btn-ghost btn-small" href="/">Apri Live</a>
+        <h3>When is a feed really live?</h3>
+        <p>The Live page updates feed status and FPS automatically. An offline feed does not mean the server has stopped; it means that camera is not delivering recent frames.</p>
+        <a class="btn btn-ghost btn-small" href="/">Open Live</a>
       </article>
 
       <article class="panel help-card" id="mission">
-        <span class="panel-kicker">Missione</span>
-        <h3>Perché avviarla?</h3>
-        <p>La missione è il contenitore dei dati raccolti. Snapshot, inferenze e detection vengono indicizzati nel manifest solo quando la sessione è attiva o quando l’inferenza ne apre una automaticamente.</p>
-        <a class="btn btn-ghost btn-small" href="/mission#dataset-session-state-badge">Vedi dataset</a>
+        <span class="panel-kicker">Mission</span>
+        <h3>Why start a mission?</h3>
+        <p>A mission groups collected data. Captures, inference runs and detections are indexed in its manifest while the session is active, or when analysis opens one automatically.</p>
+        <a class="btn btn-ghost btn-small" href="/mission#dataset-session-state-badge">View dataset</a>
       </article>
 
       <article class="panel help-card" id="analisi">
-        <span class="panel-kicker">Rilevazioni</span>
-        <h3>Cosa aspettarsi dall’AI?</h3>
-        <p>“Avvia analisi” fa partire il worker di inferenza. I risultati compaiono come detection correnti, eventi e righe nel manifest. Se non vedi nuove detection, controlla sorgente frame e log.</p>
-        <a class="btn btn-ghost btn-small" href="/thermal-events">Apri Rilevazioni</a>
+        <span class="panel-kicker">Detections</span>
+        <h3>What should I expect from AI?</h3>
+        <p>Start analysis runs inference on the selected source. Results appear as current detections, events and manifest entries. If no new detections appear, check the frame source and activity log.</p>
+        <a class="btn btn-ghost btn-small" href="/thermal-events">Open Detections</a>
       </article>
 
       <article class="panel help-card" id="archivio">
-        <span class="panel-kicker">Foto e log</span>
-        <h3>Dove finiscono le immagini?</h3>
-        <p>Le foto vengono salvate localmente sulla Raspberry e mostrate nell’archivio. I log aiutano a distinguere un errore hardware da un normale stato di attesa.</p>
-        <a class="btn btn-ghost btn-small" href="/snapshots">Apri archivio</a>
+        <span class="panel-kicker">Photos and activity</span>
+        <h3>Where are images stored?</h3>
+        <p>Photos are stored locally on the Raspberry Pi and shown in the archive. The activity log helps distinguish hardware errors from normal waiting states.</p>
+        <a class="btn btn-ghost btn-small" href="/snapshots">Open archive</a>
       </article>
     </section>
 
     <section class="panel help-checklist-panel">
       <div class="panel-head">
         <div>
-          <span class="panel-kicker">Checklist rapida</span>
-          <h2 class="panel-title">Prima di raccogliere dati importanti</h2>
-          <p class="panel-copy">Questi controlli riducono dataset incompleti o sessioni difficili da interpretare dopo.</p>
+          <span class="panel-kicker">Quick checklist</span>
+          <h2 class="panel-title">Before collecting important data</h2>
+          <p class="panel-copy">These checks reduce incomplete datasets and sessions that are difficult to interpret later.</p>
         </div>
       </div>
       <ul class="help-checklist">
-        <li>RGB sinistra e RGB destra hanno frame recenti.</li>
-        <li>La termica è in stato reale o chiaramente marcata come non disponibile.</li>
-        <li>La missione è attiva prima degli snapshot da usare per fine-tuning.</li>
-        <li>Il pannello Dataset sessione mostra campioni e coppie RGB/termico coerenti.</li>
-        <li>La pagina Foto e log non mostra errori hardware ripetuti.</li>
+        <li>Left and right RGB feeds have recent frames.</li>
+        <li>The thermal sensor is producing real frames or is clearly marked unavailable.</li>
+        <li>A mission is active before collecting captures intended for fine-tuning.</li>
+        <li>The session dataset reports consistent samples and RGB/thermal pairs.</li>
+        <li>The activity log does not show repeated hardware errors.</li>
       </ul>
     </section>
   </section>

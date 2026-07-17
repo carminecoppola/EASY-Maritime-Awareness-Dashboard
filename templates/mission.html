@@ -1,86 +1,86 @@
 {% extends "base.html" %}
 
 {% block content %}
-  <section class="mission-page" aria-label="Gestione missione">
+  <section class="mission-page" aria-label="Mission management">
     <section class="mission-command-bar" id="live-mission-command-bar" aria-live="polite">
       <div class="mission-command-state">
         <div>
-          <span class="mission-data-label">Stato missione</span>
-          <strong id="live-mission-state-title">Nessuna missione attiva</strong>
-          <p id="live-mission-state-copy">Avvia una missione per salvare rilevazioni, eventi e metriche sulla Raspberry.</p>
-          <p class="mission-inline-feedback"><span id="live-capture-feedback-title">In attesa dell’avvio</span><a id="live-capture-feedback-link" href="/snapshots" hidden>Apri il campione</a></p>
+          <span class="mission-data-label">Mission status</span>
+          <strong id="live-mission-state-title">No active mission</strong>
+          <p id="live-mission-state-copy">Start a mission to save detections, events and metrics on the Raspberry Pi.</p>
+          <p class="mission-inline-feedback"><span id="live-capture-feedback-title">Waiting to start</span><a id="live-capture-feedback-link" href="/snapshots" hidden>Open sample</a></p>
         </div>
       </div>
       <div class="mission-command-actions">
-        <button class="btn btn-primary btn-small" id="button-live-toggle-recording" type="button">Avvia missione</button>
-        <small>Salva foto, rilevazioni AI e log sulla Raspberry finché non la fermi.</small>
+        <button class="btn btn-primary btn-small" id="button-live-toggle-recording" type="button">Start mission</button>
+        <small>Save photos, AI detections and logs on the Raspberry Pi until you stop the mission.</small>
       </div>
       <span class="mission-state-indicator visually-hidden" id="live-mission-state-indicator" aria-hidden="true"></span>
       <div id="live-capture-feedback" hidden aria-hidden="true"></div>
-      <ol class="mission-workflow" aria-label="Fasi della missione"><li id="mission-workflow-start"><span>1</span><small>Avvia</small></li><li id="mission-workflow-capture"><span>2</span><small>Acquisisci</small></li><li id="mission-workflow-review"><span>3</span><small>Verifica</small></li></ol>
+      <ol class="mission-workflow" aria-label="Mission steps"><li id="mission-workflow-start"><span>1</span><small>Start</small></li><li id="mission-workflow-capture"><span>2</span><small>Capture</small></li><li id="mission-workflow-review"><span>3</span><small>Review</small></li></ol>
     </section>
 
-    <section class="panel dataset-session-panel" aria-label="Ultima sessione">
+    <section class="panel dataset-session-panel" aria-label="Latest session">
       <div class="panel-head">
         <div>
-          <span class="mission-data-label">Ultima sessione</span>
-          <h2 class="panel-title" id="dataset-session-id">Nessuna sessione</h2>
-          <p class="panel-copy" id="dataset-session-explanation">Avvia una missione per iniziare la raccolta.</p>
+          <span class="mission-data-label">Latest session</span>
+          <h2 class="panel-title" id="dataset-session-id">No session</h2>
+          <p class="panel-copy" id="dataset-session-explanation">Start a mission to begin collecting data.</p>
         </div>
         <div class="panel-head-actions">
-          <button class="btn btn-ghost btn-small" id="button-dataset-validate" type="button">Valida dataset</button>
-          <button class="btn btn-secondary btn-small" id="button-dataset-export" type="button">Esporta ZIP</button>
-          <a class="btn btn-ghost btn-small" id="dataset-export-download" href="/api/dataset/export/download" hidden>Scarica ZIP</a>
+          <button class="btn btn-ghost btn-small" id="button-dataset-validate" type="button">Validate dataset</button>
+          <button class="btn btn-secondary btn-small" id="button-dataset-export" type="button">Export ZIP</button>
+          <a class="btn btn-ghost btn-small" id="dataset-export-download" href="/api/dataset/export/download" hidden>Download ZIP</a>
         </div>
       </div>
-      <p class="dataset-session-path" id="dataset-manifest-path">Il riepilogo apparirà dopo la prima acquisizione.</p>
+      <p class="dataset-session-path" id="dataset-manifest-path">The summary will appear after the first capture.</p>
       <div class="dataset-metrics-grid">
-        <div class="dataset-metric"><span>Campioni</span><strong id="dataset-samples-count">0</strong><small><strong id="dataset-paired-count">0</strong> sincronizzati</small></div>
-        <div class="dataset-metric"><span>Foto</span><strong id="dataset-snapshots-count">0</strong><small>immagini salvate</small></div>
-        <div class="dataset-metric"><span>Inferenze</span><strong id="dataset-inference-count">0</strong><small>frame elaborati</small></div>
-        <div class="dataset-metric"><span>Rilevazioni</span><strong id="dataset-detections-count">0</strong><small>oggetti riconosciuti</small></div>
+        <div class="dataset-metric"><span>Samples</span><strong id="dataset-samples-count">0</strong><small><strong id="dataset-paired-count">0</strong> synchronised</small></div>
+        <div class="dataset-metric"><span>Photos</span><strong id="dataset-snapshots-count">0</strong><small>saved images</small></div>
+        <div class="dataset-metric"><span>Inference runs</span><strong id="dataset-inference-count">0</strong><small>processed frames</small></div>
+        <div class="dataset-metric"><span>Detections</span><strong id="dataset-detections-count">0</strong><small>recognised objects</small></div>
       </div>
       <div class="dataset-session-secondary">
-        <button class="btn btn-ghost btn-small" id="button-live-save-snapshot" type="button" aria-describedby="dataset-session-explanation">Salva set sensori</button>
-        <span class="dataset-export-feedback" id="dataset-export-feedback">Disponibile durante una missione attiva.</span>
+        <button class="btn btn-ghost btn-small" id="button-live-save-snapshot" type="button" aria-describedby="dataset-session-explanation">Save sensor set</button>
+        <span class="dataset-export-feedback" id="dataset-export-feedback">Available during an active mission.</span>
       </div>
       <div hidden aria-hidden="true">
         <span id="dataset-session-state-badge">Standby</span>
         <span id="dataset-feed-breakdown"></span>
-        <span id="live-summary-health-title">Verifica in corso</span>
-        <span id="live-summary-health-copy">Sto raccogliendo lo stato operativo del sistema.</span>
+        <span id="live-summary-health-title">Checking</span>
+        <span id="live-summary-health-copy">Collecting the current system status.</span>
         <span id="live-summary-source-title">--</span>
-        <span id="live-summary-source-copy">Nessuna sorgente selezionata.</span>
+        <span id="live-summary-source-copy">No source selected.</span>
         <span id="live-summary-session-title">--</span>
-        <span id="live-summary-session-copy">Sessione non disponibile.</span>
+        <span id="live-summary-session-copy">Session unavailable.</span>
         <span id="live-summary-detections-count">0</span>
-        <span id="live-summary-detections-copy">Nessuna rilevazione corrente.</span>
+        <span id="live-summary-detections-copy">No current detections.</span>
       </div>
     </section>
 
-    <section class="panel mission-sources-panel" aria-label="Sorgenti della missione">
+    <section class="panel mission-sources-panel" aria-label="Mission sources">
       <div class="panel-head">
         <div>
-          <span class="panel-kicker">Ingresso analisi AI</span>
-          <h2 class="panel-title">Sorgente da analizzare</h2>
-          <p class="panel-copy">Scegli quale flusso inviare al modello. Il comando “Salva set sensori” acquisisce comunque tutte le camere disponibili.</p>
+          <span class="panel-kicker">AI analysis input</span>
+          <h2 class="panel-title">Analysis source</h2>
+          <p class="panel-copy">Choose which feed to send to the model. “Save sensor set” still captures every available camera.</p>
         </div>
         <div class="panel-head-actions">
-          <span class="badge badge-muted" id="live-source-selected-badge">In uso: --</span>
-          <button class="btn btn-ghost btn-small" id="button-live-refresh-sources" type="button">Aggiorna elenco</button>
+          <span class="badge badge-muted" id="live-source-selected-badge">In use: --</span>
+          <button class="btn btn-ghost btn-small" id="button-live-refresh-sources" type="button">Refresh list</button>
         </div>
       </div>
       <div class="sources-grid" id="live-source-grid"></div>
     </section>
 
-    <section class="panel mission-history-panel" aria-label="Missioni passate">
+    <section class="panel mission-history-panel" aria-label="Past missions">
       <div class="panel-head">
-        <div><span class="panel-kicker">Archivio missioni</span><h2 class="panel-title">Missioni passate</h2><p class="panel-copy">Seleziona una riga: il riepilogo completo apparirà accanto, con validazione ed export.</p></div>
-        <span class="badge badge-muted" id="mission-history-count">0 missioni</span>
+        <div><span class="panel-kicker">Mission archive</span><h2 class="panel-title">Past missions</h2><p class="panel-copy">Select a row to view its complete summary, validation and export actions.</p></div>
+        <span class="badge badge-muted" id="mission-history-count">0 missions</span>
       </div>
       <div class="mission-history-layout">
-        <div class="mission-history-list" id="mission-history-list"><div class="empty-state">Caricamento missioni…</div></div>
-        <aside class="mission-history-detail" id="mission-history-detail" aria-live="polite"><strong>Caricamento ultima missione…</strong><p>Il dettaglio della sessione più recente comparirà qui.</p></aside>
+        <div class="mission-history-list" id="mission-history-list"><div class="empty-state">Loading missions…</div></div>
+        <aside class="mission-history-detail" id="mission-history-detail" aria-live="polite"><strong>Loading latest mission…</strong><p>Details for the most recent session will appear here.</p></aside>
       </div>
     </section>
   </section>

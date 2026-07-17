@@ -86,10 +86,33 @@ body[data-page="detections"] .analysis-workspace > .analysis-monitor {
   display: flex;
 }
 
-.analysis-events-column .timeline-row {
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px 12px;
-  padding: 11px 12px;
+.analysis-events-column .events-history-details {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.timeline-event-card {
+  gap: 8px;
+}
+
+.timeline-event-card .event-card-title {
+  min-width: 0;
+}
+
+.timeline-event-card .event-card-title > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-event-meta {
+  justify-content: space-between;
+}
+
+.timeline-event-meta > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 body[data-page="detections"] .operations-panel {
@@ -368,83 +391,6 @@ body[data-page="mission"] .source-row .badge {
   font-size: 11px;
 }
 
-.timeline-row {
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  background: rgba(255, 255, 255, 0.025);
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
-.timeline-row.is-low {
-  border-color: rgba(56, 189, 248, 0.28);
-}
-
-.timeline-row.is-info {
-  border-color: rgba(148, 163, 184, 0.22);
-}
-
-.timeline-row.is-medium {
-  border-color: rgba(251, 191, 36, 0.28);
-}
-
-.timeline-row.is-high,
-.timeline-row.is-critical {
-  border-color: rgba(248, 113, 113, 0.28);
-}
-
-.timeline-main {
-  gap: 6px;
-  min-width: 0;
-}
-
-.timeline-main .event-card-title {
-  min-width: 0;
-}
-
-.timeline-main .event-card-title strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.timeline-meta {
-  display: flex;
-  align-items: center;
-  gap: 5px 8px;
-  min-width: 0;
-  color: var(--text-weak);
-  font-size: 11px;
-  line-height: 1.35;
-  flex-wrap: wrap;
-}
-
-.timeline-meta > * + *::before {
-  content: "·";
-  margin-right: 8px;
-  color: var(--surface-border-strong);
-}
-
-.timeline-badges {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-  width: auto;
-}
-
-.timeline-badges .badge {
-  display: inline-flex;
-  flex: 0 0 auto;
-  width: auto;
-  padding: 4px 9px;
-  white-space: nowrap;
-}
-
-.analysis-events-column .timeline-row > .timeline-badges {
-  grid-column: 2;
-  grid-row: 1;
-}
-
 @media (max-width: 760px) {
   body[data-page="mission"] .mission-command-bar {
     grid-template-columns: minmax(0, 1fr);
@@ -457,20 +403,6 @@ body[data-page="mission"] .source-row .badge {
 
   body[data-page="mission"] .mission-command-actions small { text-align: left; }
 
-  .timeline-row { grid-template-columns: minmax(0, 1fr) auto; }
-  .analysis-events-column .timeline-row > .timeline-badges {
-    grid-column: 2;
-    justify-content: flex-end;
-  }
-}
-
-@media (max-width: 480px) {
-  .timeline-row { grid-template-columns: minmax(0, 1fr); }
-  .analysis-events-column .timeline-row > .timeline-badges {
-    grid-column: 1;
-    grid-row: auto;
-    justify-content: flex-start;
-  }
 }
 
 /* Final mission layout: status, last session, sources, history. */

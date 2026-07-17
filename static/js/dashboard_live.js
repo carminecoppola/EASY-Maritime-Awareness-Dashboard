@@ -71,25 +71,25 @@ function humanMissionState(health, thermal, rgb, operations) {
 
   if (health?.ok && readySensors >= 3 && !["ERROR", "FAILED", "OFFLINE", "NOT_PRESENT", "NOT_DETECTED"].includes(thermalState)) {
     return {
-      title: "Missione pronta",
-      copy: "Le sorgenti principali sono disponibili e la dashboard può operare in modo regolare.",
+      title: "Mission ready",
+      copy: "The primary sources are available and the dashboard can operate normally.",
     };
   }
   if (["ERROR", "FAILED", "OFFLINE", "NOT_PRESENT", "NOT_DETECTED"].includes(thermalState)) {
     return {
-      title: "Thermal da verificare",
-      copy: "Le camere RGB possono essere operative, ma la conferma termica non è ancora affidabile.",
+      title: "Check thermal sensor",
+      copy: "The RGB cameras may be operational, but thermal confirmation is not yet reliable.",
     };
   }
   if (["ERROR", "FAILED", "OFFLINE", "NOT_PRESENT", "NOT_DETECTED"].includes(rgbState) || readySensors < 2) {
     return {
-      title: "Live ancora incompleto",
-      copy: "Almeno una sorgente visibile non sta consegnando frame stabili. Conviene recuperarla prima di procedere.",
+      title: "Live view incomplete",
+      copy: "At least one visible source is not delivering stable frames. Restore it before proceeding.",
     };
   }
   return {
-    title: "Serve un controllo rapido",
-    copy: "Il sistema è quasi pronto, ma conviene verificare gli stream principali prima di aprire una nuova sessione.",
+    title: "Quick check required",
+    copy: "The system is almost ready, but verify the primary streams before opening a new session.",
   };
 }
 
@@ -167,22 +167,22 @@ function renderLivePage(health) {
   monitorDarkRgbFrames();
 
   setText(liveSummaryElementId("healthTitle"), mission.title || "Needs attention");
-  setText(liveSummaryElementId("healthCopy"), mission.copy || "Controlla lo stato delle sorgenti live.");
-  setText(liveSummaryElementId("sourceTitle"), selectedSource.label || selectedSource.id || "Non selezionata");
-  setText(liveSummaryElementId("sourceCopy"), selectedSource.description || selectedSource.state || "Seleziona la sorgente attiva del Frame Provider dal pannello qui sotto.");
-  setText(liveSummaryElementId("sessionTitle"), healthSession.running ? "In corso" : "Standby");
+  setText(liveSummaryElementId("healthCopy"), mission.copy || "Check the status of live sources.");
+  setText(liveSummaryElementId("sourceTitle"), selectedSource.label || selectedSource.id || "Not selected");
+  setText(liveSummaryElementId("sourceCopy"), selectedSource.description || selectedSource.state || "Select the active Frame Provider source in the panel below.");
+  setText(liveSummaryElementId("sessionTitle"), healthSession.running ? "Running" : "Standby");
   setText(
     liveSummaryElementId("sessionCopy"),
     healthSession.running
-      ? `Sessione ${healthSession.session_id || "--"} · ${formatUptimeShort(healthSession.duration_seconds || 0)}`
-      : "Avvia una sessione quando vuoi archiviare detections ed eventi della missione.",
+      ? `Session ${healthSession.session_id || "--"} · ${formatUptimeShort(healthSession.duration_seconds || 0)}`
+      : "Start a session when you want to archive mission detections and events.",
   );
   setText(liveSummaryElementId("detectionsCount"), `${detectionCount}`);
   setText(
     liveSummaryElementId("detectionsCopy"),
     detectionCount > 0
-      ? `L'ultimo ciclo AI ha prodotto ${detectionCount} detection${detectionCount === 1 ? "" : "s"}.`
-      : "Nessuna detection corrente: il replay è pronto ma non ha ancora generato risultati utili.",
+      ? `The latest AI cycle produced ${detectionCount} detection${detectionCount === 1 ? "" : "s"}.`
+      : "No current detections: replay is ready but has not produced useful results yet.",
   );
 
   [
@@ -191,7 +191,7 @@ function renderLivePage(health) {
       state: rgbLeft.state || rgb.camera_state || "LOADING",
       fps: rgbLeft.fps ?? rgb.fps ?? null,
       last: rgbLeft.last_acquisition_ts || rgb.last_frame_ts || rgbLeft.last_frame_ts || null,
-      device: "Nessun segnale dalla camera sinistra",
+      device: "No signal from the left camera",
       technicalDetail: rgbLeft.error || rgb.error || rgbLeft.hardware_name || "Arducam UC-517 LEFT",
       detected: Boolean(rgbLeft.last_acquisition_ts || rgb.last_frame_ts || rgbLeft.last_frame_ts),
     },
@@ -200,8 +200,8 @@ function renderLivePage(health) {
       state: thermalVisual.state,
       fps: thermal.fps ?? thermal.frame_rate ?? thermalCam.fps ?? null,
       last: thermalVisual.lastFrame,
-      device: thermal.detected ? "Nessun segnale dalla camera termica" : "Sensore termico non rilevato",
-      technicalDetail: thermal.error || (thermal.detected ? `${thermal.device || "FLIR"} rilevato, ma senza frame` : "PureThermal video node not found. Check USB cable and v4l2-ctl --list-devices."),
+      device: thermal.detected ? "No signal from the thermal camera" : "Thermal sensor not detected",
+      technicalDetail: thermal.error || (thermal.detected ? `${thermal.device || "FLIR"} detected, but no frames are available` : "PureThermal video node not found. Check USB cable and v4l2-ctl --list-devices."),
       detected: thermalVisual.detected,
     },
     {
@@ -209,7 +209,7 @@ function renderLivePage(health) {
       state: rgbRight.state || rgb.camera_state || "LOADING",
       fps: rgbRight.fps ?? rgb.fps ?? null,
       last: rgbRight.last_acquisition_ts || rgb.last_frame_ts || rgbRight.last_frame_ts || null,
-      device: "Nessun segnale dalla camera destra",
+      device: "No signal from the right camera",
       technicalDetail: rgbRight.error || rgb.error || rgbRight.hardware_name || "Arducam UC-517 RIGHT",
       detected: Boolean(rgbRight.last_acquisition_ts || rgb.last_frame_ts || rgbRight.last_frame_ts),
     },
@@ -217,7 +217,7 @@ function renderLivePage(health) {
     const hasFreshFrame = isFreshTimestamp(cardInfo.last);
     const tone = liveFeedTone(cardInfo.state, cardInfo.key, cardInfo.last, cardInfo.detected);
     const effectiveTone = cardInfo.key === "thermal" ? thermalVisual.tone : tone;
-    const label = cardInfo.key === "thermal" ? thermalVisual.label : effectiveTone.offline ? "Nessun segnale" : humanStateLabel(cardInfo.state);
+    const label = cardInfo.key === "thermal" ? thermalVisual.label : effectiveTone.offline ? "No signal" : humanStateLabel(cardInfo.state);
     const statusText = cardInfo.key === "thermal"
       ? thermalVisual.statusText
       : liveStatusText(cardInfo.key, cardInfo.state, cardInfo.fps, cardInfo.last, cardInfo.detected);
@@ -239,7 +239,7 @@ function renderLivePage(health) {
       deviceNode.textContent = cardInfo.device;
       if (cardInfo.technicalDetail) {
         deviceNode.title = cardInfo.technicalDetail;
-        deviceNode.setAttribute("aria-label", `${cardInfo.device}. Dettaglio tecnico: ${cardInfo.technicalDetail}`);
+        deviceNode.setAttribute("aria-label", `${cardInfo.device}. Technical detail: ${cardInfo.technicalDetail}`);
       } else {
         deviceNode.removeAttribute("title");
         deviceNode.removeAttribute("aria-label");
@@ -263,7 +263,7 @@ function renderLivePage(health) {
   const thermalCaptureButton = byId("button-thermal-capture");
   if (thermalCaptureButton && !thermalCaptureButton.disabled) {
     const label = thermalCaptureButton.querySelector("span");
-    if (label) label.textContent = thermalVisual.hasCachedFrame ? "Aggiorna lettura" : "Leggi termica";
+    if (label) label.textContent = thermalVisual.hasCachedFrame ? "Refresh reading" : "Capture thermal frame";
   }
 
   const sessionStatus = dashboardState.sessionStatus || health.session || {};
@@ -274,39 +274,39 @@ function renderLivePage(health) {
   if (snapshotButton) {
     snapshotButton.dataset.primaryFeed = ["REAL", "LIVE", "READY"].includes(thermalState) ? "thermal" : "rgb_left";
     snapshotButton.disabled = !sessionRunning;
-    snapshotButton.textContent = "Salva set sensori";
+    snapshotButton.textContent = "Save sensor set";
     snapshotButton.title = sessionRunning
-      ? "Salva nello stesso campione RGB sinistra, RGB destra e termico"
-      : "Disponibile dopo l’avvio della missione";
+      ? "Save left RGB, right RGB and thermal data in the same sample"
+      : "Available after the mission starts";
   }
   const recordButton = byId(liveActionElementId("record"));
   if (recordButton) {
     recordButton.disabled = false;
     recordButton.classList.toggle("btn-danger", sessionRunning);
     recordButton.classList.toggle("btn-primary", !sessionRunning);
-    recordButton.textContent = sessionRunning ? "Termina missione" : "Avvia missione";
-    recordButton.title = sessionRunning ? "Termina e archivia la missione corrente" : "Inizia a salvare rilevazioni, eventi e metriche";
+    recordButton.textContent = sessionRunning ? "End mission" : "Start mission";
+    recordButton.title = sessionRunning ? "End and archive the current mission" : "Start saving detections, events and metrics";
   }
 
   const captureFeedbackTitle = byId(liveActionElementId("captureTitle"));
   if (captureFeedbackTitle && !captureFeedbackTitle.dataset.actionFeedback) {
     captureFeedbackTitle.textContent = sessionRunning
-      ? "Registrazione attiva · ora puoi salvare un set sensori"
+      ? "Recording active · you can now save a sensor set"
       : sessionStatus.latest
-        ? "Missione terminata · puoi controllare lo storico"
-        : "In attesa dell’avvio";
+        ? "Mission ended · you can review its history"
+        : "Waiting to start";
   }
 
   const missionBar = byId(liveActionElementId("missionBar"));
   const missionIndicator = byId(liveActionElementId("missionIndicator"));
   if (missionBar) missionBar.classList.toggle("is-running", sessionRunning);
   if (missionIndicator) missionIndicator.classList.toggle("is-running", sessionRunning);
-  setText(liveActionElementId("missionTitle"), sessionRunning ? "Missione in registrazione" : "Nessuna missione attiva");
+  setText(liveActionElementId("missionTitle"), sessionRunning ? "Mission recording" : "No active mission");
   setText(
     liveActionElementId("missionCopy"),
     sessionRunning
-      ? `${session?.session_id || "Sessione EASY"} · ${formatUptimeShort(session?.metrics?.session_duration ?? session?.duration ?? 0)} · dati salvati sulla Raspberry`
-      : "Avvia una missione per salvare rilevazioni, eventi e metriche sulla Raspberry.",
+      ? `${session?.session_id || "EASY session"} · ${formatUptimeShort(session?.metrics?.session_duration ?? session?.duration ?? 0)} · data saved on the Raspberry Pi`
+      : "Start a mission to save detections, events and metrics on the Raspberry Pi.",
   );
   byId("mission-workflow-start")?.classList.toggle("is-complete", sessionRunning);
   byId("mission-workflow-capture")?.classList.toggle("is-current", sessionRunning);
@@ -327,19 +327,19 @@ function renderDatasetSessionPanel() {
   const sessionId = acquisition.session_id || activeSession.session_id || null;
   const manifestPath = acquisition.manifest_path || activeSession.manifest_path || "";
 
-  setBadge(liveActionElementId("datasetStateBadge"), running ? "Missione attiva" : sessionId ? "Ultima missione" : "Standby", running ? "online" : sessionId ? "warning" : "muted");
+  setBadge(liveActionElementId("datasetStateBadge"), running ? "Active mission" : sessionId ? "Latest mission" : "Standby", running ? "online" : sessionId ? "warning" : "muted");
   setText(
     liveActionElementId("datasetExplanation"),
     running
-      ? "Ogni acquisizione viene aggiunta al manifest della sessione in corso."
+      ? "Each capture is added to the current session manifest."
       : sessionId
-        ? "Questi sono gli ultimi dati archiviati. Avvia una nuova missione per continuare la raccolta."
-        : "Avvia una missione per creare un manifest con foto, inferenze e coppie RGB/termiche.",
+        ? "These are the latest archived data. Start a new mission to continue collecting."
+        : "Start a mission to create a manifest with photos, inference runs and RGB/thermal pairs.",
   );
-  setText(liveActionElementId("datasetSessionId"), sessionId || "Nessuna sessione");
+  setText(liveActionElementId("datasetSessionId"), sessionId || "No session");
   setText(
     liveActionElementId("datasetManifestPath"),
-    manifestPath ? `Manifest: ${compactPath(manifestPath)}` : "Il manifest apparirà qui appena la missione salva il primo dato.",
+    manifestPath ? `Manifest: ${compactPath(manifestPath)}` : "The manifest will appear here after the mission saves its first item.",
   );
   setText(liveActionElementId("datasetSamplesCount"), `${datasetSummary.samples ?? manifestCounts.samples ?? 0}`);
   setText(liveActionElementId("datasetPairedCount"), `${datasetSummary.synchronized_samples ?? manifestCounts.synchronized_samples ?? datasetSummary.paired_items ?? manifestCounts.paired_items ?? 0}`);
@@ -348,9 +348,9 @@ function renderDatasetSessionPanel() {
   setText(liveActionElementId("datasetDetectionsCount"), `${manifestCounts.detections ?? 0}`);
 
   const feedLabels = {
-    rgb_left: "RGB sinistra",
-    rgb_right: "RGB destra",
-    thermal: "Termico",
+    rgb_left: "Left RGB",
+    rgb_right: "Right RGB",
+    thermal: "Thermal",
   };
   const node = byId(liveActionElementId("datasetFeedBreakdown"));
   if (node) {
@@ -366,15 +366,15 @@ function renderMissionHistory(sessions) {
   const items = Array.isArray(sessions)
     ? sessions.slice().sort((left, right) => new Date(right.start_time || 0) - new Date(left.start_time || 0))
     : [];
-  setText("mission-history-count", `${items.length} mission${items.length === 1 ? "e" : "i"}`);
+  setText("mission-history-count", `${items.length} mission${items.length === 1 ? "" : "s"}`);
   if (!items.length) {
-    list.innerHTML = '<div class="empty-state">Nessuna missione archiviata.</div>';
+    list.innerHTML = '<div class="empty-state">No archived missions.</div>';
     return;
   }
   list.innerHTML = items.map((session, index) => {
     const sessionId = String(session.session_id || "");
     const running = String(session.status || "").toUpperCase() === "RUNNING";
-    return `<button class="mission-history-row${index === 0 ? " is-active" : ""}" type="button" data-mission-history-id="${escapeHtml(sessionId)}" aria-pressed="${index === 0 ? "true" : "false"}"><span><strong>${escapeHtml(formatRomeDateTime(session.start_time))}</strong><small>${escapeHtml(sessionId || "Sessione EASY")}</small></span><span><span class="badge badge-${running ? "online" : "muted"}">${running ? "In corso" : "Archiviata"}</span><small>${escapeHtml(formatSessionDuration(session.duration))}</small></span></button>`;
+    return `<button class="mission-history-row${index === 0 ? " is-active" : ""}" type="button" data-mission-history-id="${escapeHtml(sessionId)}" aria-pressed="${index === 0 ? "true" : "false"}"><span><strong>${escapeHtml(formatRomeDateTime(session.start_time))}</strong><small>${escapeHtml(sessionId || "EASY session")}</small></span><span><span class="badge badge-${running ? "online" : "muted"}">${running ? "Running" : "Archived"}</span><small>${escapeHtml(formatSessionDuration(session.duration))}</small></span></button>`;
   }).join("");
 }
 
@@ -384,7 +384,7 @@ function renderMissionHistoryDetail(session, manifest) {
   const counts = manifest?.counts || {};
   const byFeed = counts.by_feed || {};
   const sessionId = String(session?.session_id || manifest?.session_id || "");
-  detail.innerHTML = `<div class="mission-history-detail-head"><span class="mission-data-label">Missione selezionata</span><strong>${escapeHtml(formatRomeDateTime(session?.start_time))}</strong><p>${escapeHtml(sessionId || "Sessione EASY")} · ${escapeHtml(formatSessionDuration(session?.duration))}</p></div><dl class="mission-history-counts"><div><dt>Campioni</dt><dd>${escapeHtml(String(counts.samples || 0))}</dd></div><div><dt>Foto</dt><dd>${escapeHtml(String(counts.snapshots || 0))}</dd></div><div><dt>Inferenze</dt><dd>${escapeHtml(String(counts.inference || 0))}</dd></div><div><dt>Rilevazioni</dt><dd>${escapeHtml(String(counts.detections || 0))}</dd></div></dl><div class="mission-history-feeds"><span>RGB sinistra <strong>${escapeHtml(String(byFeed.rgb_left || 0))}</strong></span><span>RGB destra <strong>${escapeHtml(String(byFeed.rgb_right || 0))}</strong></span><span>Termico <strong>${escapeHtml(String(byFeed.thermal || 0))}</strong></span></div><p class="mission-history-feedback" id="mission-history-feedback">${manifest?.ok === false ? "Manifest non disponibile per questa missione." : "Manifest caricato: puoi validare il dataset o esportarlo."}</p><div class="mission-history-actions"><button class="btn btn-ghost btn-small" type="button" data-history-validate="${escapeHtml(sessionId)}">Valida dataset</button><button class="btn btn-secondary btn-small" type="button" data-history-export="${escapeHtml(sessionId)}">Esporta ZIP</button><a class="panel-link" href="/snapshots">Vedi foto</a></div>`;
+  detail.innerHTML = `<div class="mission-history-detail-head"><span class="mission-data-label">Selected mission</span><strong>${escapeHtml(formatRomeDateTime(session?.start_time))}</strong><p>${escapeHtml(sessionId || "EASY session")} · ${escapeHtml(formatSessionDuration(session?.duration))}</p></div><dl class="mission-history-counts"><div><dt>Samples</dt><dd>${escapeHtml(String(counts.samples || 0))}</dd></div><div><dt>Photos</dt><dd>${escapeHtml(String(counts.snapshots || 0))}</dd></div><div><dt>Inference runs</dt><dd>${escapeHtml(String(counts.inference || 0))}</dd></div><div><dt>Detections</dt><dd>${escapeHtml(String(counts.detections || 0))}</dd></div></dl><div class="mission-history-feeds"><span>Left RGB <strong>${escapeHtml(String(byFeed.rgb_left || 0))}</strong></span><span>Right RGB <strong>${escapeHtml(String(byFeed.rgb_right || 0))}</strong></span><span>Thermal <strong>${escapeHtml(String(byFeed.thermal || 0))}</strong></span></div><p class="mission-history-feedback" id="mission-history-feedback">${manifest?.ok === false ? "Manifest unavailable for this mission." : "Manifest loaded: you can validate the dataset or export it."}</p><div class="mission-history-actions"><button class="btn btn-ghost btn-small" type="button" data-history-validate="${escapeHtml(sessionId)}">Validate dataset</button><button class="btn btn-secondary btn-small" type="button" data-history-export="${escapeHtml(sessionId)}">Export ZIP</button><a class="panel-link" href="/snapshots">View photos</a></div>`;
 }
 
 async function loadMissionHistory() {
@@ -413,7 +413,7 @@ function setupLivePage() {
       } finally {
         window.setTimeout(() => {
           thermalCaptureButton.disabled = false;
-          if (label) label.textContent = "Aggiorna lettura";
+          if (label) label.textContent = "Refresh reading";
         }, 3500);
       }
     });
@@ -422,12 +422,12 @@ function setupLivePage() {
   if (liveRefreshButton) {
     liveRefreshButton.addEventListener("click", async () => {
       liveRefreshButton.disabled = true;
-      liveRefreshButton.textContent = "Aggiornamento…";
+      liveRefreshButton.textContent = "Refreshmento…";
       await refreshDashboard();
-      setText(liveActionElementId("liveRefreshText"), `Stato aggiornato alle ${formatRomeTimeOnly(Date.now())}`);
+      setText(liveActionElementId("liveRefreshText"), `Status aggiornato alle ${formatRomeTimeOnly(Date.now())}`);
       window.setTimeout(() => {
         liveRefreshButton.disabled = false;
-        liveRefreshButton.textContent = "Aggiorna stato";
+        liveRefreshButton.textContent = "Refresh status";
       }, 350);
     });
   }
@@ -454,7 +454,7 @@ function setupLivePage() {
     liveSnapshotButton.addEventListener("click", async () => {
       liveSnapshotButton.disabled = true;
       const originalLabel = liveSnapshotButton.textContent;
-      liveSnapshotButton.textContent = "Salvataggio…";
+      liveSnapshotButton.textContent = "Saving…";
       const health = dashboardState.health || {};
       const thermal = health.thermal || {};
       const cameras = health.cameras || {};
@@ -477,14 +477,14 @@ function setupLivePage() {
           const total = Number(payload?.total_feeds || 3);
           const complete = Boolean(payload?.complete);
           showToast(
-            complete ? "Set acquisizione salvato" : "Set acquisizione parziale",
-            `${saved}/${total} sorgenti salvate nello stesso campione.`,
+            complete ? "Capture set saved" : "Partial capture set",
+            `${saved}/${total} sources saved in the same sample.`,
             complete ? "success" : "info",
             "/snapshots",
           );
           const feedbackTitle = byId(liveActionElementId("captureTitle"));
           const feedbackLink = byId(liveActionElementId("captureLink"));
-          if (feedbackTitle) feedbackTitle.textContent = `${saved}/${total} sorgenti · stesso campione`;
+          if (feedbackTitle) feedbackTitle.textContent = `${saved}/${total} sources · same sample`;
           if (feedbackLink) {
             feedbackLink.href = "/snapshots";
             feedbackLink.hidden = false;
@@ -510,24 +510,24 @@ function setupLivePage() {
       try {
         if (running) {
           await callInferenceAction("/api/session/stop");
-          showToast("Missione archiviata", "Rilevazioni, eventi e metriche sono stati salvati sulla Raspberry.", "success");
+          showToast("Mission archived", "Detections, events and metrics were saved on the Raspberry Pi.", "success");
         } else {
           const payload = await callInferenceAction("/api/session/start", { mode: "live", operator: "dashboard" });
           const sessionId = payload?.session?.session_id;
-          showToast("Missione avviata", sessionId ? `Archivio attivo: ${sessionId}` : "Il salvataggio operativo è attivo.", "success");
+          showToast("Mission started", sessionId ? `Active archive: ${sessionId}` : "Operational recording is active.", "success");
         }
         const inlineFeedback = byId(liveActionElementId("captureTitle"));
         if (inlineFeedback) {
           inlineFeedback.dataset.actionFeedback = "true";
           inlineFeedback.textContent = running
-            ? "Missione terminata e archiviata"
-            : "Missione avviata · ora salva il primo set sensori";
+            ? "Mission ended and archived"
+            : "Mission started · save the first sensor set";
         }
         await refreshDashboard();
         await loadMissionHistory();
       } catch (error) {
         console.error(error);
-        showToast("Operazione non riuscita", error.message || "Impossibile aggiornare la missione", "error");
+        showToast("Operation failed", error.message || "Unable to update the mission", "error");
       } finally {
         liveRecordButton.disabled = false;
       }
@@ -541,17 +541,17 @@ function setupLivePage() {
       try {
         const response = await DashboardApi.request("/api/dataset/validate");
         const payload = response.data || {};
-        if (!response.ok || !payload.ok) throw new Error(payload.error || "Dataset non disponibile");
+        if (!response.ok || !payload.ok) throw new Error(payload.error || "Dataset unavailable");
         setText(
           liveActionElementId("datasetExportFeedback"),
           payload.valid
-            ? `${payload.valid_samples} campioni validi · ${payload.incomplete_samples} incompleti · ${payload.excluded_items} file esclusi.`
-            : `Nessun campione completo · ${payload.incomplete_samples} incompleti · ${payload.excluded_items} file esclusi.`,
+            ? `${payload.valid_samples} valid samples · ${payload.incomplete_samples} incomplete · ${payload.excluded_items} excluded files.`
+            : `No complete samples · ${payload.incomplete_samples} incomplete · ${payload.excluded_items} excluded files.`,
         );
-        showToast(payload.valid ? "Dataset valido" : "Dataset incompleto", payload.valid ? "Puoi creare il pacchetto ZIP." : "Controlla i feed mancanti.", payload.valid ? "success" : "info");
+        showToast(payload.valid ? "Valid dataset" : "Incomplete dataset", payload.valid ? "You can create the ZIP package." : "Check the missing feeds.", payload.valid ? "success" : "info");
       } catch (error) {
-        setText(liveActionElementId("datasetExportFeedback"), error.message || "Validazione non riuscita");
-        showToast("Validazione non riuscita", error.message || "Dataset non disponibile", "error");
+        setText(liveActionElementId("datasetExportFeedback"), error.message || "Validation failed");
+        showToast("Validation failed", error.message || "Dataset unavailable", "error");
       } finally {
         datasetValidateButton.disabled = false;
       }
@@ -562,19 +562,19 @@ function setupLivePage() {
   if (datasetExportButton) {
     datasetExportButton.addEventListener("click", async () => {
       datasetExportButton.disabled = true;
-      datasetExportButton.textContent = "Esportazione…";
+      datasetExportButton.textContent = "Exporting…";
       try {
         const payload = await callInferenceAction("/api/dataset/export", { validation_percent: 20 });
-        setText(liveActionElementId("datasetExportFeedback"), `${payload.counts.samples} campioni e ${payload.counts.images} immagini esportati.`);
+        setText(liveActionElementId("datasetExportFeedback"), `${payload.counts.samples} samples and ${payload.counts.images} images exported.`);
         const download = byId(liveActionElementId("datasetExportDownload"));
         if (download) download.hidden = false;
-        showToast("Dataset esportato", "Il pacchetto ZIP è pronto.", "success", "/api/dataset/export/download");
+        showToast("Dataset exported", "The ZIP package is ready.", "success", "/api/dataset/export/download");
       } catch (error) {
-        setText(liveActionElementId("datasetExportFeedback"), error.message || "Esportazione non riuscita");
-        showToast("Esportazione non riuscita", error.message || "Nessun campione valido", "error");
+        setText(liveActionElementId("datasetExportFeedback"), error.message || "Export failed");
+        showToast("Export failed", error.message || "No valid samples", "error");
       } finally {
         datasetExportButton.disabled = false;
-        datasetExportButton.textContent = "Esporta ZIP";
+        datasetExportButton.textContent = "Export ZIP";
       }
     });
   }

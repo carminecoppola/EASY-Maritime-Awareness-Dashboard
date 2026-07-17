@@ -32,18 +32,18 @@ function formatBytes(bytes) {
 function formatAgeIt(epochSeconds) {
   if (!epochSeconds) return "--";
   const age = Math.max(0, Math.round(Date.now() / 1000 - epochSeconds));
-  if (age < 1) return "ora";
-  if (age < 60) return `${age}s fa`;
+  if (age < 1) return "now";
+  if (age < 60) return `${age}s ago`;
   const minutes = Math.floor(age / 60);
-  if (minutes < 60) return `${minutes}m fa`;
-  return `${Math.floor(minutes / 60)}h fa`;
+  if (minutes < 60) return `${minutes}m ago`;
+  return `${Math.floor(minutes / 60)}h ago`;
 }
 
 function formatRomeDateTime(value) {
   if (!value) return "--";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "--";
-  return new Intl.DateTimeFormat("it-IT", {
+  return new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/Rome",
     dateStyle: "short",
     timeStyle: "medium",
@@ -54,7 +54,7 @@ function formatRomeTimeOnly(value) {
   if (!value) return "--";
   const date = new Date(Number(value) < 1e12 ? Number(value) * 1000 : value);
   if (Number.isNaN(date.getTime())) return "--";
-  return new Intl.DateTimeFormat("it-IT", {
+  return new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/Rome",
     hour: "2-digit",
     minute: "2-digit",
@@ -74,7 +74,7 @@ function parseDateValue(value) {
 function romeDateParts(value) {
   const date = new Date(Number(value) < 1e12 ? Number(value) * 1000 : value);
   if (Number.isNaN(date.getTime())) return null;
-  const parts = new Intl.DateTimeFormat("it-IT", {
+  const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/Rome",
     year: "numeric",
     month: "2-digit",
@@ -95,7 +95,7 @@ function formatLogTimestamp(value) {
   }
   const date = new Date(Number(value) < 1e12 ? Number(value) * 1000 : value);
   if (Number.isNaN(date.getTime())) return "--";
-  const dtParts = new Intl.DateTimeFormat("it-IT", {
+  const dtParts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/Rome",
     day: "2-digit",
     month: "2-digit",
@@ -123,12 +123,12 @@ function formatLogDayLabel(value) {
   const yesterdayDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const yesterday = romeDateParts(yesterdayDate);
   const sameYesterday = yesterday && parts.year === yesterday.year && parts.month === yesterday.month && parts.day === yesterday.day;
-  const monthName = new Intl.DateTimeFormat("it-IT", { timeZone: "Europe/Rome", month: "long" })
+  const monthName = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Rome", month: "long" })
     .format(new Date(Number(value) < 1e12 ? Number(value) * 1000 : value))
     .toLowerCase();
   const dayNumber = Number(parts.day);
-  if (sameDay) return `Oggi, ${dayNumber} ${monthName}`;
-  if (sameYesterday) return `Ieri, ${dayNumber} ${monthName}`;
+  if (sameDay) return `Today, ${dayNumber} ${monthName}`;
+  if (sameYesterday) return `Yesterday, ${dayNumber} ${monthName}`;
   return `${dayNumber} ${monthName}`;
 }
 
@@ -161,7 +161,7 @@ function formatUptimeShort(seconds) {
 
 function friendlySource(value) {
   const map = {
-    SYSTEM: "Sistema",
+    SYSTEM: "System",
     SYSTEM_ORCHESTRATOR: "System Orchestrator",
     UC512_MULTIPLEXER: "UC512",
     RGB_CAM_LEFT: "RGB LEFT",
@@ -180,49 +180,49 @@ function friendlySource(value) {
 function friendlySeverity(value) {
   const map = {
     info: "Info",
-    warning: "Avviso",
-    error: "Errore",
+    warning: "Warning",
+    error: "Error",
   };
   return map[String(value || "info").toLowerCase()] || "Info";
 }
 
 function friendlyEventType(value) {
   const map = {
-    STARTUP: "Avvio",
-    CONFIG: "Configurazione",
-    STREAM_START: "Stream avviato",
-    STREAM_STOP: "Stream fermo",
-    STREAM_ERROR: "Errore stream",
-    STREAM_RECOVERY: "Recupero stream",
-    STREAM_AUTOSTART: "Auto avvio",
-    SNAPSHOT_SAVED: "Snapshot salvato",
-    SNAPSHOT_ERROR: "Errore snapshot",
-    THERMAL_ANOMALY: "Allarme termico",
-    THERMAL_HOTSPOT: "Hotspot termico",
-    DETECTED: "Rilevato",
-    NOT_DETECTED: "Non rilevato",
-    INFERENCE_START: "AI avviata",
-    INFERENCE_STOP: "AI fermata",
-    INFERENCE_ERROR: "Errore AI",
-    DETECTION_NEW: "Nuova detection",
-    EVENT_CREATED: "Evento creato",
-    EVENT_UPDATED: "Evento aggiornato",
-    FEED_ENABLE: "Feed abilitato",
-    FEED_DISABLE: "Feed sospeso",
-    SOURCE_SELECT: "Sorgente selezionata",
-    SOURCE_SELECT_FAILED: "Selezione fallita",
-    SOURCE_REFRESH: "Aggiorna sorgenti",
-    SOURCE_CHANGED: "Sorgente cambiata",
-    DEVICE_STATE_CHANGED: "Stato device",
-    CAMERA_CONNECTED: "Camera connessa",
-    CAMERA_LOST: "Camera persa",
-    THERMAL_CONNECTED: "Thermal connesso",
+    STARTUP: "Starting",
+    CONFIG: "Configuration",
+    STREAM_START: "Stream started",
+    STREAM_STOP: "Stream stopped",
+    STREAM_ERROR: "Stream error",
+    STREAM_RECOVERY: "Stream recovery",
+    STREAM_AUTOSTART: "Automatic start",
+    SNAPSHOT_SAVED: "Snapshot saved",
+    SNAPSHOT_ERROR: "Snapshot error",
+    THERMAL_ANOMALY: "Thermal alarm",
+    THERMAL_HOTSPOT: "Thermal hotspot",
+    DETECTED: "Detected",
+    NOT_DETECTED: "Not detected",
+    INFERENCE_START: "AI started",
+    INFERENCE_STOP: "AI stopped",
+    INFERENCE_ERROR: "AI error",
+    DETECTION_NEW: "New detection",
+    EVENT_CREATED: "Event created",
+    EVENT_UPDATED: "Event updated",
+    FEED_ENABLE: "Feed enabled",
+    FEED_DISABLE: "Feed paused",
+    SOURCE_SELECT: "Source selected",
+    SOURCE_SELECT_FAILED: "Selection failed",
+    SOURCE_REFRESH: "Source refresh",
+    SOURCE_CHANGED: "Source changed",
+    DEVICE_STATE_CHANGED: "Device status",
+    CAMERA_CONNECTED: "Camera connected",
+    CAMERA_LOST: "Camera lost",
+    THERMAL_CONNECTED: "Thermal connected",
     THERMAL_OFFLINE: "Thermal offline",
-    REPLAY_ACTIVE: "Replay attivo",
-    REPLAY_IDLE: "Replay inattivo",
-    SYSTEM_START: "Sistema avviato",
-    SYSTEM_STOP: "Sistema fermato",
-    SYSTEM_RESTART: "Sistema riavviato",
+    REPLAY_ACTIVE: "Replay active",
+    REPLAY_IDLE: "Replay idle",
+    SYSTEM_START: "System started",
+    SYSTEM_STOP: "System stopped",
+    SYSTEM_RESTART: "System restarted",
   };
   return map[String(value || "").toUpperCase()] || String(value || "--");
 }
@@ -275,13 +275,13 @@ function logSourceLabel(event) {
     rgb_left: "RGB LEFT",
     rgb_right: "RGB RIGHT",
     device: "DEVICE MANAGER",
-    system: "SISTEMA",
+    system: "SYSTEM",
     frame_provider: "FRAME PROVIDER",
     inference_worker: "INFERENCE",
     uc512: "UC512",
-    all: "Tutte",
+    all: "All",
   };
-  return labels[key] || "Tutte";
+  return labels[key] || "All";
 }
 
 function logSourceClass(event) {
@@ -293,9 +293,9 @@ function logLevelMeta(event) {
   const category = eventCategory(event);
   const severity = String(event?.severity || "info").toLowerCase();
   if (category === "detection") {
-    return { label: "Rilevazione", tone: "online" };
+    return { label: "Detection", tone: "online" };
   }
-  if (severity === "error") return { label: "Errore", tone: "error" };
+  if (severity === "error") return { label: "Error", tone: "error" };
   if (severity === "warning") return { label: "Warning", tone: "warning" };
   return { label: "Info", tone: "muted" };
 }
@@ -305,7 +305,7 @@ function logRowId(event) {
 }
 
 function logVisibleText(event) {
-  return cleanLogText(event?.description || event?.message || event?.type || "Evento");
+  return cleanLogText(event?.description || event?.message || event?.type || "Event");
 }
 
 function logExpandedText(event) {
@@ -316,7 +316,7 @@ function logExpandedText(event) {
   if (message) fragments.push(message);
   if (detail) fragments.push(detail);
   if (raw) fragments.push(`Raw error: ${raw}`);
-  return fragments.length ? fragments.join("\n") : "Nessun dettaglio aggiuntivo disponibile.";
+  return fragments.length ? fragments.join("\n") : "No additional details available.";
 }
 
 function logGroupKey(event) {
@@ -351,7 +351,7 @@ function groupConsecutiveLogEvents(events) {
 }
 
 function formatRomeCsvTimestamp(date = new Date()) {
-  const parts = new Intl.DateTimeFormat("it-IT", {
+  const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/Rome",
     year: "numeric",
     month: "2-digit",

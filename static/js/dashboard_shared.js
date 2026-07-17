@@ -11,52 +11,52 @@ function humanStateLabel(state) {
   const value = String(state || "--").toUpperCase();
   const map = {
     ONLINE: "Live",
-    DETECTED: "Rilevato",
-    READY: "Pronto",
-    OK: "Pronto",
-    BUSY: "Recupero in corso",
-    WARNING: "Da verificare",
-    WARN: "Da verificare",
-    OFFLINE: "Non disponibile",
-    ERROR: "Errore",
-    FAILED: "Errore",
-    DISABLED: "Disabilitato",
-    STARTING: "Avvio",
-    LOADING: "Caricamento",
-    WAITING: "In attesa",
-    CHECKING: "Verifica in corso",
-    INITIALIZING: "Inizializzazione",
-    PAUSED: "In pausa",
-    STREAMING: "In esecuzione",
-    CONNECTED: "Collegato",
-    DISCONNECTED: "Scollegato",
-    NOT_AVAILABLE: "Non disponibile",
-    NOT_PRESENT: "Non collegato",
-    UNKNOWN: "Sconosciuto",
+    DETECTED: "Detected",
+    READY: "Ready",
+    OK: "Ready",
+    BUSY: "Recovering",
+    WARNING: "Check required",
+    WARN: "Check required",
+    OFFLINE: "Unavailable",
+    ERROR: "Error",
+    FAILED: "Error",
+    DISABLED: "Disabled",
+    STARTING: "Starting",
+    LOADING: "Loading",
+    WAITING: "Waiting",
+    CHECKING: "Checking",
+    INITIALIZING: "Initialising",
+    PAUSED: "Paused",
+    STREAMING: "Running",
+    CONNECTED: "Connected",
+    DISCONNECTED: "Disconnected",
+    NOT_AVAILABLE: "Unavailable",
+    NOT_PRESENT: "Not connected",
+    UNKNOWN: "Unknown",
     REAL: "Live",
-    MOCK: "Simulazione",
-    NOT_DETECTED: "Non rilevato",
-    PENDING: "Avvio",
-    RUNNING: "In esecuzione",
-    STOPPED: "Fermo",
+    MOCK: "Simulation",
+    NOT_DETECTED: "Not detected",
+    PENDING: "Starting",
+    RUNNING: "Running",
+    STOPPED: "Stopped",
   };
   return map[value] || (state || "--");
 }
 
 function eventSeverityLabel(severity) {
   const labels = {
-    critical: "Critica",
-    high: "Alta priorità",
-    medium: "Media priorità",
-    low: "Bassa priorità",
-    info: "Informativa",
+    critical: "Critical",
+    high: "High priority",
+    medium: "Medium priority",
+    low: "Low priority",
+    info: "Informational",
   };
   const value = String(severity || "info").toLowerCase();
   return labels[value] || humanStateLabel(value);
 }
 
 function eventStatusLabel(status) {
-  const labels = { new: "Nuovo", active: "Attivo", resolved: "Risolto", idle: "In attesa" };
+  const labels = { new: "New", active: "Active", resolved: "Resolved", idle: "Waiting" };
   const value = String(status || "new").toLowerCase();
   return labels[value] || humanStateLabel(value);
 }
@@ -106,15 +106,15 @@ function thermalVisualState(thermal, fallback = {}) {
     tone,
     hasCachedFrame,
     readyOnDemand,
-    label: readyOnDemand ? "Pronta su richiesta" : hasCachedFrame && !fresh && !tone.offline ? "Ultimo frame" : tone.offline ? "Nessun segnale" : humanStateLabel(state),
+    label: readyOnDemand ? "Ready on demand" : hasCachedFrame && !fresh && !tone.offline ? "Latest frame" : tone.offline ? "No signal" : humanStateLabel(state),
     statusText: readyOnDemand && !hasCachedFrame
-      ? "SU RICHIESTA"
+      ? "ON DEMAND"
       : hasCachedFrame && !fresh && !tone.offline
-        ? "ULTIMO FRAME"
+        ? "LATEST FRAME"
         : !fresh && startupStates.has(state)
-      ? "CARICANDO"
+      ? "LOADING"
       : !fresh
-        ? "NESSUN SEGNALE"
+        ? "NO SIGNAL"
         : liveStatusText("thermal", state, payload.fps ?? payload.frame_rate, lastFrame, detected),
   };
 }
@@ -137,18 +137,18 @@ function liveStatusText(feed, state, fps, lastFrameTs = null, detected = true) {
   const value = String(state || "").toUpperCase();
   const fresh = isFreshTimestamp(lastFrameTs);
   if (feed === "thermal") {
-    if (["NOT_DETECTED", "DISABLED"].includes(value)) return "NON RILEVATO";
-    if (["OFFLINE", "ERROR", "FAILED"].includes(value)) return "NESSUN SEGNALE";
-    if (["STARTING", "LOADING", "WAITING", "CHECKING", "PENDING"].includes(value)) return "CARICANDO";
-    if (["INITIALIZING"].includes(value)) return fresh ? "REALE" : "CARICANDO";
-    if (!fresh) return "NESSUN SEGNALE";
-    if (value === "MOCK") return "SIMULAZIONE";
-    return "REALE";
+    if (["NOT_DETECTED", "DISABLED"].includes(value)) return "NOT DETECTED";
+    if (["OFFLINE", "ERROR", "FAILED"].includes(value)) return "NO SIGNAL";
+    if (["STARTING", "LOADING", "WAITING", "CHECKING", "PENDING"].includes(value)) return "LOADING";
+    if (["INITIALIZING"].includes(value)) return fresh ? "LIVE" : "LOADING";
+    if (!fresh) return "NO SIGNAL";
+    if (value === "MOCK") return "SIMULATION";
+    return "LIVE";
   }
-  if (["NOT_DETECTED"].includes(value)) return "NON RILEVATO";
-  if (["OFFLINE", "ERROR", "FAILED", "DISABLED"].includes(value)) return "NESSUN SEGNALE";
-  if (!fresh) return "NESSUN SEGNALE";
-  if (["STARTING", "LOADING", "WAITING", "CHECKING", "PENDING"].includes(value)) return "CARICANDO";
+  if (["NOT_DETECTED"].includes(value)) return "NOT DETECTED";
+  if (["OFFLINE", "ERROR", "FAILED", "DISABLED"].includes(value)) return "NO SIGNAL";
+  if (!fresh) return "NO SIGNAL";
+  if (["STARTING", "LOADING", "WAITING", "CHECKING", "PENDING"].includes(value)) return "LOADING";
   if (["ONLINE", "DETECTED", "READY", "OK"].includes(value)) {
     const rate = fps != null && Number.isFinite(Number(fps)) ? `${Math.round(Number(fps))}fps` : "LIVE";
     return `LIVE ${rate}`;
@@ -226,13 +226,13 @@ function renderSourcePanel(payload) {
   if (!grid || !selectedBadge) return;
   const sources = Array.isArray(payload?.sources) ? payload.sources : [];
   const selected = payload?.selected_source || null;
-  selectedBadge.textContent = selected?.name ? `In uso: ${selected.name}` : "In uso: --";
+  selectedBadge.textContent = selected?.name ? `In use: ${selected.name}` : "In use: --";
 
   if (!sources.length) {
     grid.innerHTML = `
       <div class="placeholder-item">
-        <strong>Nessuna sorgente registrata</strong>
-        <p>Le sorgenti video disponibili compariranno qui.</p>
+        <strong>No registered sources</strong>
+        <p>Available video sources will appear here.</p>
       </div>
     `;
     return;
@@ -245,15 +245,15 @@ function renderSourcePanel(payload) {
     const capabilities = source.capabilities || {};
     const availability = source.availability || {};
     const selectable = availability.selectable !== false && capabilities.inference === true;
-    const availabilityLabel = isSelected ? "In uso" : selectable ? "Disponibile" : "Non disponibile";
+    const availabilityLabel = isSelected ? "In use" : selectable ? "Available" : "Unavailable";
     const availabilityTone = isSelected ? "online" : selectable ? "muted" : "error";
     const updated = source.last_update ? formatRomeDateTime(source.last_update) : "--";
     const sourceTypeLabels = {
-      replay_folder: "Archivio replay",
+      replay_folder: "Replay archive",
       camera_placeholder: "Camera RGB",
-      thermal_placeholder: "Camera termica",
+      thermal_placeholder: "Thermal camera",
     };
-    const sourceTypeLabel = sourceTypeLabels[source.type] || String(source.type || "Sorgente").replace(/_/g, " ");
+    const sourceTypeLabel = sourceTypeLabels[source.type] || String(source.type || "Source").replace(/_/g, " ");
     const sourceIcon = source.type === "replay_folder" ? "↻" : source.type === "thermal_placeholder" ? "◈" : "▣";
     const configBits = [];
     configBits.push(sourceTypeLabel);
@@ -272,7 +272,7 @@ function renderSourcePanel(payload) {
           <span class="badge badge-${availabilityTone}">${escapeHtml(availabilityLabel)}</span>
         </div>
         <div class="source-card-actions">
-          ${!isSelected && selectable ? `<button class="btn btn-small btn-ghost" type="button" data-source-select="${escapeHtml(source.id || "")}">Seleziona</button>` : ""}
+          ${!isSelected && selectable ? `<button class="btn btn-small btn-ghost" type="button" data-source-select="${escapeHtml(source.id || "")}">Select</button>` : ""}
         </div>
       </article>
     `;
@@ -445,7 +445,7 @@ function eventTypeMeta(type) {
   const detectionMeta = detectionTypeMeta(type);
   const raw = String(type || "");
   const label = raw.replace(/Detected$/i, " detected").replace(/([a-z])([A-Z])/g, "$1 $2").trim();
-  return { ...detectionMeta, label: label || detectionMeta.label || "Evento" };
+  return { ...detectionMeta, label: label || detectionMeta.label || "Event" };
 }
 
 function eventSeverityTone(severity) {

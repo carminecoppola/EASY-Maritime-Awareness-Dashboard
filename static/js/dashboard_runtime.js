@@ -34,10 +34,10 @@ async function snapshot(feed) {
       const fallbackFilename = payload?.snapshot?.filename || payload?.filename;
       if (fallbackUrl && fallbackUrl !== "#") {
         await refreshDashboard();
-        showToast("Foto salvata con sorgente limitata", `${labels[feed] || feed}: ${payload.error || fallbackFilename}`, "info", fallbackUrl);
+        showToast("Photo saved with a limited source", `${labels[feed] || feed}: ${payload.error || fallbackFilename}`, "info", fallbackUrl);
         const feedbackTitle = byId(liveActionElementId("captureTitle"));
         const feedbackLink = byId(liveActionElementId("captureLink"));
-        if (feedbackTitle) feedbackTitle.textContent = `${labels[feed] || feed} · salvata, sorgente non disponibile`;
+        if (feedbackTitle) feedbackTitle.textContent = `${labels[feed] || feed} · saved, source unavailable`;
         if (feedbackLink) {
           feedbackLink.href = fallbackUrl;
           feedbackLink.hidden = false;
@@ -50,7 +50,7 @@ async function snapshot(feed) {
     showToast("Snapshot saved", `${labels[feed] || feed}: ${payload.filename}`, "success", payload.url);
     const feedbackTitle = byId(liveActionElementId("captureTitle"));
     const feedbackLink = byId(liveActionElementId("captureLink"));
-    if (feedbackTitle) feedbackTitle.textContent = `${labels[feed] || feed} · salvata ora`;
+    if (feedbackTitle) feedbackTitle.textContent = `${labels[feed] || feed} · saved just now`;
     if (feedbackLink) {
       feedbackLink.href = payload.url || "/snapshots";
       feedbackLink.hidden = false;
@@ -241,7 +241,7 @@ async function fetchAndRenderDashboard() {
   try {
     const stateRes = await DashboardApi.request(dashboardStateUrl());
     if (!stateRes.ok || !stateRes.data) {
-      throw new Error(stateRes.message || `Aggiornamento non riuscito (${stateRes.status})`);
+      throw new Error(stateRes.message || `Refreshmento non riuscito (${stateRes.status})`);
     }
     const payload = stateRes.data || {};
     applyDashboardPayload(payload);
@@ -336,7 +336,7 @@ function setupSharedInteractions() {
       try {
         const response = await DashboardApi.request(`/api/dataset/validate?session_id=${encodeURIComponent(sessionId)}`);
         const payload = response.data || {};
-        setText("mission-history-feedback", payload.valid ? `${payload.valid_samples || 0} campioni validi.` : `Dataset incompleto: ${payload.incomplete_samples || 0} campioni incompleti.`);
+        setText("mission-history-feedback", payload.valid ? `${payload.valid_samples || 0} valid samples.` : `Incomplete dataset: ${payload.incomplete_samples || 0} incomplete samples.`);
       } finally { validateButton.disabled = false; }
       return;
     }
@@ -346,10 +346,10 @@ function setupSharedInteractions() {
       exportButton.disabled = true;
       try {
         const payload = await callInferenceAction("/api/dataset/export", { session_id: sessionId, validation_percent: 20 });
-        setText("mission-history-feedback", `${payload.counts?.samples || 0} campioni esportati. Lo ZIP è pronto.`);
-        showToast("Missione esportata", sessionId, "success", "/api/dataset/export/download");
+        setText("mission-history-feedback", `${payload.counts?.samples || 0} samples exported. The ZIP file is ready.`);
+        showToast("Mission exported", sessionId, "success", "/api/dataset/export/download");
       } catch (error) {
-        setText("mission-history-feedback", error.message || "Esportazione non riuscita");
+        setText("mission-history-feedback", error.message || "Export failed");
       } finally { exportButton.disabled = false; }
       return;
     }

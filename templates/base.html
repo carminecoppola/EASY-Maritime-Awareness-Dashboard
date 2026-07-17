@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it">
+<html lang="en">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/operator-overrides.css') }}?v={{ asset_version }}">
   </head>
   <body class="dashboard-shell view-simple" data-page="{{ page_key }}">
-    <a class="skip-link" href="#dashboard-content">Vai al contenuto</a>
+    <a class="skip-link" href="#dashboard-content">Skip to content</a>
     <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
     <main class="shell">
       <header class="topbar">
@@ -88,11 +88,11 @@
 
       <section class="page-heading" aria-labelledby="page-title">
         <div>
-          <span class="page-heading-kicker">Centro operativo</span>
+          <span class="page-heading-kicker">Operations centre</span>
           <h1 id="page-title">{{ page_title }}</h1>
           <p>{{ page_subtitle }}</p>
         </div>
-        <a class="page-help-link" href="/help#{% if page_key == 'detections' %}analisi{% elif page_key == 'log' %}archivio{% else %}{{ page_key }}{% endif %}">Come si usa?</a>
+        <a class="page-help-link" href="/help#{% if page_key == 'detections' %}analisi{% elif page_key == 'log' %}archivio{% else %}{{ page_key }}{% endif %}">How does it work?</a>
       </section>
 
       <div id="dashboard-content">
