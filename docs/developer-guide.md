@@ -63,8 +63,9 @@ backend contract; do not put model-specific loading into route handlers.
 
 Inference responsibilities are intentionally separate: `inference_config.py`
 loads paths and thresholds, `inference_backend.py` owns ONNX Runtime,
-`inference_results.py` preserves the public detection representation, and
-`InferenceWorker` coordinates frames, lifecycle, persistence, and events.
+`inference_image.py` owns preprocessing, YOLO decoding, NMS, and preview
+drawing, `inference_results.py` preserves the public detection representation,
+and `InferenceWorker` coordinates frames, lifecycle, persistence, and events.
 
 ## Regression strategy
 
