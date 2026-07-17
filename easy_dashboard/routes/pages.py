@@ -14,8 +14,8 @@ def index() -> str:
     runtime = get_runtime()
     return dashboard_context(
         "live",
-        "Vista operativa",
-        "Flussi video e stato delle camere",
+        "Live operations",
+        "Video feeds and camera status",
         template_name="index.html",
         hostname=runtime.probe.hostname(),
         ip_address=runtime.probe.ip_address(),
@@ -30,8 +30,8 @@ def mission_page() -> str:
     runtime = get_runtime()
     return dashboard_context(
         "mission",
-        "Missione",
-        "Registrazione, acquisizioni e dataset della sessione",
+        "Mission",
+        "Recording, captures and session dataset",
         template_name="mission.html",
         hostname=runtime.probe.hostname(),
         ip_address=runtime.probe.ip_address(),
@@ -51,8 +51,8 @@ def thermal_events_page() -> str:
     runtime = get_runtime()
     return dashboard_context(
         "detections",
-        "Rilevazioni",
-        "Eventi rilevati e analisi AI",
+        "Detections",
+        "Detected events and AI analysis",
         template_name="thermal_events.html",
         hostname=runtime.probe.hostname(),
         ip_address=runtime.probe.ip_address(),
@@ -67,8 +67,8 @@ def snapshots_gallery() -> str:
     runtime = get_runtime()
     return dashboard_context(
         "log",
-        "Foto e attività",
-        "Acquisizioni salvate, cronologia ed errori",
+        "Photos and activity",
+        "Saved captures, history and errors",
         template_name="snapshots.html",
         hostname=runtime.probe.hostname(),
         ip_address=runtime.probe.ip_address(),
@@ -83,8 +83,8 @@ def system_diagnostics_page() -> str:
     runtime = get_runtime()
     return dashboard_context(
         "system",
-        "Sistema",
-        "Stato hardware e dispositivi",
+        "System",
+        "Hardware and device status",
         template_name="system_diagnostics.html",
         hostname=runtime.probe.hostname(),
         ip_address=runtime.probe.ip_address(),
@@ -99,8 +99,8 @@ def help_page() -> str:
     runtime = get_runtime()
     return dashboard_context(
         "help",
-        "Guida operativa",
-        "Uso quotidiano, sessioni e controlli rapidi",
+        "Operator guide",
+        "Daily use, sessions and quick checks",
         template_name="help.html",
         hostname=runtime.probe.hostname(),
         ip_address=runtime.probe.ip_address(),

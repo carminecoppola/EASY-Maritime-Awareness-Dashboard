@@ -1289,37 +1289,6 @@ body[data-page="detections"] .header-meta {
   gap: 10px;
 }
 
-.timeline-row {
-  display: grid;
-  grid-template-columns: 94px minmax(0, 1fr) auto auto;
-  gap: 12px;
-  align-items: start;
-  padding: 11px 12px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.timeline-time {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color: var(--text-weak);
-  font-size: 12px;
-}
-
-.timeline-main {
-  display: grid;
-  gap: 4px;
-}
-
-.timeline-main strong {
-  font-size: 14px;
-}
-
-.timeline-main p {
-  color: var(--text-weak);
-  font-size: 12px;
-}
-
 .debug-panel {
   padding: 0;
   overflow: hidden;

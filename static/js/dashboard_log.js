@@ -27,7 +27,7 @@ function renderEventLog(events) {
   list.innerHTML = "";
   if (emptyState) {
     emptyState.hidden = filtered.length > 0;
-    emptyState.textContent = visibleEvents.length ? "Nessun evento corrisponde ai filtri attivi." : "Nessun evento registrato in questa sessione.";
+    emptyState.textContent = visibleEvents.length ? "No events match the active filters." : "No events recorded in this session.";
   }
 
   let lastDayKey = "";
@@ -47,7 +47,7 @@ function renderEventLog(events) {
       <button class="log-row" type="button" data-log-row="${escapeHtml(group.id)}" aria-expanded="${expanded ? "true" : "false"}">
         <span class="log-row-time">${escapeHtml(formatLogTimestamp(group.firstTimestamp))}</span>
         <span class="log-row-source ${logSourceClass(group.events[0])}">${escapeHtml(group.sourceLabel)}</span>
-        <span class="log-row-event">${escapeHtml(group.text || friendlyEventType(group.events[0].type) || "Evento")}</span>
+        <span class="log-row-event">${escapeHtml(group.text || friendlyEventType(group.events[0].type) || "Event")}</span>
         ${group.count > 1 ? `<span class="badge badge-warning log-row-count">×${group.count}</span>` : ""}
         <span class="badge badge-${group.level.tone} log-row-level">${escapeHtml(group.level.label)}</span>
       </button>
@@ -59,7 +59,7 @@ function renderEventLog(events) {
               <div class="log-row log-row-child" role="presentation">
                 <span class="log-row-time">${escapeHtml(formatLogTimestamp(event.timestamp))}</span>
                 <span class="log-row-source ${logSourceClass(event)}">${escapeHtml(logSourceLabel(event))}</span>
-                <span class="log-row-event">${escapeHtml(logVisibleText(event) || friendlyEventType(event.type) || "Evento")}</span>
+                <span class="log-row-event">${escapeHtml(logVisibleText(event) || friendlyEventType(event.type) || "Event")}</span>
                 <span class="badge badge-${level.tone} log-row-level">${escapeHtml(level.label)}</span>
               </div>
               <p class="log-row-detail-text">${escapeHtml(logExpandedText(event))}</p>
@@ -139,7 +139,7 @@ function renderSnapshots(snapshots, summary) {
   setText("snapshot-filter-count-rgb-right", `${snapshots.filter((item) => item.feed === "rgb_right").length}`);
   grid.innerHTML = "";
   if (!visibleSnapshots.length) {
-    grid.innerHTML = `<div class="empty-state">Nessuna foto disponibile per questa camera.</div>`;
+    grid.innerHTML = `<div class="empty-state">No photos are available for this camera.</div>`;
   }
   renderedSnapshots.forEach((item) => {
     const card = document.createElement("article");
@@ -148,10 +148,10 @@ function renderSnapshots(snapshots, summary) {
     const feedClass = item.feed === "thermal" ? "is-thermal" : "is-rgb";
     const thermalReadingLabel = item.feed === "thermal"
       ? item.meta?.anomaly_active === true
-        ? "Anomalia rilevata nella lettura"
+        ? "Anomaly detected in the reading"
         : item.meta?.anomaly_active === false
           ? "Letture entro soglia al momento dello scatto"
-          : "Stato della lettura termica non disponibile"
+          : "Thermal reading status unavailable"
       : "";
     const thermalReadingTone = item.meta?.anomaly_active === true ? "is-alert" : item.meta?.anomaly_active === false ? "is-normal" : "is-unknown";
     const openIcon = `<svg class="icon-svg" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3h7v7"></path><path d="M13 3 6 10"></path><path d="M4 5H3a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1v-1"></path></svg>`;
@@ -177,11 +177,11 @@ function renderSnapshots(snapshots, summary) {
             <strong title="${escapeHtml(item.filename)}">${escapeHtml(item.filename)}</strong>
           </div>
         </div>
-        <p class="snapshot-meta-line">${escapeHtml(formatBytes(item.size_bytes))} · Roma ${escapeHtml(formatRomeDateTime(item.created))}</p>
-        <p class="snapshot-path">Archivio ${escapeHtml(feedLabel)} · ${escapeHtml(formatAgeIt(item.created_ts))}</p>
+        <p class="snapshot-meta-line">${escapeHtml(formatBytes(item.size_bytes))} · Rome ${escapeHtml(formatRomeDateTime(item.created))}</p>
+        <p class="snapshot-path">Archive ${escapeHtml(feedLabel)} · ${escapeHtml(formatAgeIt(item.created_ts))}</p>
         <div class="button-row snapshot-actions">
-          <a class="btn btn-secondary btn-small btn-icon" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">${openIcon}<span>Apri</span></a>
-          <a class="btn btn-ghost btn-small btn-icon" href="${escapeHtml(item.download_url)}" download="${escapeHtml(item.filename)}">${downloadIcon}<span>Scarica</span></a>
+          <a class="btn btn-secondary btn-small btn-icon" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">${openIcon}<span>Open</span></a>
+          <a class="btn btn-ghost btn-small btn-icon" href="${escapeHtml(item.download_url)}" download="${escapeHtml(item.filename)}">${downloadIcon}<span>Download</span></a>
         </div>
       </div>
     `;
@@ -199,7 +199,7 @@ function renderSnapshots(snapshots, summary) {
     }
     grid.appendChild(card);
   });
-  setText("snapshot-visible-count", `${renderedSnapshots.length} di ${visibleSnapshots.length} foto visualizzate`);
+  setText("snapshot-visible-count", `${renderedSnapshots.length} of ${visibleSnapshots.length} photos shown`);
   const loadMoreButton = byId("button-snapshot-load-more");
   const pagination = byId("snapshot-pagination");
   if (loadMoreButton) {
@@ -212,7 +212,7 @@ function renderSnapshots(snapshots, summary) {
   setText("snapshot-count", `${count}`);
   setText("snapshot-total-size", formatBytes(summary?.size_bytes || 0));
   const latest = summary?.latest || snapshots[0];
-  setText("snapshot-latest-time", latest ? `Roma ${formatRomeDateTime(latest.created)}` : "--");
+  setText("snapshot-latest-time", latest ? `Rome ${formatRomeDateTime(latest.created)}` : "--");
   setText("snapshots-header-count", `${count}`);
   setText("snapshots-header-latest", latest ? latest.feed_label || latest.feed || "--" : "--");
   setText("snapshots-header-size", formatBytes(summary?.size_bytes || 0));
@@ -229,7 +229,7 @@ function setupLogPage() {
     document.querySelectorAll("[data-archive-panel]").forEach((panel) => {
       panel.hidden = panel.dataset.archivePanel !== tab;
     });
-    setText("archive-current-section", tab === "events" ? "Registro attività" : "Foto salvate");
+    setText("archive-current-section", tab === "events" ? "Activity log" : "Saved photos");
   };
   document.querySelectorAll("[data-archive-tab]").forEach((button) => {
     button.addEventListener("click", () => selectArchiveTab(button.dataset.archiveTab));
@@ -260,7 +260,7 @@ function setupLogPage() {
     dashboardState.snapshots = response.data.items || [];
     dashboardState.snapshotSummary = response.data.summary || dashboardState.snapshotSummary;
     renderSnapshots(dashboardState.snapshots, dashboardState.snapshotSummary);
-  }).catch((error) => console.error("Archivio foto non disponibile", error));
+  }).catch((error) => console.error("Archive photos unavailable", error));
 
   const logExportButton = byId(logElementId("exportButton"));
   if (logExportButton) {

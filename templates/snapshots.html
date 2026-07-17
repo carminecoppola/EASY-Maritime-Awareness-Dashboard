@@ -4,59 +4,59 @@
 
 {% block content %}
   <section class="log-page">
-    <div class="archive-location" aria-live="polite"><span>Archivio</span><span aria-hidden="true">›</span><strong id="archive-current-section">Foto salvate</strong></div>
-    <nav class="archive-tabs" aria-label="Sezioni archivio" role="tablist">
-      <button class="archive-tab is-active" type="button" role="tab" aria-selected="true" data-archive-tab="photos">Foto salvate</button>
-      <button class="archive-tab" type="button" role="tab" aria-selected="false" data-archive-tab="events">Registro attività</button>
+    <div class="archive-location" aria-live="polite"><span>Archive</span><span aria-hidden="true">›</span><strong id="archive-current-section">Saved photos</strong></div>
+    <nav class="archive-tabs" aria-label="Archive sections" role="tablist">
+      <button class="archive-tab is-active" type="button" role="tab" aria-selected="true" data-archive-tab="photos">Saved photos</button>
+      <button class="archive-tab" type="button" role="tab" aria-selected="false" data-archive-tab="events">Activity log</button>
     </nav>
 
-    <section class="snapshot-library panel" id="archive-panel-photos" data-archive-panel="photos" aria-label="Foto salvate">
+    <section class="snapshot-library panel" id="archive-panel-photos" data-archive-panel="photos" aria-label="Saved photos">
       <div class="panel-head">
         <div>
-          <span class="panel-kicker">Archivio locale</span>
-          <h2 class="panel-title">Foto salvate sulla Raspberry</h2>
-          <p class="panel-copy">Le foto sono ordinate dalla più recente. Usa i filtri e carica altri risultati solo quando servono.</p>
+          <span class="panel-kicker">Local archive</span>
+          <h2 class="panel-title">Photos saved on the Raspberry Pi</h2>
+          <p class="panel-copy">Photos are ordered newest first. Use filters and load more results only when needed.</p>
         </div>
         <div class="snapshot-library-summary">
-          <span><strong id="snapshot-count">0</strong> foto</span>
+          <span><strong id="snapshot-count">0</strong> photos</span>
           <span id="snapshot-total-size">0 B</span>
           <span id="snapshot-latest-time">—</span>
         </div>
       </div>
-      <div class="snapshot-filters" aria-label="Filtra foto per camera">
-        <button class="snapshot-filter is-active" type="button" data-snapshot-feed="all" aria-pressed="true">Tutte <strong id="snapshot-filter-count-all">0</strong></button>
-        <button class="snapshot-filter" type="button" data-snapshot-feed="thermal" aria-pressed="false">Termica <strong id="snapshot-filter-count-thermal">0</strong></button>
-        <button class="snapshot-filter" type="button" data-snapshot-feed="rgb_left" aria-pressed="false">Camera sinistra <strong id="snapshot-filter-count-rgb-left">0</strong></button>
-        <button class="snapshot-filter" type="button" data-snapshot-feed="rgb_right" aria-pressed="false">Camera destra <strong id="snapshot-filter-count-rgb-right">0</strong></button>
+      <div class="snapshot-filters" aria-label="Filter photos by camera">
+        <button class="snapshot-filter is-active" type="button" data-snapshot-feed="all" aria-pressed="true">All <strong id="snapshot-filter-count-all">0</strong></button>
+        <button class="snapshot-filter" type="button" data-snapshot-feed="thermal" aria-pressed="false">Thermal <strong id="snapshot-filter-count-thermal">0</strong></button>
+        <button class="snapshot-filter" type="button" data-snapshot-feed="rgb_left" aria-pressed="false">Left camera <strong id="snapshot-filter-count-rgb-left">0</strong></button>
+        <button class="snapshot-filter" type="button" data-snapshot-feed="rgb_right" aria-pressed="false">Right camera <strong id="snapshot-filter-count-rgb-right">0</strong></button>
       </div>
       <div class="snapshot-grid" id="snapshot-grid"></div>
       <div class="snapshot-pagination" id="snapshot-pagination" aria-live="polite">
-        <span id="snapshot-visible-count">0 foto visualizzate</span>
-        <button class="btn btn-secondary btn-small" id="button-snapshot-load-more" type="button">Mostra altre foto</button>
+        <span id="snapshot-visible-count">0 photos shown</span>
+        <button class="btn btn-secondary btn-small" id="button-snapshot-load-more" type="button">Show more photos</button>
       </div>
     </section>
 
     <section id="archive-panel-events" data-archive-panel="events" hidden>
       <div class="section-divider">
-        <span>Registro attività</span>
-        <p>Eventi tecnici, rilevazioni e avvisi prodotti dal sistema.</p>
+        <span>Activity log</span>
+        <p>Technical events, detections and warnings produced by the system.</p>
       </div>
 
-      <section class="log-count-bar" aria-label="Filtri rapidi log">
+      <section class="log-count-bar" aria-label="Quick log filters">
       <button type="button" class="log-count-chip is-active" data-log-severity="all">
-        <span>Tutti</span><strong id="log-count-all">0</strong>
+        <span>All</span><strong id="log-count-all">0</strong>
       </button>
       <button type="button" class="log-count-chip" data-log-severity="error">
-        <span>Errori</span><strong id="log-count-error">0</strong>
+        <span>Errors</span><strong id="log-count-error">0</strong>
       </button>
       <button type="button" class="log-count-chip" data-log-severity="info">
-        <span>Informazioni</span><strong id="log-count-info">0</strong>
+        <span>Information</span><strong id="log-count-info">0</strong>
       </button>
       <button type="button" class="log-count-chip" data-log-severity="detection">
-        <span>Rilevazioni</span><strong id="log-count-detection">0</strong>
+        <span>Detections</span><strong id="log-count-detection">0</strong>
       </button>
       <button type="button" class="log-count-chip" data-log-severity="warning">
-        <span>Avvisi</span><strong id="log-count-warning">0</strong>
+        <span>Warnings</span><strong id="log-count-warning">0</strong>
       </button>
       <button class="btn btn-ghost btn-small btn-icon log-export-button" id="button-log-export-csv" type="button">
         <svg class="icon-svg" viewBox="0 0 16 16" aria-hidden="true">
@@ -64,23 +64,23 @@
           <path d="m5.2 7.8 2.8 2.8 2.8-2.8"></path>
           <path d="M3 13.5h10"></path>
         </svg>
-        <span>Esporta CSV</span>
+        <span>Export CSV</span>
       </button>
       </section>
 
       <section class="log-toolbar panel">
       <label class="log-search">
-        <span>Ricerca</span>
-        <input type="search" id="log-search-input" placeholder="Filtra per sorgente, messaggio...">
+        <span>Search</span>
+        <input type="search" id="log-search-input" placeholder="Filter by source or message…">
       </label>
       <label class="log-select">
-        <span>Sorgente</span>
+        <span>Source</span>
         <select id="log-source-filter">
-          <option value="all">Tutte</option>
+          <option value="all">All</option>
           <option value="thermal">THERMAL</option>
           <option value="rgb_left">RGB LEFT</option>
           <option value="rgb_right">RGB RIGHT</option>
-          <option value="system">SISTEMA</option>
+          <option value="system">SYSTEM</option>
           <option value="uc512">UC512</option>
         </select>
       </label>
@@ -89,9 +89,9 @@
       <section class="log-list-panel panel">
       <div class="log-list" id="log-list"></div>
       <div class="log-empty-state" id="log-empty-state" hidden>
-        Nessun evento corrisponde ai filtri attivi.
+        No events match the active filters.
       </div>
-      <button class="btn btn-secondary btn-small log-load-more" id="button-log-load-more" type="button">Carica altri 100</button>
+      <button class="btn btn-secondary btn-small log-load-more" id="button-log-load-more" type="button">Load 100 more</button>
       </section>
     </section>
   </section>

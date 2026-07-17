@@ -38,7 +38,7 @@ const DashboardApi = (() => {
       return { ok: response.ok, status: response.status, data };
     } catch (error) {
       const message = error?.name === "AbortError"
-        ? "La Raspberry non ha risposto entro il tempo previsto"
+        ? "The Raspberry Pi did not respond within the expected time."
         : "Dashboard non raggiungibile";
       return { ok: false, status: 0, data: null, error, message };
     } finally {

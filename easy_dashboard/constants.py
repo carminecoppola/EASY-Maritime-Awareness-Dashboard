@@ -49,9 +49,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
 
 NAV_ITEMS = [
     {"key": "live", "label": "Live", "href": "/"},
-    {"key": "mission", "label": "Missione", "href": "/mission"},
-    {"key": "detections", "label": "Analisi", "href": "/thermal-events"},
-    {"key": "log", "label": "Archivio", "href": "/snapshots"},
+    {"key": "mission", "label": "Mission", "href": "/mission"},
+    {"key": "detections", "label": "Analysis", "href": "/thermal-events"},
+    {"key": "log", "label": "Archive", "href": "/snapshots"},
 ]
 
 

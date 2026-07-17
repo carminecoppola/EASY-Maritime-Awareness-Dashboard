@@ -47,14 +47,14 @@ class EventStore:
             "THERMAL_HOTSPOT": "Verifica la scena termica e confronta con RGB.",
             "INFERENCE_START": "Verifica runtime/replay e attendi i primi risultati AI.",
             "INFERENCE_STOP": "Riattiva il worker se la demo AI deve continuare.",
-            "INFERENCE_ERROR": "Controlla runtime/models, runtime/config e la disponibilità di onnxruntime.",
+            "INFERENCE_ERROR": "Check runtime/models, runtime/config and onnxruntime availability.",
             "DETECTED": "Apri runtime/sessions e verifica le rilevazioni AI annotate.",
-            "SESSION_START": "La sessione è attiva: acquisizioni e detection verranno archiviate.",
-            "SESSION_STOP": "Sessione fermata. Puoi consultare l'archivio in runtime/sessions.",
+            "SESSION_START": "The session is active: captures and detections will be archived.",
+            "SESSION_STOP": "Session stopped. You can review its archive in runtime/sessions.",
             "DETECTION_NEW": "Detection registrata nel manager e nella sessione corrente.",
-            "SOURCE_SELECT": "La sorgente è stata aggiornata nel Source Manager.",
+            "SOURCE_SELECT": "The source was updated in Source Manager.",
             "SOURCE_SELECT_FAILED": "Verifica che la sorgente richiesta esista ancora.",
-            "SOURCE_REFRESH": "La registry delle sorgenti è stata aggiornata.",
+            "SOURCE_REFRESH": "The source registry was updated.",
         }
         event = {
             "id": f"{int(time.time() * 1000)}-{len(self._events)}",
@@ -63,7 +63,7 @@ class EventStore:
             "type": event_type,
             "description": description,
             "severity": severity,
-            "action": meta.get("action") or action_map.get(event_type, "Nessuna azione richiesta."),
+            "action": meta.get("action") or action_map.get(event_type, "No action required."),
             "meta": meta,
         }
         with self._lock:
@@ -175,4 +175,3 @@ class SnapshotStore:
         if feed_dir.resolve() not in candidate.parents and candidate != feed_dir.resolve():
             raise ValueError("Invalid snapshot path")
         return candidate
-

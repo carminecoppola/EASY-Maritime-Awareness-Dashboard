@@ -28,7 +28,7 @@ function renderSystemDevices(payload) {
   const connectedCount = Number(payload?.connected_count ?? devices.filter((item) => ["CONNECTED", "STREAMING"].includes(String(item?.status || "").toUpperCase())).length);
   if (countNode) countNode.textContent = `${connectedCount}/${devices.length || 4}`;
   if (!devices.length) {
-    node.innerHTML = `<div class="placeholder-item"><strong>Caricamento dispositivi</strong><p>Le sorgenti video compariranno qui appena disponibili.</p></div>`;
+    node.innerHTML = `<div class="placeholder-item"><strong>Loading devices</strong><p>Video sources will appear here as soon as they become available.</p></div>`;
     return;
   }
   devices.forEach((item) => {
@@ -39,7 +39,7 @@ function renderSystemDevices(payload) {
     row.innerHTML = `
       <div class="system-device-main">
         <strong class="system-device-name">${escapeHtml(item.device_name || item.name || item.device_id || "--")}</strong>
-        <span class="system-device-desc">${escapeHtml([item.device_type, item.driver, item.configuration?.side].filter(Boolean).join(" · ") || "Nessuna configurazione")}</span>
+        <span class="system-device-desc">${escapeHtml([item.device_type, item.driver, item.configuration?.side].filter(Boolean).join(" · ") || "No configuration")}</span>
       </div>
       <div class="system-device-main">
         <span class="system-device-desc">${escapeHtml(`FPS ${item.fps != null ? Number(item.fps).toFixed(1) : "--"} · ${item.temperature != null ? `${Number(item.temperature).toFixed(1)}°C` : "--"}`)}</span>
@@ -71,21 +71,21 @@ function renderSystemStatus(payload) {
   setText(systemElementId("orchestratorErrorCount"), `${errorCount}`);
   setText(systemElementId("orchestratorUptime"), status.uptime || formatUptimeShort(status.uptime_seconds));
   if (!components.length) {
-    node.innerHTML = `<div class="placeholder-item"><strong>Caricamento servizi</strong><p>I componenti compariranno qui dopo l’avvio della dashboard.</p></div>`;
+    node.innerHTML = `<div class="placeholder-item"><strong>Loading services</strong><p>Components will appear here after the dashboard starts.</p></div>`;
     return;
   }
   components.forEach((item) => {
     const row = document.createElement("div");
     row.className = "system-device-row system-component-row";
     const componentTone = stateTone(item.status || item.health);
-    const errorText = item.error ? cleanLogText(item.error) : "Nessun errore";
+    const errorText = item.error ? cleanLogText(item.error) : "No errors";
     row.innerHTML = `
       <div class="system-device-main">
         <strong class="system-device-name">${escapeHtml(item.label || item.id || "--")}</strong>
         <span class="system-device-desc">${escapeHtml([item.kind, item.id].filter(Boolean).join(" · "))}</span>
       </div>
       <div class="system-device-main">
-        <span class="system-device-desc">${escapeHtml(`Stato ${humanStateLabel(item.health || "--")} · Attivo da ${item.uptime || "--"}`)}</span>
+        <span class="system-device-desc">${escapeHtml(`Status ${humanStateLabel(item.health || "--")} · Active for ${item.uptime || "--"}`)}</span>
         <span class="system-device-desc">${escapeHtml(errorText)}</span>
       </div>
       <span class="badge badge-${componentTone.badge || "muted"} system-device-state">${escapeHtml(humanStateLabel(item.status || item.health || "--"))}</span>
@@ -112,7 +112,7 @@ function renderSystemErrors(events) {
       <span class="log-row-time">${escapeHtml(formatRomeTimeOnly(event.timestamp))}</span>
       <span class="badge ${logSourceClass(event)}">${escapeHtml(logSourceLabel(event))}</span>
       <div class="system-error-main">
-        <strong class="system-error-title">${escapeHtml(cleanLogText(event.description || event.message || event.type || "Errore"))}</strong>
+        <strong class="system-error-title">${escapeHtml(cleanLogText(event.description || event.message || event.type || "Error"))}</strong>
       </div>
       <span class="badge badge-error">${escapeHtml(logLevelMeta(event).label)}</span>
     `;
@@ -149,8 +149,8 @@ function updateNavIndicators(health, eventsPayload) {
     if (showBadge) {
       badge.classList.add("is-warning");
       badge.textContent = `${errorCount} err`;
-      badge.title = `${errorCount} errori totali registrati nello storico attività`;
-      badge.setAttribute("aria-label", `${errorCount} errori totali registrati nello storico attività`);
+      badge.title = `${errorCount} total errors recorded in the activity history`;
+      badge.setAttribute("aria-label", `${errorCount} total errors recorded in the activity history`);
     } else {
       badge.textContent = "";
       badge.removeAttribute("title");

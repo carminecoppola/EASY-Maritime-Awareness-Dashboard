@@ -2,27 +2,27 @@
 
 {% block content %}
   <section class="live-page">
-    <div class="live-statusbar" role="status" aria-label="Stato live">
+    <div class="live-statusbar" role="status" aria-label="Live status">
       <div class="live-statusbar-group">
         <div class="live-status-pill" id="live-status-pill-rgb-left">
           <span class="live-status-dot" id="live-feed-rgb-left-dot" aria-hidden="true"></span>
           <span class="live-status-label">RGB-L:</span>
-          <strong id="live-feed-rgb-left-statusline">Verifica in corso</strong>
+          <strong id="live-feed-rgb-left-statusline">Checking</strong>
         </div>
         <div class="live-status-pill" id="live-status-pill-thermal">
           <span class="live-status-dot" id="live-feed-thermal-dot" aria-hidden="true"></span>
           <span class="live-status-label">Thermal:</span>
-          <strong id="live-feed-thermal-statusline">Verifica in corso</strong>
+          <strong id="live-feed-thermal-statusline">Checking</strong>
         </div>
         <div class="live-status-pill" id="live-status-pill-rgb-right">
           <span class="live-status-dot" id="live-feed-rgb-right-dot" aria-hidden="true"></span>
           <span class="live-status-label">RGB-R:</span>
-          <strong id="live-feed-rgb-right-statusline">Verifica in corso</strong>
+          <strong id="live-feed-rgb-right-statusline">Checking</strong>
         </div>
       </div>
       <div class="live-statusbar-actions">
-        <span class="live-refresh-status"><span class="live-refresh-dot"></span><span id="live-refresh-status-text">Aggiornamento automatico</span></span>
-        <button class="btn btn-ghost btn-small" id="button-live-refresh" type="button">Aggiorna stato</button>
+        <span class="live-refresh-status"><span class="live-refresh-dot"></span><span id="live-refresh-status-text">Automatic refresh</span></span>
+        <button class="btn btn-ghost btn-small" id="button-live-refresh" type="button">Refresh status</button>
         <div class="live-status-pill live-status-pill-ai" id="live-status-pill-ai">
           <span class="live-status-dot live-status-dot-ai" id="live-ai-status-dot" aria-hidden="true"></span>
           <span class="live-status-label">AI ·</span>
@@ -32,34 +32,34 @@
     </div>
 
     <div class="live-explainer" aria-live="polite">
-      <strong>I flussi RGB si aggiornano automaticamente quando le camere sono disponibili.</strong>
-      <span>La lettura termica è disponibile su richiesta nel pannello secondario.</span>
+      <strong>RGB feeds refresh automatically when the cameras are available.</strong>
+      <span>Thermal capture is available on demand in the secondary panel.</span>
     </div>
 
     <div class="live-section-heading">
       <div>
-        <span class="eyebrow">Diretta RGB</span>
-        <strong>Vista panoramica</strong>
+        <span class="eyebrow">Live RGB</span>
+        <strong>Panoramic view</strong>
       </div>
-      <span>Camera sinistra e destra aggiornate in tempo reale</span>
+      <span>Left and right cameras updated in real time</span>
     </div>
 
-    <section class="live-grid" aria-label="Flussi video in tempo reale">
+    <section class="live-grid" aria-label="Live video feeds">
       <article class="panel live-feed-card" data-feed="rgb_left">
         <div class="live-feed-head">
-          <span class="live-feed-name">Camera sinistra</span>
-          <span class="badge badge-muted" id="live-feed-rgb-left-badge">Caricamento</span>
+          <span class="live-feed-name">Left camera</span>
+          <span class="badge badge-muted" id="live-feed-rgb-left-badge">Loading</span>
         </div>
         <div class="live-feed-body">
           <img
             class="feed-image live-feed-image"
             data-feed-image="rgb_left"
             {% if not request.args.get("lite") %}src="/video/rgb_left"{% endif %}
-            alt="Video in diretta dalla camera sinistra"
+            alt="Live video from the left camera"
           >
           <div class="live-dark-frame-note" id="live-feed-rgb-left-dark-note" hidden>
-            <strong>Streaming attivo, immagine molto scura</strong>
-            <span>Controlla il copriobiettivo e l'illuminazione.</span>
+            <strong>Stream active, image is very dark</strong>
+            <span>Check the lens cap and lighting.</span>
           </div>
           <div class="live-offline-card" id="live-feed-rgb-left-offline" hidden>
             <svg class="live-offline-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -67,7 +67,7 @@
               <path d="M8 12.5a4 4 0 0 1 6.2-3.3"></path>
               <path d="M13.8 14.8a4 4 0 0 1-5.6 0"></path>
             </svg>
-            <strong id="live-feed-rgb-left-device-name">Camera sinistra non disponibile</strong>
+            <strong id="live-feed-rgb-left-device-name">Left camera unavailable</strong>
           </div>
         </div>
         <div class="live-feed-foot">
@@ -78,19 +78,19 @@
 
       <article class="panel live-feed-card" data-feed="rgb_right">
         <div class="live-feed-head">
-          <span class="live-feed-name">Camera destra</span>
-          <span class="badge badge-muted" id="live-feed-rgb-right-badge">Caricamento</span>
+          <span class="live-feed-name">Right camera</span>
+          <span class="badge badge-muted" id="live-feed-rgb-right-badge">Loading</span>
         </div>
         <div class="live-feed-body">
           <img
             class="feed-image live-feed-image"
             data-feed-image="rgb_right"
             {% if not request.args.get("lite") %}src="/video/rgb_right"{% endif %}
-            alt="Video in diretta dalla camera destra"
+            alt="Live video from the right camera"
           >
           <div class="live-dark-frame-note" id="live-feed-rgb-right-dark-note" hidden>
-            <strong>Streaming attivo, immagine molto scura</strong>
-            <span>Controlla il copriobiettivo e l'illuminazione.</span>
+            <strong>Stream active, image is very dark</strong>
+            <span>Check the lens cap and lighting.</span>
           </div>
           <div class="live-offline-card" id="live-feed-rgb-right-offline" hidden>
             <svg class="live-offline-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -98,7 +98,7 @@
               <path d="M8 12.5a4 4 0 0 1 6.2-3.3"></path>
               <path d="M13.8 14.8a4 4 0 0 1-5.6 0"></path>
             </svg>
-            <strong id="live-feed-rgb-right-device-name">Camera destra non disponibile</strong>
+            <strong id="live-feed-rgb-right-device-name">Right camera unavailable</strong>
           </div>
         </div>
         <div class="live-feed-foot">
@@ -112,15 +112,15 @@
           <img
             class="feed-image live-feed-image thermal-image"
             id="live-feed-thermal-image"
-            alt="Ultima lettura acquisita dalla camera termica"
+            alt="Latest reading captured by the thermal camera"
           >
           <div class="live-thermal-ready" id="live-feed-thermal-ready" hidden>
             <svg class="live-offline-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M10 4.5a2 2 0 0 1 4 0v7.1a4.5 4.5 0 1 1-4 0Z"></path>
               <path d="M12 9.8v4.7"></path>
             </svg>
-            <strong>Termica pronta</strong>
-            <span>Avvia una lettura quando serve.</span>
+            <strong>Thermal ready</strong>
+            <span>Capture a reading when needed.</span>
           </div>
           <div class="live-offline-card" id="live-feed-thermal-offline" hidden>
             <svg class="live-offline-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -128,21 +128,21 @@
               <path d="M12 9.8v4.7"></path>
               <path d="M12 14.5c-1.3 0-2.4 1-2.4 2.3s1.1 2.2 2.4 2.2 2.4-1 2.4-2.2S13.3 14.5 12 14.5Z"></path>
             </svg>
-            <strong id="live-feed-thermal-device-name">Camera termica non disponibile</strong>
+            <strong id="live-feed-thermal-device-name">Thermal camera unavailable</strong>
           </div>
         </div>
         <div class="live-thermal-content">
           <div class="live-feed-head">
             <div>
-              <span class="eyebrow">Sensore secondario</span>
-              <span class="live-feed-name">Lettura termica</span>
+              <span class="eyebrow">Secondary sensor</span>
+              <span class="live-feed-name">Thermal reading</span>
             </div>
-            <span class="badge badge-muted" id="live-feed-thermal-badge">Caricamento</span>
+            <span class="badge badge-muted" id="live-feed-thermal-badge">Loading</span>
           </div>
-          <p>La termica viene letta solo quando serve; l’ultima immagine resta disponibile senza interrompere le camere RGB.</p>
+          <p>Thermal data is captured only when requested; the latest image remains available without interrupting the RGB cameras.</p>
           <div class="live-thermal-actions">
             <div class="live-feed-foot">
-              <span>Ultima lettura</span>
+              <span>Latest reading</span>
               <span class="live-feed-time" id="live-feed-thermal-last-frame">--</span>
               <span class="live-feed-fps" id="live-feed-thermal-fps" hidden>--</span>
             </div>
@@ -151,7 +151,7 @@
                 <path d="M20 11a8 8 0 1 0-2.3 5.7"></path>
                 <path d="M20 4v7h-7"></path>
               </svg>
-              <span>Leggi termica</span>
+              <span>Capture thermal frame</span>
             </button>
           </div>
         </div>
