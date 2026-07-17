@@ -81,6 +81,17 @@ def main() -> int:
     inference_config = json.loads((PROJECT_ROOT / "runtime" / "config" / "inference_config.json").read_text(encoding="utf-8"))
     assert_ok([item["name"] for item in inference_config["classes"]] == ["boat", "ship", "buoy"], "inference classes must match ONNX metadata")
 
+    runtime_js = (PROJECT_ROOT / "static" / "js" / "dashboard_runtime.js").read_text(encoding="utf-8")
+    live_js = (PROJECT_ROOT / "static" / "js" / "dashboard_live.js").read_text(encoding="utf-8")
+    detections_js = (PROJECT_ROOT / "static" / "js" / "dashboard_detections.js").read_text(encoding="utf-8")
+    log_js = (PROJECT_ROOT / "static" / "js" / "dashboard_log.js").read_text(encoding="utf-8")
+    assert_ok(runtime_js.count("applyDashboardPayload(payload);") == 1, "dashboard refresh must render each payload once")
+    assert_ok("events_limit=9999" not in runtime_js, "dashboard polling must not request the complete event history")
+    assert_ok("dashboardRefreshPromise" in runtime_js, "dashboard polling must prevent overlapping requests")
+    assert_ok("function setupLivePage()" in live_js and "function setupLivePage()" not in runtime_js, "Live interactions must stay in the Live module")
+    assert_ok("function setupDetectionsPage()" in detections_js and "function setupDetectionsPage()" not in runtime_js, "Analysis interactions must stay in the Analysis module")
+    assert_ok("function setupLogPage()" in log_js and "function setupLogPage()" not in runtime_js, "Archive interactions must stay in the Archive module")
+
     app = create_app(run_startup_checks=False, start_runtime_services=False)
     runtime = app.easy_dashboard_runtime
     assert_ok(runtime.thermal.discovery_method == "not_checked", "runtime construction must not trigger thermal detection")

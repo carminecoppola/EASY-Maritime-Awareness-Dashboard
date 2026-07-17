@@ -217,3 +217,88 @@ function renderSnapshots(snapshots, summary) {
   setText("snapshots-header-latest", latest ? latest.feed_label || latest.feed || "--" : "--");
   setText("snapshots-header-size", formatBytes(summary?.size_bytes || 0));
 }
+
+function setupLogPage() {
+  const initialArchiveTab = new URLSearchParams(window.location.search).get("view") === "log" ? "events" : "photos";
+  const selectArchiveTab = (tab) => {
+    document.querySelectorAll("[data-archive-tab]").forEach((button) => {
+      const active = button.dataset.archiveTab === tab;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    document.querySelectorAll("[data-archive-panel]").forEach((panel) => {
+      panel.hidden = panel.dataset.archivePanel !== tab;
+    });
+    setText("archive-current-section", tab === "events" ? "Registro attività" : "Foto salvate");
+  };
+  document.querySelectorAll("[data-archive-tab]").forEach((button) => {
+    button.addEventListener("click", () => selectArchiveTab(button.dataset.archiveTab));
+  });
+  document.querySelectorAll("[data-snapshot-feed]").forEach((button) => {
+    button.addEventListener("click", () => {
+      dashboardState.filters.snapshotFeed = button.dataset.snapshotFeed || "all";
+      dashboardState.snapshotLimit = 24;
+      document.querySelectorAll("[data-snapshot-feed]").forEach((item) => {
+        const active = item === button;
+        item.classList.toggle("is-active", active);
+        item.setAttribute("aria-pressed", active ? "true" : "false");
+      });
+      renderSnapshots(dashboardState.snapshots, dashboardState.snapshotSummary);
+    });
+  });
+  const snapshotLoadMore = byId("button-snapshot-load-more");
+  if (snapshotLoadMore) {
+    snapshotLoadMore.addEventListener("click", () => {
+      dashboardState.snapshotLimit += 24;
+      renderSnapshots(dashboardState.snapshots, dashboardState.snapshotSummary);
+    });
+  }
+  selectArchiveTab(initialArchiveTab);
+
+  DashboardApi.request("/api/snapshots/recent?limit=200").then((response) => {
+    if (!response.ok || !response.data) return;
+    dashboardState.snapshots = response.data.items || [];
+    dashboardState.snapshotSummary = response.data.summary || dashboardState.snapshotSummary;
+    renderSnapshots(dashboardState.snapshots, dashboardState.snapshotSummary);
+  }).catch((error) => console.error("Archivio foto non disponibile", error));
+
+  const logExportButton = byId(logElementId("exportButton"));
+  if (logExportButton) {
+    logExportButton.addEventListener("click", () => {
+      const visibleEvents = getVisibleLogEvents(dashboardState.events);
+      const csvRows = [
+        ["timestamp", "sorgente", "evento", "livello", "dettaglio"],
+        ...visibleEvents.map((event) => {
+          const detail = logExpandedText(event).replace(/\n/g, " | ");
+          return [
+            event.timestamp || "",
+            logSourceLabel(event),
+            cleanLogText(event.description || event.message || event.type || ""),
+            logLevelMeta(event).label,
+            detail,
+          ];
+        }),
+      ];
+      const csv = csvRows
+        .map((row) =>
+          row
+            .map((cell) => {
+              const value = String(cell ?? "");
+              const escaped = value.replaceAll('"', '""');
+              return `"${escaped}"`;
+            })
+            .join(","),
+        )
+        .join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `easy-maritime-log-${formatRomeCsvTimestamp()}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
+  }
+}

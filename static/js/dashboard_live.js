@@ -386,3 +386,196 @@ function renderMissionHistoryDetail(session, manifest) {
   const sessionId = String(session?.session_id || manifest?.session_id || "");
   detail.innerHTML = `<div class="mission-history-detail-head"><span class="mission-data-label">Missione selezionata</span><strong>${escapeHtml(formatRomeDateTime(session?.start_time))}</strong><p>${escapeHtml(sessionId || "Sessione EASY")} · ${escapeHtml(formatSessionDuration(session?.duration))}</p></div><dl class="mission-history-counts"><div><dt>Campioni</dt><dd>${escapeHtml(String(counts.samples || 0))}</dd></div><div><dt>Foto</dt><dd>${escapeHtml(String(counts.snapshots || 0))}</dd></div><div><dt>Inferenze</dt><dd>${escapeHtml(String(counts.inference || 0))}</dd></div><div><dt>Rilevazioni</dt><dd>${escapeHtml(String(counts.detections || 0))}</dd></div></dl><div class="mission-history-feeds"><span>RGB sinistra <strong>${escapeHtml(String(byFeed.rgb_left || 0))}</strong></span><span>RGB destra <strong>${escapeHtml(String(byFeed.rgb_right || 0))}</strong></span><span>Termico <strong>${escapeHtml(String(byFeed.thermal || 0))}</strong></span></div><p class="mission-history-feedback" id="mission-history-feedback">${manifest?.ok === false ? "Manifest non disponibile per questa missione." : "Manifest caricato: puoi validare il dataset o esportarlo."}</p><div class="mission-history-actions"><button class="btn btn-ghost btn-small" type="button" data-history-validate="${escapeHtml(sessionId)}">Valida dataset</button><button class="btn btn-secondary btn-small" type="button" data-history-export="${escapeHtml(sessionId)}">Esporta ZIP</button><a class="panel-link" href="/snapshots">Vedi foto</a></div>`;
 }
+
+async function loadMissionHistory() {
+  if (dashboardState.page !== "mission") return;
+  const response = await DashboardApi.request("/api/session/list");
+  dashboardState.sessionHistory = response.data?.sessions || [];
+  renderMissionHistory(dashboardState.sessionHistory);
+  const latest = dashboardState.sessionHistory
+    .slice()
+    .sort((left, right) => new Date(right.start_time || 0) - new Date(left.start_time || 0))[0];
+  if (latest?.session_id) {
+    const manifestResponse = await DashboardApi.request(`/api/session/manifest?session_id=${encodeURIComponent(latest.session_id)}`);
+    renderMissionHistoryDetail(latest, manifestResponse.data || {});
+  }
+}
+
+function setupLivePage() {
+  const thermalCaptureButton = byId("button-thermal-capture");
+  if (thermalCaptureButton) {
+    thermalCaptureButton.addEventListener("click", async () => {
+      thermalCaptureButton.disabled = true;
+      const label = thermalCaptureButton.querySelector("span");
+      if (label) label.textContent = "Lettura in corso…";
+      try {
+        reloadThermalFrame();
+      } finally {
+        window.setTimeout(() => {
+          thermalCaptureButton.disabled = false;
+          if (label) label.textContent = "Aggiorna lettura";
+        }, 3500);
+      }
+    });
+  }
+  const liveRefreshButton = byId(liveActionElementId("liveRefreshButton"));
+  if (liveRefreshButton) {
+    liveRefreshButton.addEventListener("click", async () => {
+      liveRefreshButton.disabled = true;
+      liveRefreshButton.textContent = "Aggiornamento…";
+      await refreshDashboard();
+      setText(liveActionElementId("liveRefreshText"), `Stato aggiornato alle ${formatRomeTimeOnly(Date.now())}`);
+      window.setTimeout(() => {
+        liveRefreshButton.disabled = false;
+        liveRefreshButton.textContent = "Aggiorna stato";
+      }, 350);
+    });
+  }
+
+  const sourcesRefreshButton = byId(liveActionElementId("sourceRefreshButton"));
+  if (sourcesRefreshButton) {
+    sourcesRefreshButton.addEventListener("click", async () => {
+      sourcesRefreshButton.disabled = true;
+      try {
+        await callInferenceAction("/api/sources/refresh", {});
+        showToast("Sources refreshed", "The source registry was updated.", "success");
+        await refreshDashboard();
+      } catch (error) {
+        console.error(error);
+        showToast("Refresh failed", error.message || "Unable to refresh sources", "error");
+      } finally {
+        sourcesRefreshButton.disabled = false;
+      }
+    });
+  }
+
+  const liveSnapshotButton = byId(liveActionElementId("snapshot"));
+  if (liveSnapshotButton) {
+    liveSnapshotButton.addEventListener("click", async () => {
+      liveSnapshotButton.disabled = true;
+      const originalLabel = liveSnapshotButton.textContent;
+      liveSnapshotButton.textContent = "Salvataggio…";
+      const health = dashboardState.health || {};
+      const thermal = health.thermal || {};
+      const cameras = health.cameras || {};
+      const rgbCams = cameras.rgb_cameras || [];
+      const rgbLeft = rgbCams[0] || {};
+      const rgbRight = rgbCams[1] || {};
+      const thermalState = String(thermal.mode || thermal.status || "").toUpperCase();
+      const preferredFeed =
+        thermalState === "REAL" || thermalState === "LIVE" || thermalState === "READY"
+          ? "thermal"
+          : rgbLeft.state && !String(rgbLeft.state).toUpperCase().includes("OFFLINE")
+            ? "rgb_left"
+            : rgbRight.state && !String(rgbRight.state).toUpperCase().includes("OFFLINE")
+              ? "rgb_right"
+              : "thermal";
+      try {
+        if (dashboardState.sessionStatus?.running) {
+          const payload = await callInferenceAction("/api/acquisition/capture-set", {});
+          const saved = Number(payload?.successful_feeds || 0);
+          const total = Number(payload?.total_feeds || 3);
+          const complete = Boolean(payload?.complete);
+          showToast(
+            complete ? "Set acquisizione salvato" : "Set acquisizione parziale",
+            `${saved}/${total} sorgenti salvate nello stesso campione.`,
+            complete ? "success" : "info",
+            "/snapshots",
+          );
+          const feedbackTitle = byId(liveActionElementId("captureTitle"));
+          const feedbackLink = byId(liveActionElementId("captureLink"));
+          if (feedbackTitle) feedbackTitle.textContent = `${saved}/${total} sorgenti · stesso campione`;
+          if (feedbackLink) {
+            feedbackLink.href = "/snapshots";
+            feedbackLink.hidden = false;
+          }
+          await refreshDashboard();
+        } else {
+          await snapshot(preferredFeed);
+        }
+      } finally {
+        liveSnapshotButton.disabled = false;
+        liveSnapshotButton.textContent = originalLabel;
+      }
+    });
+  }
+
+  const liveRecordButton = byId(liveActionElementId("record"));
+  if (liveRecordButton) {
+    liveRecordButton.addEventListener("click", async () => {
+      liveRecordButton.disabled = true;
+      const sessionStatus = dashboardState.sessionStatus || {};
+      const session = sessionStatus.current || sessionStatus.session || null;
+      const running = Boolean(sessionStatus.running || session?.status === "RUNNING");
+      try {
+        if (running) {
+          await callInferenceAction("/api/session/stop");
+          showToast("Missione archiviata", "Rilevazioni, eventi e metriche sono stati salvati sulla Raspberry.", "success");
+        } else {
+          const payload = await callInferenceAction("/api/session/start", { mode: "live", operator: "dashboard" });
+          const sessionId = payload?.session?.session_id;
+          showToast("Missione avviata", sessionId ? `Archivio attivo: ${sessionId}` : "Il salvataggio operativo è attivo.", "success");
+        }
+        const inlineFeedback = byId(liveActionElementId("captureTitle"));
+        if (inlineFeedback) {
+          inlineFeedback.dataset.actionFeedback = "true";
+          inlineFeedback.textContent = running
+            ? "Missione terminata e archiviata"
+            : "Missione avviata · ora salva il primo set sensori";
+        }
+        await refreshDashboard();
+        await loadMissionHistory();
+      } catch (error) {
+        console.error(error);
+        showToast("Operazione non riuscita", error.message || "Impossibile aggiornare la missione", "error");
+      } finally {
+        liveRecordButton.disabled = false;
+      }
+    });
+  }
+
+  const datasetValidateButton = byId(liveActionElementId("datasetValidateButton"));
+  if (datasetValidateButton) {
+    datasetValidateButton.addEventListener("click", async () => {
+      datasetValidateButton.disabled = true;
+      try {
+        const response = await DashboardApi.request("/api/dataset/validate");
+        const payload = response.data || {};
+        if (!response.ok || !payload.ok) throw new Error(payload.error || "Dataset non disponibile");
+        setText(
+          liveActionElementId("datasetExportFeedback"),
+          payload.valid
+            ? `${payload.valid_samples} campioni validi · ${payload.incomplete_samples} incompleti · ${payload.excluded_items} file esclusi.`
+            : `Nessun campione completo · ${payload.incomplete_samples} incompleti · ${payload.excluded_items} file esclusi.`,
+        );
+        showToast(payload.valid ? "Dataset valido" : "Dataset incompleto", payload.valid ? "Puoi creare il pacchetto ZIP." : "Controlla i feed mancanti.", payload.valid ? "success" : "info");
+      } catch (error) {
+        setText(liveActionElementId("datasetExportFeedback"), error.message || "Validazione non riuscita");
+        showToast("Validazione non riuscita", error.message || "Dataset non disponibile", "error");
+      } finally {
+        datasetValidateButton.disabled = false;
+      }
+    });
+  }
+
+  const datasetExportButton = byId(liveActionElementId("datasetExportButton"));
+  if (datasetExportButton) {
+    datasetExportButton.addEventListener("click", async () => {
+      datasetExportButton.disabled = true;
+      datasetExportButton.textContent = "Esportazione…";
+      try {
+        const payload = await callInferenceAction("/api/dataset/export", { validation_percent: 20 });
+        setText(liveActionElementId("datasetExportFeedback"), `${payload.counts.samples} campioni e ${payload.counts.images} immagini esportati.`);
+        const download = byId(liveActionElementId("datasetExportDownload"));
+        if (download) download.hidden = false;
+        showToast("Dataset esportato", "Il pacchetto ZIP è pronto.", "success", "/api/dataset/export/download");
+      } catch (error) {
+        setText(liveActionElementId("datasetExportFeedback"), error.message || "Esportazione non riuscita");
+        showToast("Esportazione non riuscita", error.message || "Nessun campione valido", "error");
+      } finally {
+        datasetExportButton.disabled = false;
+        datasetExportButton.textContent = "Esporta ZIP";
+      }
+    });
+  }
+}
