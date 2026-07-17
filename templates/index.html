@@ -2,61 +2,78 @@
 
 {% block content %}
   <section class="live-page">
+    {% if presentation_mode %}
+      <aside class="presentation-banner" role="note" aria-label="Recorded presentation preview">
+        <div>
+          <span class="badge badge-online">Paper preview</span>
+          <strong>Recorded multimodal demonstration</strong>
+        </div>
+        <p>SeaShips RGB samples and an illustrative thermal reference are shown for interface documentation; no live sensor data is claimed.</p>
+      </aside>
+    {% endif %}
+
     <div class="live-statusbar" role="status" aria-label="Live status">
       <div class="live-statusbar-group">
         <div class="live-status-pill" id="live-status-pill-rgb-left">
           <span class="live-status-dot" id="live-feed-rgb-left-dot" aria-hidden="true"></span>
           <span class="live-status-label">RGB-L:</span>
-          <strong id="live-feed-rgb-left-statusline">Checking</strong>
+          <strong id="live-feed-rgb-left-statusline">{% if presentation_mode %}Recorded sample{% else %}Checking{% endif %}</strong>
         </div>
         <div class="live-status-pill" id="live-status-pill-thermal">
           <span class="live-status-dot" id="live-feed-thermal-dot" aria-hidden="true"></span>
           <span class="live-status-label">Thermal:</span>
-          <strong id="live-feed-thermal-statusline">Checking</strong>
+          <strong id="live-feed-thermal-statusline">{% if presentation_mode %}Illustrative reference{% else %}Checking{% endif %}</strong>
         </div>
         <div class="live-status-pill" id="live-status-pill-rgb-right">
           <span class="live-status-dot" id="live-feed-rgb-right-dot" aria-hidden="true"></span>
           <span class="live-status-label">RGB-R:</span>
-          <strong id="live-feed-rgb-right-statusline">Checking</strong>
+          <strong id="live-feed-rgb-right-statusline">{% if presentation_mode %}Recorded sample{% else %}Checking{% endif %}</strong>
         </div>
       </div>
       <div class="live-statusbar-actions">
-        <span class="live-refresh-status"><span class="live-refresh-dot"></span><span id="live-refresh-status-text">Automatic refresh</span></span>
-        <button class="btn btn-ghost btn-small" id="button-live-refresh" type="button">Refresh status</button>
+        <span class="live-refresh-status"><span class="live-refresh-dot"></span><span id="live-refresh-status-text">{% if presentation_mode %}SeaShips recorded dataset{% else %}Automatic refresh{% endif %}</span></span>
+        {% if not presentation_mode %}<button class="btn btn-ghost btn-small" id="button-live-refresh" type="button">Refresh status</button>{% endif %}
         <div class="live-status-pill live-status-pill-ai" id="live-status-pill-ai">
           <span class="live-status-dot live-status-dot-ai" id="live-ai-status-dot" aria-hidden="true"></span>
           <span class="live-status-label">AI ·</span>
-          <strong id="live-ai-status-label">—</strong>
+          <strong id="live-ai-status-label">{% if presentation_mode %}Demo{% else %}—{% endif %}</strong>
         </div>
       </div>
     </div>
 
     <div class="live-explainer" aria-live="polite">
-      <strong>RGB feeds refresh automatically when the cameras are available.</strong>
-      <span>Thermal capture is available on demand in the secondary panel.</span>
+      {% if presentation_mode %}
+        <strong>Publication-safe recorded view.</strong>
+        <span>Use this screen when physical cameras are unavailable; labels keep recorded, illustrative and live data unambiguous.</span>
+      {% else %}
+        <strong>RGB feeds refresh automatically when the cameras are available.</strong>
+        <span>Thermal capture is available on demand in the secondary panel.</span>
+      {% endif %}
     </div>
 
     <div class="live-section-heading">
       <div>
-        <span class="eyebrow">Live RGB</span>
-        <strong>Panoramic view</strong>
+        <span class="eyebrow">{% if presentation_mode %}Recorded RGB{% else %}Live RGB{% endif %}</span>
+        <strong>{% if presentation_mode %}Maritime scene analysis{% else %}Panoramic view{% endif %}</strong>
       </div>
-      <span>Left and right cameras updated in real time</span>
+      <span>{% if presentation_mode %}Two representative frames from the SeaShips dataset{% else %}Left and right cameras updated in real time{% endif %}</span>
     </div>
 
     <section class="live-grid" aria-label="Live video feeds">
       <article class="panel live-feed-card" data-feed="rgb_left">
         <div class="live-feed-head">
           <span class="live-feed-name">Left camera</span>
-          <span class="badge badge-muted" id="live-feed-rgb-left-badge">Loading</span>
+          <span class="badge {% if presentation_mode %}badge-online{% else %}badge-muted{% endif %}" id="live-feed-rgb-left-badge">{% if presentation_mode %}Recorded{% else %}Loading{% endif %}</span>
         </div>
         <div class="live-feed-body">
           <img
             class="feed-image live-feed-image"
             data-feed-image="rgb_left"
-            {% if not request.args.get("lite") %}src="/video/rgb_left"{% endif %}
-            alt="Live video from the left camera"
+            {% if presentation_mode %}src="/paper-assets/rgb-left"{% elif not request.args.get("lite") %}src="/video/rgb_left"{% endif %}
+            alt="{% if presentation_mode %}Recorded SeaShips maritime sample shown in the paper preview{% else %}Live video from the left camera{% endif %}"
+            {% if presentation_mode %}width="1280" height="720"{% endif %}
           >
+          {% if presentation_mode %}<div class="presentation-frame-label"><strong>Recorded sample 01</strong><span>SeaShips · RGB</span></div>{% endif %}
           <div class="live-dark-frame-note" id="live-feed-rgb-left-dark-note" hidden>
             <strong>Stream active, image is very dark</strong>
             <span>Check the lens cap and lighting.</span>
@@ -71,23 +88,25 @@
           </div>
         </div>
         <div class="live-feed-foot">
-          <span class="live-feed-fps" id="live-feed-rgb-left-fps">--</span>
-          <span class="live-feed-time" id="live-feed-rgb-left-last-frame">--</span>
+          <span class="live-feed-fps" id="live-feed-rgb-left-fps">{% if presentation_mode %}AI-ready RGB{% else %}--{% endif %}</span>
+          <span class="live-feed-time" id="live-feed-rgb-left-last-frame">{% if presentation_mode %}Recorded dataset{% else %}--{% endif %}</span>
         </div>
       </article>
 
       <article class="panel live-feed-card" data-feed="rgb_right">
         <div class="live-feed-head">
           <span class="live-feed-name">Right camera</span>
-          <span class="badge badge-muted" id="live-feed-rgb-right-badge">Loading</span>
+          <span class="badge {% if presentation_mode %}badge-online{% else %}badge-muted{% endif %}" id="live-feed-rgb-right-badge">{% if presentation_mode %}Recorded{% else %}Loading{% endif %}</span>
         </div>
         <div class="live-feed-body">
           <img
             class="feed-image live-feed-image"
             data-feed-image="rgb_right"
-            {% if not request.args.get("lite") %}src="/video/rgb_right"{% endif %}
-            alt="Live video from the right camera"
+            {% if presentation_mode %}src="/paper-assets/rgb-right"{% elif not request.args.get("lite") %}src="/video/rgb_right"{% endif %}
+            alt="{% if presentation_mode %}Second recorded SeaShips maritime sample shown in the paper preview{% else %}Live video from the right camera{% endif %}"
+            {% if presentation_mode %}width="1280" height="720"{% endif %}
           >
+          {% if presentation_mode %}<div class="presentation-frame-label"><strong>Recorded sample 02</strong><span>SeaShips · RGB</span></div>{% endif %}
           <div class="live-dark-frame-note" id="live-feed-rgb-right-dark-note" hidden>
             <strong>Stream active, image is very dark</strong>
             <span>Check the lens cap and lighting.</span>
@@ -102,8 +121,8 @@
           </div>
         </div>
         <div class="live-feed-foot">
-          <span class="live-feed-fps" id="live-feed-rgb-right-fps">--</span>
-          <span class="live-feed-time" id="live-feed-rgb-right-last-frame">--</span>
+          <span class="live-feed-fps" id="live-feed-rgb-right-fps">{% if presentation_mode %}AI-ready RGB{% else %}--{% endif %}</span>
+          <span class="live-feed-time" id="live-feed-rgb-right-last-frame">{% if presentation_mode %}Recorded dataset{% else %}--{% endif %}</span>
         </div>
       </article>
 
@@ -112,7 +131,8 @@
           <img
             class="feed-image live-feed-image thermal-image"
             id="live-feed-thermal-image"
-            alt="Latest reading captured by the thermal camera"
+            {% if presentation_mode %}src="{{ url_for('static', filename='img/presentation-thermal.svg') }}" width="1280" height="480"{% endif %}
+            alt="{% if presentation_mode %}Illustrative thermal reference for the paper preview, not a live sensor capture{% else %}Latest reading captured by the thermal camera{% endif %}"
           >
           <div class="live-thermal-ready" id="live-feed-thermal-ready" hidden>
             <svg class="live-offline-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -134,18 +154,21 @@
         <div class="live-thermal-content">
           <div class="live-feed-head">
             <div>
-              <span class="eyebrow">Secondary sensor</span>
-              <span class="live-feed-name">Thermal reading</span>
+              <span class="eyebrow">{% if presentation_mode %}Illustrative modality{% else %}Secondary sensor{% endif %}</span>
+              <span class="live-feed-name">{% if presentation_mode %}Thermal reference{% else %}Thermal reading{% endif %}</span>
             </div>
-            <span class="badge badge-muted" id="live-feed-thermal-badge">Loading</span>
+            <span class="badge {% if presentation_mode %}badge-warning{% else %}badge-muted{% endif %}" id="live-feed-thermal-badge">{% if presentation_mode %}Illustrative{% else %}Loading{% endif %}</span>
           </div>
-          <p>Thermal data is captured only when requested; the latest image remains available without interrupting the RGB cameras.</p>
+          <p>{% if presentation_mode %}This reference visualises the intended thermal modality and is explicitly not presented as a live FLIR measurement.{% else %}Thermal data is captured only when requested; the latest image remains available without interrupting the RGB cameras.{% endif %}</p>
           <div class="live-thermal-actions">
             <div class="live-feed-foot">
-              <span>Latest reading</span>
-              <span class="live-feed-time" id="live-feed-thermal-last-frame">--</span>
+              <span>{% if presentation_mode %}Preview source{% else %}Latest reading{% endif %}</span>
+              <span class="live-feed-time" id="live-feed-thermal-last-frame">{% if presentation_mode %}Illustrative reference{% else %}--{% endif %}</span>
               <span class="live-feed-fps" id="live-feed-thermal-fps" hidden>--</span>
             </div>
+            {% if presentation_mode %}
+              <a class="btn btn-secondary btn-small" href="/help#paper-preview">Preview notes</a>
+            {% else %}
             <button class="btn btn-secondary btn-small" id="button-thermal-capture" type="button">
               <svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M20 11a8 8 0 1 0-2.3 5.7"></path>
@@ -153,6 +176,7 @@
               </svg>
               <span>Capture thermal frame</span>
             </button>
+            {% endif %}
           </div>
         </div>
       </article>

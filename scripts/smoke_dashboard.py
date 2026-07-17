@@ -101,7 +101,7 @@ def main() -> int:
     app.testing = True
     client = app.test_client()
 
-    page_routes = ["/", "/mission", "/thermal-events", "/snapshots", "/system-diagnostics", "/help"]
+    page_routes = ["/", "/paper-preview", "/mission", "/thermal-events", "/snapshots", "/system-diagnostics", "/help"]
     stylesheet_order = [
         "foundations.css",
         "runtime-layout.css",
@@ -118,6 +118,7 @@ def main() -> int:
         assert_ok(stylesheet_positions == sorted(stylesheet_positions), f"{route} changes the CSS layer order")
         assert_ok("dashboard_api.js" in html, f"{route} does not load the shared API client")
         assert_ok("app-footer-nav" in html, f"{route} does not render the shared footer navigation")
+        assert_ok("<title>EASY Maritime Awareness" in html, f"{route} does not use the branded browser title")
         if route == "/":
             assert_ok("live-grid" in html, "Live page must render the camera feeds")
             assert_ok("when the cameras are available" in html.lower(), "Live help text must not imply offline cameras are streaming")
@@ -132,6 +133,11 @@ def main() -> int:
             assert_ok("live-source-grid" in html, "Mission page must render source controls")
             assert_ok("live-source-selected-badge" in html, "Mission page must render selected source status")
             assert_ok("mission-history-list" in html, "Mission page must render session history")
+        if route == "/paper-preview":
+            assert_ok('data-presentation-mode="true"' in html, "Paper preview must identify its read-only mode")
+            assert_ok("Paper preview" in html, "Paper preview must disclose recorded presentation content")
+            assert_ok("/paper-assets/rgb-left" in html and "/paper-assets/rgb-right" in html, "Paper preview must render both recorded RGB samples")
+            assert_ok("/video/rgb_left" not in html and "/video/rgb_right" not in html, "Paper preview must not open live RGB streams")
         if route == "/thermal-events":
             assert_ok("analysis-control-copy" in html, "Detection page must explain the primary AI action")
             assert_ok("analysis-events-column" in html, "Detection events must use the bounded event column")
@@ -161,6 +167,10 @@ def main() -> int:
         ],
         "/api/dashboard/state",
     )
+    for asset in ("rgb-left", "rgb-right"):
+        response = client.get(f"/paper-assets/{asset}")
+        assert_ok(response.status_code == 200, f"Paper asset {asset} is unavailable")
+        assert_ok(response.content_type == "image/jpeg", f"Paper asset {asset} has the wrong media type")
     health = client.get("/health").get_json()
     assert_ok(isinstance(health, dict), "/health did not return JSON")
     require_keys(health, ["ok", "rgb", "thermal", "runtime_state"], "/health")

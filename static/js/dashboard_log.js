@@ -267,7 +267,7 @@ function setupLogPage() {
     logExportButton.addEventListener("click", () => {
       const visibleEvents = getVisibleLogEvents(dashboardState.events);
       const csvRows = [
-        ["timestamp", "sorgente", "evento", "livello", "dettaglio"],
+        ["timestamp", "source", "event", "severity", "detail"],
         ...visibleEvents.map((event) => {
           const detail = logExpandedText(event).replace(/\n/g, " | ");
           return [

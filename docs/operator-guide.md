@@ -13,6 +13,14 @@ The main navigation contains only these operator tasks. System diagnostics,
 dataset export, source selection, replay controls, and raw detections remain
 available in labelled advanced sections.
 
+## Preparing a figure without physical cameras
+
+Open `/paper-preview` to render a deterministic, read-only dashboard suitable
+for screenshots. It combines two recorded SeaShips RGB samples with an
+illustrative thermal reference and labels both sources directly in the UI. The
+preview does not start media streams, capture frames, or claim that recorded
+assets are live sensor output. Keep its provenance banner in the final figure.
+
 ## Live and mission state
 
 The two RGB panels are continuously live. **Refresh status** refreshes metadata;

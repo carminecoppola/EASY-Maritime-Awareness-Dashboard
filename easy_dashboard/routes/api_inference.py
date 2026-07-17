@@ -238,7 +238,7 @@ def api_dataset_export_download():
     latest = get_runtime().dataset_exporter.status().get("last_export") or {}
     archive_path = Path(str(latest.get("archive_path") or ""))
     if not archive_path.is_file():
-        return jsonify({"ok": False, "error": "Nessun export disponibile"}), 404
+        return jsonify({"ok": False, "error": "No export is available"}), 404
     return send_file(archive_path, mimetype="application/zip", as_attachment=True, download_name=archive_path.name)
 
 

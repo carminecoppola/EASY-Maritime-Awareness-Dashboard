@@ -422,7 +422,7 @@ function setupLivePage() {
   if (liveRefreshButton) {
     liveRefreshButton.addEventListener("click", async () => {
       liveRefreshButton.disabled = true;
-      liveRefreshButton.textContent = "Refreshmento…";
+      liveRefreshButton.textContent = "Refreshing…";
       await refreshDashboard();
       setText(liveActionElementId("liveRefreshText"), `Status aggiornato alle ${formatRomeTimeOnly(Date.now())}`);
       window.setTimeout(() => {

@@ -21,7 +21,7 @@ class ApiContractTests(unittest.TestCase):
         cls.client = cls.app.test_client()
 
     def test_primary_pages_render(self) -> None:
-        for route in ("/", "/mission", "/thermal-events", "/snapshots", "/system-diagnostics", "/help"):
+        for route in ("/", "/paper-preview", "/mission", "/thermal-events", "/snapshots", "/system-diagnostics", "/help"):
             with self.subTest(route=route):
                 self.assertEqual(self.client.get(route).status_code, 200)
 
