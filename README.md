@@ -98,7 +98,7 @@ bounded thermal capture and confirms that the RGB process resumes afterward.
 - `*_manager.py` — sessions, acquisition, sources, devices, detections, and events.
 - `inference_config.py` / `inference_backend.py` / `inference_results.py` — inference configuration, model execution, and stable result formatting.
 - `inference_worker.py` — inference lifecycle and frame-provider orchestration.
-- `static/` / `templates/` — operator interface.
+- `static/` / `templates/` — operator interface; CSS is loaded as four ordered layers from foundations to operator overrides.
 - `scripts/` — launch, smoke, benchmark, and Raspberry validation tools.
 - `docs/archive/` — historical implementation reports; not current operating instructions.
 

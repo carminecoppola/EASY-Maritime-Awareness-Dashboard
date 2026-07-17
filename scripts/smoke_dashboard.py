@@ -89,15 +89,25 @@ def main() -> int:
     client = app.test_client()
 
     page_routes = ["/", "/mission", "/thermal-events", "/snapshots", "/system-diagnostics", "/help"]
+    stylesheet_order = [
+        "foundations.css",
+        "runtime-layout.css",
+        "page-layouts.css",
+        "operator-overrides.css",
+    ]
     for route in page_routes:
         response = client.get(route)
         assert_ok(response.status_code == 200, f"{route} returned {response.status_code}")
         html = response.get_data(as_text=True)
         assert_no_duplicate_ids(route, html)
+        stylesheet_positions = [html.find(name) for name in stylesheet_order]
+        assert_ok(all(position >= 0 for position in stylesheet_positions), f"{route} does not load every CSS layer")
+        assert_ok(stylesheet_positions == sorted(stylesheet_positions), f"{route} changes the CSS layer order")
         assert_ok("dashboard_api.js" in html, f"{route} does not load the shared API client")
         assert_ok("app-footer-nav" in html, f"{route} does not render the shared footer navigation")
         if route == "/":
             assert_ok("live-grid" in html, "Live page must render the camera feeds")
+            assert_ok("quando le camere sono disponibili" in html, "Live help text must not imply offline cameras are streaming")
             assert_ok("live-mission-command-bar" not in html, "Live page must not render mission controls")
             assert_ok("live-source-grid" not in html, "Live page must not render mission source controls")
             assert_ok("dataset-session-state-badge" not in html, "Live page must not render session dataset controls")

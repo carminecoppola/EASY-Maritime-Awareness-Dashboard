@@ -5,7 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ page_title }}</title>
     <link rel="icon" href="{{ url_for('static', filename='img/easy-logo.svg') }}" type="image/svg+xml">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ asset_version }}">
+    {# CSS order is a compatibility contract: later layers refine earlier ones. #}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundations.css') }}?v={{ asset_version }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/runtime-layout.css') }}?v={{ asset_version }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/page-layouts.css') }}?v={{ asset_version }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/operator-overrides.css') }}?v={{ asset_version }}">
   </head>
   <body class="dashboard-shell view-simple" data-page="{{ page_key }}">
     <a class="skip-link" href="#dashboard-content">Vai al contenuto</a>
