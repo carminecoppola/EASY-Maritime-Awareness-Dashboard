@@ -1,46 +1,50 @@
-# Validation report — 12 July 2026
+# Validation report — 17 July 2026
 
-## Mac regression
+## Current validation scope
 
-- Python compilation: PASS
-- Dashboard smoke suite: PASS
-- JavaScript syntax checks: PASS
-- Shell syntax checks: PASS
-- Desktop browser rendering for Live, Analysis, Archive, System, and Help: PASS
-- Mobile viewport 390×844: PASS
-- Duplicate DOM IDs: none
-- Browser console errors: none
+The latest Raspberry field check established the stable hardware behavior now
+represented by the runtime contract:
 
-## Controlled Raspberry validation
+- RGB left and right: online, frames available, approximately 10 fps.
+- PureThermal: detected on `/dev/video0`, Y16 at 160×120.
+- Thermal acquisition: one real 38,400-byte source frame captured on demand.
+- Thermal idle state after capture: `READY`, with `streaming: false` by design.
+- CPU temperature during the reported short test: approximately 64.7–65.7 °C.
+- Browser access from macOS through the SSH tunnel: verified.
 
-- Code updated with `git pull --ff-only`: PASS
-- `/health`: `ok: true`
-- RGB left and right stream endpoints: HTTP 200
-- Initial temperature: 66.2 °C
-- Temperature after the short runtime window: 68.6 °C
-- Temperature after service stop: 65.2 °C
-- Final service state: inactive
+This report does not claim a new Raspberry run for the current code revision.
+The next hardware release check must confirm that `frame_seq` increases after
+`/thermal/frame`, RGB resumes after the brief thermal acquisition, and no camera
+process remains after `systemctl stop`.
 
-## PureThermal result
+## Local regression for the current change
 
-The USB device is detected as PureThermal firmware 1.3.0 on `/dev/video0`, with
-Y16 at 160×120 configured. During the controlled eight-second window it did not
-deliver a frame:
+- Python compilation: PASS.
+- Dashboard smoke suite: PASS.
+- JavaScript syntax checks: PASS.
+- Shell syntax checks: PASS.
+- Desktop rendering of all six pages: PASS, with no duplicate DOM IDs or
+  browser-console errors.
+- Mobile layout at 390×844 for Live, Mission, Analysis, and Archive: PASS, with
+  no horizontal overflow.
+- API compatibility for `/health`, dashboard state, sessions, acquisition,
+  inference, sources, and thermal status: PASS in the smoke suite.
+- ONNX metadata check: PASS; configured classes match `boat`, `ship`, `buoy`.
 
-```text
-detected: true
-streaming: false
-frame_seq: 0
-status: STARTING
-```
+## Runtime semantics
 
-This remains a hardware/firmware/UVC limitation. The dashboard now reports the
-state accurately, times out silent capture, applies cooldown, and prevents
-thermal capture above 78 °C.
+`/health` reports service viability; it does not require PureThermal to hold a
+continuous stream. Hardware payloads retain their existing fields and add
+`runtime_state`:
+
+- `STREAMING`: a current frame is flowing.
+- `READY`: detected and available for capture.
+- `INITIALIZING`: startup or recovery is in progress.
+- `NOT_PRESENT`: disabled or not detected.
+- `ERROR`: capture/runtime failure requiring attention.
 
 ## Deferred benchmark
 
-The ONNX comparison was not repeated during this validation. Thermal streaming
-failed and additional CPU load was not justified under the temperature safety
-policy. The previous measured inference median remains approximately 4.1 s on
-the Raspberry Pi 4 until a dedicated cooled benchmark is scheduled.
+The ONNX benchmark has not been repeated in this change. The last recorded
+Raspberry Pi 4 median was approximately 4.1 seconds per inference. A cooled,
+sustained live-RGB benchmark remains required before release sign-off.

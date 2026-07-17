@@ -7,7 +7,7 @@ detection, and reviewing the resulting images and activity records.
 
 ## Current capabilities
 
-- Live monitoring of two RGB inputs and one thermal input.
+- Continuous monitoring of two RGB inputs and on-demand PureThermal capture.
 - Mission-based collection of photographs, AI detections, and activity logs.
 - Structured session manifests and dataset validation/export.
 - ONNX inference on RGB maritime images.
@@ -44,10 +44,10 @@ they form part of the planned thermal and multimodal extension.
 
 ## Operational workflow
 
-The Analysis page currently supports inference on test/replay images from the
-dataset. This verifies the complete preprocessing, ONNX execution, detection,
-and presentation pipeline before analysis is moved to continuous live-camera
-frames.
+The Analysis page supports the stable test/replay workflow and can select the
+live RGB providers exposed by the camera runtime. Replay remains the repeatable
+validation source; sustained live-RGB inference still requires a dedicated
+cooled field test. The deployed model accepts RGB input only.
 
 The Mission page groups one acquisition period into a session. While a mission
 is active, EASY can associate captured images, inference results, detections,
@@ -60,8 +60,9 @@ Live page remains focused on the current camera feeds and their availability.
 
 ## Next steps
 
-1. Complete controlled hardware validation of sustained PureThermal streaming.
-2. Connect the proven ONNX pipeline to live RGB frames.
+1. Complete a cooled endurance test of continuous RGB plus repeated on-demand
+   thermal captures.
+2. Benchmark sustained ONNX inference from both live RGB views.
 3. Collect new RGB and thermal samples with the EASY apparatus.
 4. Review and label the acquired material before adding it to a versioned dataset.
 5. Evaluate fine-tuning and, separately, a thermal or multimodal model extension.

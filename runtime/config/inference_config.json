@@ -22,14 +22,6 @@
     {
       "id": 2,
       "name": "buoy"
-    },
-    {
-      "id": 3,
-      "name": "debris"
-    },
-    {
-      "id": 4,
-      "name": "person"
     }
   ],
   "outputs": {

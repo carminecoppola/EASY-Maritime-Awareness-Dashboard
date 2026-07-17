@@ -15,6 +15,7 @@ from flask import request
 
 from easy_dashboard.constants import SNAPSHOT_FEED_MAP
 from easy_dashboard.presentation import build_camera_inventory, build_operations_payload, build_system_payload
+from easy_dashboard.runtime_status import build_rgb_state_contract, build_thermal_state_contract, runtime_is_healthy
 from easy_dashboard.utils import utc_now_iso
 
 
@@ -123,13 +124,9 @@ class DashboardRuntime:
             }
         )
         operations_payload = build_operations_payload(camera_inventory, rgb_state, thermal_state, operations_inference_state)
-        ok = rgb_state["camera_state"] in {"DETECTED", "BUSY"} and thermal_state["status"] in {
-            "MOCK",
-            "REAL",
-            "STARTING",
-            "NOT_DETECTED",
-            "DISABLED",
-        }
+        rgb_runtime_state = rgb_state.get("runtime_state") or build_rgb_state_contract(rgb_state)
+        thermal_runtime_state = thermal_state.get("runtime_state") or build_thermal_state_contract(thermal_state)
+        ok = runtime_is_healthy(rgb_state, thermal_state)
         return {
             "ok": ok,
             "service": "easy-dashboard",
@@ -141,6 +138,7 @@ class DashboardRuntime:
             "sources": sources_state,
             "rgb": rgb_state,
             "thermal": thermal_state,
+            "runtime_state": {"rgb": rgb_runtime_state, "thermal": thermal_runtime_state},
             "inference": inference_state,
             "detection_manager": detection_state,
             "session": session_state,
@@ -162,6 +160,7 @@ class DashboardRuntime:
         session_state = self.session_manager.status()
         thermal_state = health_payload.get("thermal") or {}
         rgb_state = health_payload.get("rgb") or {}
+        runtime_state = health_payload.get("runtime_state") or {}
         sources_state = health_payload.get("sources") or {}
         events_payload = self.events_payload(limit=8)
         dataset_summary = acquisition_state.get("dataset_summary") or {}
@@ -176,6 +175,8 @@ class DashboardRuntime:
             "live": {
                 "rgb_state": rgb_state.get("camera_state"),
                 "thermal_state": thermal_state.get("status") or thermal_state.get("mode"),
+                "rgb_runtime_state": runtime_state.get("rgb"),
+                "thermal_runtime_state": runtime_state.get("thermal"),
                 "thermal_device": thermal_state.get("device"),
                 "thermal_input_format": thermal_state.get("input_format"),
                 "selected_source": (sources_state.get("selected_source") or {}).get("id"),

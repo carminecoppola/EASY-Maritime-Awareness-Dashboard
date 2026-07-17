@@ -50,6 +50,7 @@ class DeviceRecord:
     temperature: float | None = None
     last_seen: str = ""
     configuration: dict[str, Any] = field(default_factory=dict)
+    runtime_state: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -64,6 +65,7 @@ class DeviceRecord:
             "temperature": self.temperature,
             "last_seen": self.last_seen,
             "configuration": dict(self.configuration),
+            "runtime_state": dict(self.runtime_state),
         }
 
 
@@ -241,6 +243,9 @@ class LiveHardwareDevice(ManagedDevice):
             configuration = payload.get("configuration")
             if isinstance(configuration, dict):
                 self.record.configuration.update(configuration)
+            runtime_state = payload.get("runtime_state")
+            if isinstance(runtime_state, dict):
+                self.record.runtime_state = dict(runtime_state)
             error = payload.get("error")
             if error:
                 self.record.configuration["last_error"] = str(error)

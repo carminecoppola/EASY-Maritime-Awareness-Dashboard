@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import subprocess
-import time
 from typing import Any, Dict, Optional
 
 import psutil
@@ -10,6 +9,7 @@ from flask import render_template
 
 from .constants import NAV_ITEMS, PROJECT_ROOT
 from .hardware import RgbMasterSource, SystemProbe, ThermalState
+from .runtime_status import build_rgb_state_contract, build_thermal_state_contract
 from .stores import EventStore
 from .utils import get_boot_seconds, human_uptime, which
 
@@ -40,6 +40,8 @@ def build_camera_inventory(rgb: RgbMasterSource, thermal: ThermalState) -> Dict[
         if line and ":" in line and "Available cameras" not in line:
             camera_entries.append(line)
     rgb_state = rgb.latest_state()
+    thermal_state = thermal.status_payload()
+    thermal_contract = thermal_state.get("runtime_state") or build_thermal_state_contract(thermal_state)
     return {
         "uc512_multiplexer": {
             "logical_name": "UC512_MULTIPLEXER",
@@ -73,9 +75,10 @@ def build_camera_inventory(rgb: RgbMasterSource, thermal: ThermalState) -> Dict[
         "thermal_camera": {
             "logical_name": "THERMAL_FLIR",
             "hardware_name": "FLIR/Lepton Thermal Sensor",
-            "state": "DETECTED" if thermal.detected or thermal.mode == "mock" else "OFFLINE",
+            "state": thermal_contract["availability"],
             "mode": thermal.mode,
-            "status": thermal.status_payload(),
+            "status": thermal_state,
+            "runtime_state": thermal_contract,
         },
         "camera_tools": SystemProbe().camera_tools(),
         "raw_libcamera_output": rgb.camera_list_output,
@@ -89,43 +92,28 @@ def build_operations_payload(
     thermal_state: Dict[str, Any],
     inference_state: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    def _stream_status(state: Any, last_ts: Any, *, detected: bool, mode: str = "") -> str:
-        state_value = str(state or "").upper()
-        mode_value = str(mode or "").lower()
-        if mode_value == "mock":
-            return "ONLINE"
-        if state_value in {"ERROR", "FAILED", "DISABLED", "OFFLINE"}:
-            return "OFFLINE"
-        if state_value == "NOT_DETECTED":
-            return "NOT_DETECTED"
-        if detected and last_ts:
-            try:
-                if time.time() - float(last_ts) <= 5.0:
-                    return "ONLINE"
-            except Exception:
-                pass
-            return "OFFLINE"
-        return "NOT_DETECTED" if not detected else "OFFLINE"
+    def _legacy_sensor_state(contract: Dict[str, Any]) -> str:
+        return {
+            "STREAMING": "ONLINE",
+            "READY": "READY",
+            "INITIALIZING": "INITIALIZING",
+            "NOT_PRESENT": "NOT_DETECTED",
+            "ERROR": "OFFLINE",
+        }.get(str(contract.get("availability") or ""), "NOT_DETECTED")
 
     rgb_cameras = camera_inventory.get("rgb_cameras", [])
-    rgb_left_status = _stream_status(
-        rgb_cameras[0]["state"] if rgb_cameras else rgb_state.get("camera_state", "--"),
-        rgb_cameras[0].get("last_acquisition_ts") if rgb_cameras else rgb_state.get("last_frame_ts"),
-        detected=bool(rgb_cameras[0].get("enabled", True) if rgb_cameras else rgb_state.get("detected")),
-    )
-    rgb_right_status = _stream_status(
-        rgb_cameras[1]["state"] if len(rgb_cameras) > 1 else rgb_state.get("camera_state", "--"),
-        rgb_cameras[1].get("last_acquisition_ts") if len(rgb_cameras) > 1 else rgb_state.get("last_frame_ts"),
-        detected=bool(rgb_cameras[1].get("enabled", True) if len(rgb_cameras) > 1 else rgb_state.get("detected")),
-    )
-    thermal_status = _stream_status(
-        thermal_state.get("status", "--"),
-        thermal_state.get("last_frame_ts"),
-        detected=bool(thermal_state.get("detected")),
-        mode=str(thermal_state.get("mode", "")).lower(),
-    )
-    detected_sensors = int(bool(rgb_state.get("detected"))) + int(bool(thermal_state.get("detected") or thermal_state.get("mode") == "mock"))
-    online_sensors = int(rgb_left_status == "ONLINE") + int(rgb_right_status == "ONLINE") + int(thermal_status == "ONLINE")
+    rgb_left_enabled = bool(rgb_cameras[0].get("enabled", True)) if rgb_cameras else True
+    rgb_right_enabled = bool(rgb_cameras[1].get("enabled", True)) if len(rgb_cameras) > 1 else True
+    rgb_left_contract = build_rgb_state_contract(rgb_state, enabled=rgb_left_enabled)
+    rgb_right_contract = build_rgb_state_contract(rgb_state, enabled=rgb_right_enabled)
+    thermal_contract = thermal_state.get("runtime_state") or build_thermal_state_contract(thermal_state)
+    rgb_left_status = _legacy_sensor_state(rgb_left_contract)
+    rgb_right_status = _legacy_sensor_state(rgb_right_contract)
+    thermal_status = _legacy_sensor_state(thermal_contract)
+    contracts = [rgb_left_contract, rgb_right_contract, thermal_contract]
+    detected_sensors = sum(int(bool(contract["detected"])) for contract in contracts)
+    online_sensors = sum(int(bool(contract["streaming"])) for contract in contracts)
+    ready_sensors = sum(int(bool(contract["ready"])) for contract in contracts)
     inference_state = inference_state or {}
     inference_ok = bool(inference_state.get("ok"))
     inference_running = bool(inference_state.get("running"))
@@ -171,11 +159,12 @@ def build_operations_payload(
     }
     sensor_health = {
         "online_count": online_sensors,
+        "ready_count": ready_sensors,
         "detected_count": detected_sensors,
         "total_count": 3,
-        "rgb_left": {"state": rgb_left_status, "enabled": rgb_cameras[0]["enabled"] if rgb_cameras else True},
-        "rgb_right": {"state": rgb_right_status, "enabled": rgb_cameras[1]["enabled"] if len(rgb_cameras) > 1 else True},
-        "thermal": {"state": thermal_status, "mode": thermal_state.get("mode", "--"), "detected": thermal_state.get("detected", False)},
+        "rgb_left": {"state": rgb_left_status, "enabled": rgb_left_enabled, "runtime_state": rgb_left_contract},
+        "rgb_right": {"state": rgb_right_status, "enabled": rgb_right_enabled, "runtime_state": rgb_right_contract},
+        "thermal": {"state": thermal_status, "mode": thermal_state.get("mode", "--"), "detected": thermal_contract["detected"], "runtime_state": thermal_contract},
     }
     detections = []
     for detection in last_detections:

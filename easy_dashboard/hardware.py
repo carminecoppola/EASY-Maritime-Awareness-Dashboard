@@ -21,6 +21,7 @@ from PIL import Image, ImageDraw
 
 from .constants import PROJECT_ROOT
 from .media import RESAMPLE_NEAREST, draw_rounded_box, make_placeholder_jpeg, multipart_frame
+from .runtime_status import build_rgb_state_contract, build_thermal_state_contract
 from .stores import EventStore
 from .utils import get_boot_seconds, get_hostname, get_ip_address, human_uptime, read_cpu_temperature, read_text_file, run_command, safe_device_listing, which
 
@@ -498,7 +499,7 @@ class RgbMasterSource:
             status = self._status
             if self._frame is not None and self.process and self.process.poll() is None:
                 status = "ONLINE"
-            return {
+            payload = {
                 "status": status,
                 "camera_state": self.camera_state(),
                 "error": self._error,
@@ -513,6 +514,8 @@ class RgbMasterSource:
                 "height": self.height,
                 "process_running": bool(self.process and self.process.poll() is None),
             }
+            payload["runtime_state"] = build_rgb_state_contract(payload, enabled=self.any_enabled())
+            return payload
 
     def read_current_frame(self) -> Optional[bytes]:
         frame, _ = self.wait_for_frame(timeout=2.0)
@@ -1408,7 +1411,7 @@ class ThermalState:
             self.refresh_device()
         streaming = bool(self.last_frame_ts and time.time() - self.last_frame_ts <= 5.0)
         effective_status = "REAL" if streaming else self.status
-        return {
+        payload = {
             "status": effective_status,
             "mode": self.mode,
             "enabled": self.enabled,
@@ -1430,3 +1433,5 @@ class ThermalState:
             "anomaly_active": self.last_stats.get("anomaly_active", self._anomaly_active),
             **{k: v for k, v in self.last_stats.items() if k not in {"status", "mode", "enabled", "detected", "device", "threshold_celsius", "delta_threshold", "last_frame_ts", "frame_seq", "error"}},
         }
+        payload["runtime_state"] = build_thermal_state_contract(payload)
+        return payload

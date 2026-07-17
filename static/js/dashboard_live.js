@@ -65,23 +65,23 @@ function liveActionElementId(action) {
 
 function humanMissionState(health, thermal, rgb, operations) {
   const sensors = operations.sensor_health || {};
-  const thermalState = String(thermal.status || thermal.mode || "").toUpperCase();
-  const rgbState = String(rgb.camera_state || "").toUpperCase();
-  const readySensors = Number(sensors.online_count ?? 0);
+  const thermalState = String(thermal.runtime_state?.availability || thermal.status || thermal.mode || "").toUpperCase();
+  const rgbState = String(rgb.runtime_state?.availability || rgb.camera_state || "").toUpperCase();
+  const readySensors = Number(sensors.ready_count ?? sensors.online_count ?? 0);
 
-  if (health?.ok && readySensors >= 3 && !["ERROR", "FAILED", "OFFLINE"].includes(thermalState)) {
+  if (health?.ok && readySensors >= 3 && !["ERROR", "FAILED", "OFFLINE", "NOT_PRESENT", "NOT_DETECTED"].includes(thermalState)) {
     return {
       title: "Missione pronta",
       copy: "Le sorgenti principali sono disponibili e la dashboard può operare in modo regolare.",
     };
   }
-  if (["ERROR", "FAILED", "OFFLINE", "NOT_DETECTED"].includes(thermalState)) {
+  if (["ERROR", "FAILED", "OFFLINE", "NOT_PRESENT", "NOT_DETECTED"].includes(thermalState)) {
     return {
       title: "Thermal da verificare",
       copy: "Le camere RGB possono essere operative, ma la conferma termica non è ancora affidabile.",
     };
   }
-  if (["ERROR", "FAILED", "OFFLINE", "NOT_DETECTED"].includes(rgbState) || readySensors < 2) {
+  if (["ERROR", "FAILED", "OFFLINE", "NOT_PRESENT", "NOT_DETECTED"].includes(rgbState) || readySensors < 2) {
     return {
       title: "Live ancora incompleto",
       copy: "Almeno una sorgente visibile non sta consegnando frame stabili. Conviene recuperarla prima di procedere.",
