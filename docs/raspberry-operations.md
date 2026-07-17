@@ -63,3 +63,16 @@ physical Lepton seating instead of repeatedly restarting FFmpeg.
 
 Use `EASY_SKIP_THERMAL_VALIDATION=1` only when deliberately checking RGB without
 opening PureThermal. The default validation refuses to begin at 70 °C or above.
+
+## Paper runtime benchmark
+
+After hardware validation, use the dedicated, temperature-aware runtime
+protocol. It measures startup, resources, REST latency, inference timing, FPS
+and component states without triggering thermal capture:
+
+```bash
+./scripts/run_raspberry_benchmark.sh
+```
+
+The complete protocol, output schema and experimental limitations are in
+[`runtime-benchmark.md`](runtime-benchmark.md).

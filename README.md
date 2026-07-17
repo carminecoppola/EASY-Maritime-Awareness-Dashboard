@@ -13,6 +13,7 @@ and available, while `STREAMING` is only the short interval around a capture.
 - [Operator guide](docs/operator-guide.md) — use the dashboard and collect data.
 - [Developer guide](docs/developer-guide.md) — understand the runtime and APIs.
 - [Raspberry operations](docs/raspberry-operations.md) — install, launch, diagnose, and test safely.
+- [Raspberry runtime benchmark](docs/runtime-benchmark.md) — reproduce the IEEE system-performance measurements.
 - [Project status](docs/project-status.md) — current capabilities, model, dataset sources, and next steps.
 - [Latest validation report](docs/validation-report.md) — measured Mac and Raspberry results.
 
