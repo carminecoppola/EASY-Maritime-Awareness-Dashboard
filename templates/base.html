@@ -27,6 +27,7 @@
                   class="topnav-link{% if item.key == page_key %} is-active{% endif %}"
                   href="{{ item.href }}"
                   data-nav-key="{{ item.key }}"
+                  {% if item.key == page_key %}aria-current="page"{% endif %}
                 >
                   <span class="nav-icon" aria-hidden="true">
                     {% if item.key == "live" %}
