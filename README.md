@@ -77,9 +77,14 @@ Local tests do not require Raspberry hardware:
 
 ```bash
 ./.venv/bin/python -m py_compile app.py runtime_support.py system_orchestrator.py
+./.venv/bin/python -m unittest discover -s tests -v
 ./.venv/bin/python scripts/smoke_dashboard.py
 for file in static/js/dashboard_*.js; do node --check "$file"; done
 ```
+
+The same regression suite runs on every push and pull request through
+`.github/workflows/quality.yml`. Hardware tests remain separate because hosted
+CI cannot validate V4L2, libcamera, CPU temperature, or the physical sensors.
 
 On the Raspberry, use `scripts/validate_raspberry_runtime.sh` only during a
 controlled validation window. Stop the service if CPU temperature reaches
