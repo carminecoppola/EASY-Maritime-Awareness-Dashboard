@@ -22,15 +22,19 @@ sensor or replay frame
 ```
 
 RGB live providers consume callbacks from the existing camera owner, avoiding a
-second camera process. PureThermal owns one FFmpeg process, enforces a frame
-timeout and cooldown, and pauses above the configured CPU temperature limit.
+second camera process. PureThermal performs a bounded FFmpeg capture on demand,
+temporarily pauses RGB ownership when required, caches the resulting JPEG, and
+releases the V4L2 node. Thermal capture is refused above the configured CPU
+temperature limit.
 
 ## Stable interfaces
 
 Public Flask routes and required payload fields are compatibility boundaries.
-Internal refactors should keep adapters for existing imports. Runtime status
-normalization lives in `runtime_support.py`; hardware payload translation lives
-in `easy_dashboard/runtime_status.py`.
+Internal refactors should keep adapters for existing imports. Generic manager
+normalization lives in `runtime_support.py`. The shared hardware contract lives
+in `easy_dashboard/runtime_status.py` and distinguishes `READY` from
+`STREAMING`; adapters, `/health`, presentation code, and the browser consume
+that same contract.
 
 Important endpoint groups:
 

@@ -4,6 +4,10 @@ EASY is a Raspberry Pi dashboard for RGB and FLIR/PureThermal monitoring,
 mission-based acquisition, ONNX inference, and dataset export. The browser runs
 on the operator's Mac; camera capture and data storage remain on the Raspberry.
 
+The two RGB views are continuous streams. PureThermal is acquired on demand so
+the V4L2 node can be released between frames: `READY` means the sensor is found
+and available, while `STREAMING` is only the short interval around a capture.
+
 ## Start here
 
 - [Operator guide](docs/operator-guide.md) — use the dashboard and collect data.
@@ -95,3 +99,5 @@ controlled validation window. Stop the service if CPU temperature reaches
 
 Existing HTTP routes and required JSON fields are kept stable. Internal modules
 may be reorganized behind compatibility adapters as the project is simplified.
+Hardware payloads also expose a `runtime_state` object with normalized
+availability, readiness, streaming, health, and capture-mode fields.

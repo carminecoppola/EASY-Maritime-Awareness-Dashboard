@@ -63,16 +63,26 @@ function eventStatusLabel(status) {
 
 function thermalVisualState(thermal, fallback = {}) {
   const payload = thermal || {};
-  const state = String(payload.status || fallback.state || payload.mode || "UNKNOWN").toUpperCase();
+  const runtimeState = payload.runtime_state || fallback.runtime_state || {};
+  const state = String(runtimeState.availability || payload.status || fallback.state || payload.mode || "UNKNOWN").toUpperCase();
   const lastFrame = payload.last_frame_ts || payload.last_acquisition_ts || fallback.last_frame_ts || null;
-  const detected = Boolean(payload.detected || lastFrame);
-  const fresh = isFreshTimestamp(lastFrame);
+  const detected = runtimeState.detected ?? Boolean(payload.detected || lastFrame);
+  const fresh = runtimeState.fresh ?? isFreshTimestamp(lastFrame);
   const tone = liveFeedTone(state, "thermal", lastFrame, detected);
   const startupStates = new Set(["STARTING", "LOADING", "WAITING", "CHECKING", "PENDING", "INITIALIZING"]);
   const unavailableStates = new Set(["OFFLINE", "ERROR", "FAILED", "NOT_DETECTED", "DISABLED"]);
-  const readyOnDemand = detected && state === "READY";
+  const readyOnDemand = (
+    runtimeState.capture_mode === "on_demand"
+    && runtimeState.ready === true
+    && runtimeState.streaming !== true
+  ) || (detected && state === "READY");
   const hasCachedFrame = Boolean(lastFrame);
-  if (readyOnDemand || (detected && hasCachedFrame && !unavailableStates.has(state))) {
+  if (readyOnDemand) {
+    tone.offline = false;
+    tone.loading = false;
+    tone.dot = "state-dot-online";
+    tone.badge = "online";
+  } else if (detected && hasCachedFrame && !unavailableStates.has(state)) {
     tone.offline = false;
     tone.loading = false;
     tone.dot = "state-dot-warning";

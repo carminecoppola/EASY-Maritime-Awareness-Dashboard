@@ -24,8 +24,9 @@ sudo systemctl stop easy-dashboard.service
 - Start controlled hardware validation only below 70 °C.
 - Thermal capture is paused at 78 °C.
 - Stop the service immediately at or above 78 °C.
-- A silent PureThermal attempt times out after four seconds and cools down for
-  60 seconds before another attempt.
+- PureThermal uses bounded, on-demand captures and releases `/dev/video0`
+  between requests. Do not run a second FFmpeg or `v4l2-ctl` capture while the
+  service owns the device.
 
 Read temperature with:
 
@@ -39,13 +40,16 @@ vcgencmd measure_temp
 v4l2-ctl --list-devices
 v4l2-ctl -d /dev/video0 --list-formats-ext
 curl http://127.0.0.1:5000/thermal/status
+curl -o /tmp/easy-thermal.jpg http://127.0.0.1:5000/thermal/frame
+curl http://127.0.0.1:5000/thermal/status
 ```
 
-`detected: true` confirms USB enumeration. A working stream also requires
-`streaming: true`, an increasing `frame_seq`, and a recent `last_frame_ts`.
-If a controlled `usbreset 1e4e:0100` does not restore frames, inspect the
-PureThermal firmware and physical Lepton seating instead of repeatedly
-restarting FFmpeg.
+`detected: true` confirms USB enumeration. The normal idle result is
+`runtime_state.availability: READY`, `runtime_state.capture_mode: on_demand`,
+and `streaming: false`. A successful request to `/thermal/frame` must return a
+JPEG and increase `frame_seq`; the sensor then returns to `READY`. If the frame
+request fails while the node is free, inspect the PureThermal firmware and
+physical Lepton seating instead of repeatedly restarting FFmpeg.
 
 ## Controlled final validation
 

@@ -15,10 +15,11 @@ available in labelled advanced sections.
 
 ## Live and mission state
 
-The video area is continuously live. **Refresh status** refreshes metadata; it
-does not restart a camera. A feed is usable only when its timestamp continues
-to change. “Detected” means hardware is present, while “streaming” means usable
-frames are arriving.
+The two RGB panels are continuously live. **Refresh status** refreshes metadata;
+it does not restart a camera. Their timestamps must continue to change. The
+thermal panel is intentionally secondary and acquires one frame on request.
+For PureThermal, **Ready** means that the device is detected and available;
+**Streaming** appears only while a recent thermal frame is being handled.
 
 Starting a mission creates the session that indexes snapshots, inference runs,
 detections, and events. The synchronized capture action saves RGB left, RGB
@@ -41,7 +42,8 @@ validation report.
 ## Before an important collection
 
 - Confirm recent RGB frame timestamps.
-- Confirm thermal `streaming: true`, not only `detected: true`.
+- Confirm thermal `runtime_state.availability: READY`, then acquire one frame
+  and verify that `frame_seq` increases.
 - Start a mission before capture.
 - Verify that synchronized sample counts increase.
 - Check available disk space and recent errors.

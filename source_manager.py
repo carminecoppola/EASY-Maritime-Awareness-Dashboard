@@ -59,6 +59,7 @@ class SourceRecord:
             "enabled": self.enabled,
             "last_update": self.last_update,
             "configuration": dict(self.configuration),
+            "runtime_state": dict(self.configuration.get("runtime_state") or {}),
             "capabilities": dict(self.capabilities),
             "availability": {
                 "available": available,
@@ -197,6 +198,9 @@ class SourceManager:
 
         device = self.device_manager.get_device_status(record.id) if self.device_manager else None
         if device:
+            runtime_state = device.get("runtime_state")
+            if isinstance(runtime_state, dict):
+                record.configuration["runtime_state"] = dict(runtime_state)
             return self._map_device_status_to_source_status(device.get("status"))
 
         if record.type.endswith("_placeholder"):

@@ -367,55 +367,6 @@ function formatRomeCsvTimestamp(date = new Date()) {
   return `${parts.year}${parts.month}${parts.day}-${parts.hour}${parts.minute}${parts.second}`;
 }
 
-function humanMissionState(health, thermal, rgb, operations) {
-  const sensorHealth = operations?.sensor_health || {};
-  const thermalOk = !thermal || (thermal.status !== "NOT_DETECTED" && thermal.status !== "DISABLED" && thermal.status !== "ERROR");
-  const cameraFramesReady = Boolean(rgb?.has_frame);
-  if (health?.ok && cameraFramesReady && thermalOk) {
-    return {
-      title: "System ready",
-      copy: "All main sensors are online. You can monitor the feeds or capture snapshots.",
-      helper: "If you only need to operate the system, start from the live camera and thermal pages. Diagnostics are only needed for faults.",
-      nextTitle: "Monitor the live feeds",
-      nextCopy: "Open the live camera page to confirm that RGB left, RGB right, and thermal are updating correctly.",
-    };
-  }
-  if (!cameraFramesReady) {
-    return {
-      title: "Waiting for camera frames",
-      copy: "The dashboard is online, but at least one RGB feed is not delivering frames yet.",
-      helper: "Start from the live camera page. There you can reconnect the stream and verify whether both cameras are responding.",
-      nextTitle: "Go to live cameras",
-      nextCopy: "Open Acquisition and use reconnect on the feed that is still offline or not updating.",
-    };
-  }
-  if (!thermalOk) {
-    return {
-      title: "Thermal unavailable",
-      copy: "RGB feeds are available, but the thermal sensor is not ready yet.",
-      helper: "You can keep using the RGB feeds, but thermal checks and anomaly confirmation are currently limited.",
-      nextTitle: "Check thermal feed",
-      nextCopy: "Open the thermal page to confirm whether the sensor is disconnected, disabled, or still starting up.",
-    };
-  }
-  if ((sensorHealth.online_count || 0) < (sensorHealth.total_count || 3)) {
-    return {
-      title: "Needs attention",
-      copy: "Some sensors are still coming online or need a quick check before normal operation.",
-      helper: "Use the live pages first. Open diagnostics only if a sensor stays offline after a reconnect attempt.",
-      nextTitle: "Check the affected sensor",
-      nextCopy: "Open the page related to the offline sensor and confirm whether the issue is on RGB or thermal.",
-    };
-  }
-  return {
-    title: "Needs attention",
-    copy: "The dashboard is up, but one or more operational elements still need a look.",
-    helper: "Use the live monitoring pages first, then open diagnostics only if the issue remains unclear.",
-    nextTitle: "Review live status",
-    nextCopy: "Check the feeds and recent events to understand which block needs action first.",
-  };
-}
-
 function showToast(title, message, tone = "info", actionUrl = "") {
   const stack = byId("toast-stack");
   if (!stack) return;

@@ -17,13 +17,8 @@ classes:
     name: ship
   - id: 2
     name: buoy
-  - id: 3
-    name: debris
-  - id: 4
-    name: person
 
 outputs:
   sessions_dir: runtime/sessions
   replay_dir: runtime/replay
   logs_dir: runtime/logs
-
