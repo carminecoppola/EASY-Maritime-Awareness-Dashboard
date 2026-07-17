@@ -10,6 +10,12 @@ The browser polls one aggregate dashboard endpoint. Page-specific JavaScript
 normalizes that state and updates stable DOM IDs. User actions use the shared
 API client so timeout and error feedback stay consistent.
 
+The shared template loads four CSS layers in a fixed order:
+`foundations.css`, `runtime-layout.css`, `page-layouts.css`, then
+`operator-overrides.css`. Keep that order when changing the layout because the
+last layer contains the current operator-facing refinements. `style.css`
+remains only as a compatibility entry point for external or historical links.
+
 ## Data flow
 
 ```text
