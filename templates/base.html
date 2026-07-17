@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ page_title }}</title>
+    <title>{% if page_title == "EASY Maritime Awareness" %}EASY Maritime Awareness{% else %}EASY Maritime Awareness · {{ page_title }}{% endif %}</title>
     <link rel="icon" href="{{ url_for('static', filename='img/easy-logo.svg') }}" type="image/svg+xml">
     {# CSS order is a compatibility contract: later layers refine earlier ones. #}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foundations.css') }}?v={{ asset_version }}">
@@ -11,7 +11,11 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/page-layouts.css') }}?v={{ asset_version }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/operator-overrides.css') }}?v={{ asset_version }}">
   </head>
-  <body class="dashboard-shell view-simple" data-page="{{ page_key }}">
+  <body
+    class="dashboard-shell view-simple{% if presentation_mode %} is-presentation-preview{% endif %}"
+    data-page="{{ page_key }}"
+    data-presentation-mode="{{ 'true' if presentation_mode else 'false' }}"
+  >
     <a class="skip-link" href="#dashboard-content">Skip to content</a>
     <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
     <main class="shell">
@@ -92,7 +96,7 @@
           <h1 id="page-title">{{ page_title }}</h1>
           <p>{{ page_subtitle }}</p>
         </div>
-        <a class="page-help-link" href="/help#{% if page_key == 'detections' %}analisi{% elif page_key == 'log' %}archivio{% else %}{{ page_key }}{% endif %}">How does it work?</a>
+        <a class="page-help-link" href="/help#{% if page_key == 'detections' %}analysis{% elif page_key == 'log' %}archive{% else %}{{ page_key }}{% endif %}">How does it work?</a>
       </section>
 
       <div id="dashboard-content">

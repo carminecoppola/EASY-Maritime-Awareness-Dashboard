@@ -87,6 +87,7 @@ function setFeedOverlay(feed, visible, message) {
 
 const dashboardState = {
   page: document.body?.dataset?.page || "live",
+  presentationMode: document.body?.dataset?.presentationMode === "true",
   liteMode: new URLSearchParams(window.location.search).has("lite"),
   health: null,
   events: [],
@@ -241,7 +242,7 @@ async function fetchAndRenderDashboard() {
   try {
     const stateRes = await DashboardApi.request(dashboardStateUrl());
     if (!stateRes.ok || !stateRes.data) {
-      throw new Error(stateRes.message || `Refreshmento non riuscito (${stateRes.status})`);
+      throw new Error(stateRes.message || `Refresh failed (${stateRes.status})`);
     }
     const payload = stateRes.data || {};
     applyDashboardPayload(payload);
@@ -417,6 +418,10 @@ let dashboardRuntimeInitialized = false;
 function initializeDashboardRuntime() {
   if (dashboardRuntimeInitialized) return;
   dashboardRuntimeInitialized = true;
+  if (dashboardState.presentationMode) {
+    document.body?.setAttribute("data-runtime-ready", "true");
+    return;
+  }
   setupFilters();
   setupPageInteractions();
   refreshDashboard();

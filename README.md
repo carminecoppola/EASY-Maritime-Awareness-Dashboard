@@ -47,6 +47,19 @@ after the dashboard responds.
 The launcher intentionally does not run `git pull`. Update the Raspberry clone
 explicitly so local changes can never be overwritten silently.
 
+## Paper and presentation preview
+
+Open `/paper-preview` when the physical cameras are unavailable but a stable
+interface figure is needed for a paper or presentation. The view uses two
+recorded SeaShips RGB samples already stored in the repository and a clearly
+labelled illustrative thermal reference. It does not poll the hardware APIs or
+present any of these assets as live measurements.
+
+For a clean figure, open the page at the normal dashboard URL, hide the browser
+toolbar or enter full screen, and capture the dashboard viewport. Keep the
+“Paper preview” banner visible so the provenance of the displayed data remains
+unambiguous.
+
 ## Architecture
 
 ```text

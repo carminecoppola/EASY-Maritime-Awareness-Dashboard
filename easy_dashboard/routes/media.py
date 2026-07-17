@@ -221,7 +221,7 @@ def capture_acquisition_set():
     runtime = get_runtime()
     current = runtime.session_manager.get_current_session()
     if not current:
-        return jsonify({"ok": False, "error": "Avvia una missione prima di acquisire un set sincronizzato"}), 409
+        return jsonify({"ok": False, "error": "Start a mission before capturing a synchronized sensor set"}), 409
 
     capture_set_id = f"capture-{uuid.uuid4().hex[:12]}"
     captures: Dict[str, Any] = {}
@@ -246,7 +246,7 @@ def capture_acquisition_set():
         captures[feed] = {
             "ok": bool(ok and snapshot_info),
             "snapshot": snapshot_info,
-            "error": None if ok else f"{feed} non disponibile",
+            "error": None if ok else f"{feed} is unavailable",
         }
 
     try:
@@ -259,7 +259,7 @@ def capture_acquisition_set():
         captures["thermal"] = {
             "ok": thermal_ok,
             "snapshot": thermal_info,
-            "error": None if thermal_ok else "Termico non disponibile",
+            "error": None if thermal_ok else "Thermal sensor unavailable",
         }
     except Exception as exc:
         runtime.logger.exception("Failed to save coordinated thermal snapshot")

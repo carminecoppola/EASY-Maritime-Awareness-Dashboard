@@ -75,7 +75,7 @@ def api_sources_select():
         return jsonify({"ok": False, "error": "source_id is required"}), 400
     candidate = runtime.source_manager.get_source(source_id)
     if candidate and not bool((candidate.get("capabilities") or {}).get("inference")):
-        return jsonify({"ok": False, "error": f"La sorgente {candidate.get('name') or source_id} non è compatibile con il modello RGB"}), 409
+        return jsonify({"ok": False, "error": f"Source {candidate.get('name') or source_id} is not compatible with the RGB model"}), 409
     result = runtime.source_manager.select_source(source_id)
     if result.get("ok") is False:
         return jsonify(result), 404
