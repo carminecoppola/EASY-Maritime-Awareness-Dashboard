@@ -12,17 +12,18 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from frame_provider import FrameObject, UnifiedFrameProvider
 from inference_backend import OnnxDetectionBackend
+from inference_config import (
+    DEFAULT_CONFIG_CANDIDATES,
+    PROJECT_ROOT,
+    RUNTIME_ROOT,
+    load_runtime_config,
+    resolve_runtime_path,
+)
+from inference_results import format_detections
 
 from source_manager import SourceManager, SourceStatus
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent
-RUNTIME_ROOT = PROJECT_ROOT / "runtime"
-DEFAULT_CONFIG_CANDIDATES = [
-    RUNTIME_ROOT / "config" / "inference_config.json",
-    RUNTIME_ROOT / "config" / "inference_config.yaml",
-    RUNTIME_ROOT / "config" / "inference_config.yml",
-]
 ALLOWED_CLASSES = {"boat", "ship", "buoy"}
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
 
@@ -33,48 +34,6 @@ class Detection:
     class_name: str
     confidence: float
     box_xyxy: Tuple[float, float, float, float]
-
-
-def _load_json(path: Path) -> dict:
-    with path.open("r", encoding="utf-8") as handle:
-        return json.load(handle)
-
-
-def _load_yaml(path: Path) -> dict:
-    try:
-        import yaml  # type: ignore
-    except ImportError as exc:  # pragma: no cover - optional dependency
-        raise RuntimeError(
-            f"PyYAML is not installed, cannot parse {path.name}. "
-            "Use inference_config.json or install PyYAML."
-        ) from exc
-
-    with path.open("r", encoding="utf-8") as handle:
-        return yaml.safe_load(handle)
-
-
-def load_runtime_config(config_path: Path | None = None) -> dict:
-    candidates = [config_path] if config_path else list(DEFAULT_CONFIG_CANDIDATES)
-    for candidate in candidates:
-        if not candidate or not candidate.exists():
-            continue
-        suffix = candidate.suffix.lower()
-        if suffix == ".json":
-            config = _load_json(candidate)
-            config["_loaded_from"] = str(candidate)
-            return config
-        if suffix in {".yaml", ".yml"}:
-            config = _load_yaml(candidate)
-            config["_loaded_from"] = str(candidate)
-            return config
-    raise FileNotFoundError("No inference config found under runtime/config/")
-
-
-def resolve_runtime_path(relative_path: str) -> Path:
-    path = Path(relative_path)
-    if path.is_absolute():
-        return path
-    return (PROJECT_ROOT / path).resolve()
 
 
 def find_first_image(replay_dir: Path) -> Path:
@@ -637,20 +596,7 @@ class InferenceWorker:
         )
         elapsed_ms = round((time.perf_counter() - start) * 1000.0, 2)
         fps = round(1000.0 / elapsed_ms, 2) if elapsed_ms > 0 else None
-        detections_payload = [
-            {
-                "id": f"det-{uuid.uuid4().hex[:12]}",
-                "class_id": detection.class_id,
-                "class_name": detection.class_name,
-                "confidence": round(detection.confidence, 6),
-                "box_xyxy": [round(value, 2) for value in detection.box_xyxy],
-                "frame_id": frame.frame_id if frame else None,
-                "source_type": frame.source_type if frame else None,
-                "source_name": frame.source_name if frame else None,
-                "session_id": frame.session_id if frame else None,
-            }
-            for detection in detections
-        ]
+        detections_payload = format_detections(detections, frame=frame)
         source, source_label = self._frame_source_payload(frame)
         payload = {
             "ok": True,

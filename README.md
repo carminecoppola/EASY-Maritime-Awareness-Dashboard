@@ -96,7 +96,8 @@ bounded thermal capture and confirms that the RGB process resumes afterward.
 - `app.py` — Flask application factory and runtime wiring.
 - `easy_dashboard/` — configuration, hardware adapters, presentation, routes, and shared runtime context.
 - `*_manager.py` — sessions, acquisition, sources, devices, detections, and events.
-- `inference_backend.py` / `inference_worker.py` — model execution and inference orchestration.
+- `inference_config.py` / `inference_backend.py` / `inference_results.py` — inference configuration, model execution, and stable result formatting.
+- `inference_worker.py` — inference lifecycle and frame-provider orchestration.
 - `static/` / `templates/` — operator interface.
 - `scripts/` — launch, smoke, benchmark, and Raspberry validation tools.
 - `docs/archive/` — historical implementation reports; not current operating instructions.
