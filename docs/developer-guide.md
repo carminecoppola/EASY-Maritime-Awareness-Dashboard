@@ -50,6 +50,11 @@ Add a source by defining its catalog entry, device status provider, frame
 provider adapter, and capability flags. Add a model backend behind the inference
 backend contract; do not put model-specific loading into route handlers.
 
+Inference responsibilities are intentionally separate: `inference_config.py`
+loads paths and thresholds, `inference_backend.py` owns ONNX Runtime,
+`inference_results.py` preserves the public detection representation, and
+`InferenceWorker` coordinates frames, lifecycle, persistence, and events.
+
 ## Regression strategy
 
 `tests/` covers normalized runtime states, manager propagation, stable API
