@@ -112,6 +112,7 @@ def main() -> int:
         if route == "/thermal-events":
             assert_ok("analysis-control-copy" in html, "Detection page must explain the primary AI action")
             assert_ok("analysis-events-column" in html, "Detection events must use the bounded event column")
+            assert_ok('aria-current="page"' in html, "Primary navigation must expose the current page")
             assert_ok("analysis-session-reference" in html, "Analysis page must link to mission management")
             assert_ok("button-session-start" not in html, "Analysis page must not duplicate mission start controls")
             assert_ok("button-session-stop" not in html, "Analysis page must not duplicate mission stop controls")
