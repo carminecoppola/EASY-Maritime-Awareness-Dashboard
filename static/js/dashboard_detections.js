@@ -450,3 +450,202 @@ function renderDetectionsPage(health) {
   if (latestNode) latestNode.textContent = latest ? detectionTimestampLabel(latest.timestamp || latest.created || latest.ts) : "—";
   if (emptyState) emptyState.hidden = totalCount > 0 && filtered.length > 0;
 }
+
+function setupDetectionsPage() {
+  const thermalButton = byId("thermal-snapshot");
+  if (thermalButton) {
+    thermalButton.addEventListener("click", async () => {
+      await snapshot("thermal");
+    });
+  }
+
+  const aiStartButton = byId(detectionsElementId("aiStartButton"));
+  if (aiStartButton) {
+    aiStartButton.addEventListener("click", async () => {
+      aiStartButton.disabled = true;
+      aiStartButton.textContent = "Avvio in corso…";
+      let openedSession = false;
+      try {
+        if (!dashboardState.sessionStatus?.running) {
+          await callInferenceAction("/api/session/start", { mode: "replay", operator: "dashboard" });
+          openedSession = true;
+        }
+        await callInferenceAction("/api/inference/start", { mode: "replay" });
+        showToast("Analisi avviata", "Missione aperta: i frame vengono elaborati e salvati automaticamente.", "success");
+        await refreshDashboard();
+      } catch (error) {
+        console.error(error);
+        if (openedSession) {
+          try {
+            await callInferenceAction("/api/session/stop");
+          } catch (cleanupError) {
+            console.error(cleanupError);
+          }
+        }
+        showToast("Analisi non avviata", error.message || "Il motore AI non è disponibile", "error");
+        await refreshDashboard();
+      } finally {
+        aiStartButton.disabled = false;
+        aiStartButton.textContent = dashboardState.inferenceStatus?.last_run_ts ? "Riprendi analisi" : "Avvia analisi";
+      }
+    });
+  }
+
+  const aiStopButton = byId(detectionsElementId("aiStopButton"));
+  if (aiStopButton) {
+    aiStopButton.addEventListener("click", async () => {
+      aiStopButton.disabled = true;
+      try {
+        await callInferenceAction("/api/inference/stop");
+        showToast("AI stopped", "Replay/Demo inference has been stopped.", "success");
+        await refreshDashboard();
+      } catch (error) {
+        console.error(error);
+        showToast("AI stop failed", error.message || "Unable to stop AI worker", "error");
+      } finally {
+        aiStopButton.disabled = false;
+      }
+    });
+  }
+
+  const aiRunButton = byId(detectionsElementId("aiRunDemoButton"));
+  if (aiRunButton) {
+    aiRunButton.addEventListener("click", async () => {
+      aiRunButton.disabled = true;
+      try {
+        await callInferenceAction("/api/inference/run-on-image", {});
+        showToast("AI demo run", "The worker processed the next demo image.", "success");
+        await refreshDashboard();
+      } catch (error) {
+        console.error(error);
+        showToast("Demo run failed", error.message || "Unable to run demo inference", "error");
+      } finally {
+        aiRunButton.disabled = false;
+      }
+    });
+  }
+
+  const aiRefreshButton = byId(detectionsElementId("aiRefreshButton"));
+  if (aiRefreshButton) {
+    aiRefreshButton.addEventListener("click", async () => {
+      aiRefreshButton.disabled = true;
+      try {
+        await refreshDashboard();
+        showToast("Detections refreshed", "AI status and detections were updated.", "success");
+      } catch (error) {
+        console.error(error);
+        showToast("Refresh failed", error.message || "Unable to refresh AI detections", "error");
+      } finally {
+        aiRefreshButton.disabled = false;
+      }
+    });
+  }
+
+  const frameProviderConfigureButton = byId("button-frame-provider-configure");
+  if (frameProviderConfigureButton) {
+    frameProviderConfigureButton.addEventListener("click", async () => {
+      frameProviderConfigureButton.disabled = true;
+      try {
+        await callInferenceAction("/api/frame-provider/configure", {
+          source_type: "REPLAY_FOLDER",
+          source_path: "runtime/replay/test_inference",
+          loop: true,
+          save_temp_frames: false,
+        });
+        showToast("Frame source configured", "Replay folder provider is now configured on runtime/replay/test_inference.", "success");
+        await refreshDashboard();
+      } catch (error) {
+        console.error(error);
+        showToast("Configure failed", error.message || "Unable to configure frame provider", "error");
+      } finally {
+        frameProviderConfigureButton.disabled = false;
+      }
+    });
+  }
+
+  const frameProviderNextButton = byId("button-frame-provider-next");
+  if (frameProviderNextButton) {
+    frameProviderNextButton.addEventListener("click", async () => {
+      frameProviderNextButton.disabled = true;
+      try {
+        const payload = await callInferenceAction("/api/frame-provider/next-frame");
+        const frame = payload?.frame || {};
+        showToast("Next frame ready", frame.frame_id ? `Loaded ${frame.frame_id}` : "The next frame has been loaded.", "success");
+        await refreshDashboard();
+      } catch (error) {
+        console.error(error);
+        showToast("Next frame failed", error.message || "Unable to load the next frame", "error");
+      } finally {
+        frameProviderNextButton.disabled = false;
+      }
+    });
+  }
+
+  const frameProviderRunButton = byId("button-frame-provider-run");
+  if (frameProviderRunButton) {
+    frameProviderRunButton.addEventListener("click", async () => {
+      frameProviderRunButton.disabled = true;
+      try {
+        await callInferenceAction("/api/inference/run-on-next-frame");
+        showToast("Inference completed", "The next unified frame was processed by the AI pipeline.", "success");
+        await refreshDashboard();
+      } catch (error) {
+        console.error(error);
+        showToast("Inference failed", error.message || "Unable to process the next frame", "error");
+      } finally {
+        frameProviderRunButton.disabled = false;
+      }
+    });
+  }
+
+  const frameProviderResetButton = byId("button-frame-provider-reset");
+  if (frameProviderResetButton) {
+    frameProviderResetButton.addEventListener("click", async () => {
+      frameProviderResetButton.disabled = true;
+      try {
+        await callInferenceAction("/api/frame-provider/reset");
+        showToast("Frame provider reset", "Provider state has been cleared and rewound.", "success");
+        await refreshDashboard();
+      } catch (error) {
+        console.error(error);
+        showToast("Reset failed", error.message || "Unable to reset frame provider", "error");
+      } finally {
+        frameProviderResetButton.disabled = false;
+      }
+    });
+  }
+
+  const sessionStartButton = byId(detectionsElementId("sessionStartButton"));
+  if (sessionStartButton) {
+    sessionStartButton.addEventListener("click", async () => {
+      sessionStartButton.disabled = true;
+      try {
+        await callInferenceAction("/api/session/start", { mode: "replay", operator: "dashboard" });
+        showToast("Missione avviata", "Rilevazioni, eventi e metriche vengono ora salvati sulla Raspberry.", "success");
+        await refreshDashboard();
+      } catch (error) {
+        console.error(error);
+        showToast("Session start failed", error.message || "Unable to start session", "error");
+      } finally {
+        sessionStartButton.disabled = false;
+      }
+    });
+  }
+
+  const sessionStopButton = byId(detectionsElementId("sessionStopButton"));
+  if (sessionStopButton) {
+    sessionStopButton.addEventListener("click", async () => {
+      sessionStopButton.disabled = true;
+      try {
+        await callInferenceAction("/api/session/stop");
+        showToast("Missione archiviata", "La missione è terminata e i dati restano disponibili sulla Raspberry.", "success");
+        await refreshDashboard();
+      } catch (error) {
+        console.error(error);
+        showToast("Session stop failed", error.message || "Unable to stop session", "error");
+      } finally {
+        sessionStopButton.disabled = false;
+      }
+    });
+  }
+}
