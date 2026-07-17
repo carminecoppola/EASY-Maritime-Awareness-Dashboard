@@ -350,12 +350,15 @@ function renderEventTimeline() {
     const severityTone = eventSeverityTone(event?.severity);
     const statusTone = eventStatusTone(event?.status);
     const row = document.createElement("article");
-    row.className = "timeline-row";
+    row.className = `timeline-row is-${severityTone}`;
     row.innerHTML = `
-      <span class="timeline-time">${escapeHtml(formatRomeTimeOnly(event?.updated_at || event?.created_at || event?.timestamp))}</span>
       <div class="timeline-main">
-        <strong>${escapeHtml(typeMeta.label)}</strong>
-        <p>${escapeHtml(eventSourceLabel(event))} · ${escapeHtml(eventUpdateLabel(event))}</p>
+        <span class="event-card-title">${typeMeta.icon}<strong>${escapeHtml(typeMeta.label)}</strong></span>
+        <div class="timeline-meta">
+          <time class="timeline-time">${escapeHtml(formatRomeTimeOnly(event?.updated_at || event?.created_at || event?.timestamp))}</time>
+          <span>${escapeHtml(eventSourceLabel(event))}</span>
+          <span>${escapeHtml(eventUpdateLabel(event))}</span>
+        </div>
       </div>
       <span class="timeline-badges"><span class="badge badge-severity-${severityTone}">${escapeHtml(eventSeverityLabel(event?.severity))}</span><span class="badge badge-status-${statusTone}">${escapeHtml(eventStatusLabel(event?.status))}</span></span>
     `;

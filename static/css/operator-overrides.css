@@ -87,13 +87,9 @@ body[data-page="detections"] .analysis-workspace > .analysis-monitor {
 }
 
 .analysis-events-column .timeline-row {
-  grid-template-columns: 72px minmax(0, 1fr);
-  gap: 8px;
-  padding: 9px;
-}
-
-.analysis-events-column .timeline-row > :nth-child(n + 3) {
-  grid-column: 2;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 12px;
+  padding: 11px 12px;
 }
 
 body[data-page="detections"] .operations-panel {
@@ -373,8 +369,59 @@ body[data-page="mission"] .source-row .badge {
 }
 
 .timeline-row {
-  grid-template-columns: 72px minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  background: rgba(255, 255, 255, 0.025);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.timeline-row.is-low {
+  border-color: rgba(56, 189, 248, 0.28);
+}
+
+.timeline-row.is-info {
+  border-color: rgba(148, 163, 184, 0.22);
+}
+
+.timeline-row.is-medium {
+  border-color: rgba(251, 191, 36, 0.28);
+}
+
+.timeline-row.is-high,
+.timeline-row.is-critical {
+  border-color: rgba(248, 113, 113, 0.28);
+}
+
+.timeline-main {
+  gap: 6px;
+  min-width: 0;
+}
+
+.timeline-main .event-card-title {
+  min-width: 0;
+}
+
+.timeline-main .event-card-title strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-meta {
+  display: flex;
   align-items: center;
+  gap: 5px 8px;
+  min-width: 0;
+  color: var(--text-weak);
+  font-size: 11px;
+  line-height: 1.35;
+  flex-wrap: wrap;
+}
+
+.timeline-meta > * + *::before {
+  content: "·";
+  margin-right: 8px;
+  color: var(--surface-border-strong);
 }
 
 .timeline-badges {
@@ -394,7 +441,8 @@ body[data-page="mission"] .source-row .badge {
 }
 
 .analysis-events-column .timeline-row > .timeline-badges {
-  grid-column: 3;
+  grid-column: 2;
+  grid-row: 1;
 }
 
 @media (max-width: 760px) {
@@ -409,9 +457,18 @@ body[data-page="mission"] .source-row .badge {
 
   body[data-page="mission"] .mission-command-actions small { text-align: left; }
 
-  .timeline-row { grid-template-columns: 64px minmax(0, 1fr); }
+  .timeline-row { grid-template-columns: minmax(0, 1fr) auto; }
   .analysis-events-column .timeline-row > .timeline-badges {
     grid-column: 2;
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 480px) {
+  .timeline-row { grid-template-columns: minmax(0, 1fr); }
+  .analysis-events-column .timeline-row > .timeline-badges {
+    grid-column: 1;
+    grid-row: auto;
     justify-content: flex-start;
   }
 }
