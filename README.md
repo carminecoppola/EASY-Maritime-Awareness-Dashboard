@@ -88,7 +88,8 @@ CI cannot validate V4L2, libcamera, CPU temperature, or the physical sensors.
 
 On the Raspberry, use `scripts/validate_raspberry_runtime.sh` only during a
 controlled validation window. Stop the service if CPU temperature reaches
-78 °C or the thermal device fails to produce frames.
+78 °C or the thermal device fails to produce frames. The validator performs one
+bounded thermal capture and confirms that the RGB process resumes afterward.
 
 ## Repository map
 
