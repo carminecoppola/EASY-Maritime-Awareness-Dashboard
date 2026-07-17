@@ -45,8 +45,7 @@ jobs:
             scripts \
             tests \
             *_manager.py \
-            inference_backend.py \
-            inference_worker.py \
+            inference_*.py \
             frame_provider.py \
             runtime_catalog.py \
             runtime_support.py \
