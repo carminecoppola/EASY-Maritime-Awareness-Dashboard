@@ -49,10 +49,16 @@ for endpoint in \
 done
 
 echo
-echo "Checking media endpoints..."
-curl -fsSI "${BASE_URL}/thermal/frame" | grep -qi "content-type: image/jpeg"
-curl -fsSI "${BASE_URL}/video/rgb_left" | grep -qi "multipart/x-mixed-replace"
-curl -fsSI "${BASE_URL}/video/rgb_right" | grep -qi "multipart/x-mixed-replace"
+echo "Checking real camera runtime..."
+runtime_args=(--url "${BASE_URL}")
+if [[ "${EASY_SKIP_THERMAL_VALIDATION:-0}" == "1" ]]; then
+  runtime_args+=(--skip-thermal)
+fi
+if [[ -x "${PYTHON_BIN}" ]]; then
+  "${PYTHON_BIN}" scripts/check_raspberry_runtime.py "${runtime_args[@]}"
+else
+  python3 scripts/check_raspberry_runtime.py "${runtime_args[@]}"
+fi
 
 echo
 echo "Runtime validation: OK"

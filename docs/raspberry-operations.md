@@ -56,6 +56,10 @@ physical Lepton seating instead of repeatedly restarting FFmpeg.
 1. Stop the service and pull with `git pull --ff-only`.
 2. Confirm CPU temperature below 70 °C.
 3. Start the service once and run `scripts/validate_raspberry_runtime.sh`.
-4. Verify RGB, mission capture, inference, export, and thermal status.
+4. The validator requires real RGB frames, captures one thermal JPEG, checks
+   that `frame_seq` increases, and waits for RGB to resume.
 5. Record temperature and stop immediately on the 78 °C threshold.
 6. Stop the service after the short test unless temperature and frames remain stable.
+
+Use `EASY_SKIP_THERMAL_VALIDATION=1` only when deliberately checking RGB without
+opening PureThermal. The default validation refuses to begin at 70 °C or above.
