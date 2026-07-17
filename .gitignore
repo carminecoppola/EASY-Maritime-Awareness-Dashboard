@@ -46,3 +46,5 @@ runtime/replay/test_output/*
 runtime/sessions/frame_provider_temp/*
 runtime/exports/*
 !runtime/exports/.gitkeep
+runtime/benchmarks/*
+!runtime/benchmarks/.gitkeep

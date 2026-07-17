@@ -1,53 +1,78 @@
 #!/usr/bin/env python3
-"""Measure dashboard API and inference latency without changing sessions."""
-
 from __future__ import annotations
+
+"""Run the reproducible EASY Raspberry Pi runtime characterization."""
 
 import argparse
 import json
-import statistics
-import time
-import urllib.error
-import urllib.request
+import sys
+from pathlib import Path
 
 
-def request_json(url: str, *, method: str = "GET") -> tuple[dict, float]:
-    request = urllib.request.Request(url, method=method, headers={"Content-Type": "application/json"})
-    started = time.perf_counter()
-    with urllib.request.urlopen(request, timeout=60) as response:
-        payload = json.loads(response.read().decode("utf-8"))
-    return payload, (time.perf_counter() - started) * 1000
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from easy_dashboard.runtime_benchmark import BenchmarkRunner, DEFAULT_API_PATHS
 
 
-def summary(values: list[float]) -> dict:
-    ordered = sorted(values)
-    return {"runs": len(values), "min_ms": round(min(values), 1), "median_ms": round(statistics.median(values), 1), "p95_ms": round(ordered[max(0, int(len(ordered) * 0.95) - 1)], 1), "max_ms": round(max(values), 1)}
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Measure EASY runtime resources, startup, API latency, inference timing and source FPS."
+    )
+    parser.add_argument("--url", default="http://127.0.0.1:5000")
+    parser.add_argument("--service-name", default="easy-dashboard.service")
+    parser.add_argument("--pid", type=int, default=0, help="Observe this PID instead of resolving systemd MainPID")
+    parser.add_argument("--output-dir", default=str(PROJECT_ROOT / "runtime/benchmarks"))
+    parser.add_argument("--run-id", help="Stable identifier for this experimental run")
+    parser.add_argument("--duration", type=float, default=300.0, help="Steady-state sampling duration in seconds")
+    parser.add_argument("--interval", type=float, default=2.0, help="Resource sampling interval in seconds")
+    parser.add_argument("--warmup-seconds", type=float, default=30.0)
+    parser.add_argument("--startup-runs", type=int, default=0, help="Explicit service stop/start repetitions")
+    parser.add_argument("--startup-timeout", type=float, default=45.0)
+    parser.add_argument("--startup-cooldown", type=float, default=3.0)
+    parser.add_argument("--api-runs", "--runs", dest="api_runs", type=int, default=30)
+    parser.add_argument("--api-paths", nargs="+", default=list(DEFAULT_API_PATHS))
+    parser.add_argument("--request-delay", type=float, default=0.2)
+    parser.add_argument("--inference-runs", type=int, default=10)
+    parser.add_argument("--inference", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--inference-delay", type=float, default=0.5)
+    parser.add_argument("--http-timeout", type=float, default=60.0)
+    parser.add_argument("--stop-temperature-limit", type=float, default=78.0)
+    parser.add_argument(
+        "--allow-unhealthy",
+        action="store_true",
+        help="Allow collection when /health is false (engineering diagnostics only, not the paper protocol)",
+    )
+    args = parser.parse_args()
+    if args.duration <= 0 or args.interval <= 0 or args.api_runs < 1 or args.startup_runs < 0 or args.inference_runs < 0:
+        parser.error("duration/interval/api-runs must be positive; startup/inference runs cannot be negative")
+    if args.pid and args.startup_runs:
+        parser.error("--pid cannot be combined with --startup-runs")
+    return args
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--url", default="http://127.0.0.1:5000")
-    parser.add_argument("--runs", type=int, default=10)
-    parser.add_argument("--inference", action="store_true", help="also run inference on the selected source")
-    args = parser.parse_args()
-    runs = max(1, min(100, args.runs))
-    report = {"url": args.url, "health_ms": [], "inference_ms": [], "errors": []}
-    for _ in range(runs):
-        try:
-            payload, elapsed = request_json(f"{args.url}/health")
-            if not payload.get("ok"):
-                raise RuntimeError("health returned ok=false")
-            report["health_ms"].append(elapsed)
-            if args.inference:
-                result, inference_elapsed = request_json(f"{args.url}/api/inference/run-on-next-frame", method="POST")
-                if not result.get("ok"):
-                    raise RuntimeError(result.get("error") or "inference failed")
-                report["inference_ms"].append(inference_elapsed)
-        except (OSError, ValueError, RuntimeError, urllib.error.HTTPError) as exc:
-            report["errors"].append(str(exc))
-    output = {"ok": not report["errors"], "requested_runs": runs, "successful_health_runs": len(report["health_ms"]), "health": summary(report["health_ms"]) if report["health_ms"] else None, "inference": summary(report["inference_ms"]) if report["inference_ms"] else None, "errors": report["errors"]}
-    print(json.dumps(output, indent=2))
-    return 0 if output["ok"] else 1
+    args = parse_args()
+    try:
+        runner = BenchmarkRunner(args, PROJECT_ROOT)
+        summary = runner.run()
+    except Exception as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}, indent=2), file=sys.stderr)
+        return 1
+    print(
+        json.dumps(
+            {
+                "ok": summary.get("ok"),
+                "run_id": summary.get("run_id"),
+                "output_dir": str(runner.output_dir),
+                "samples": summary.get("sample_count"),
+                "errors": summary.get("errors"),
+            },
+            indent=2,
+        )
+    )
+    return 0 if summary.get("ok") else 1
 
 
 if __name__ == "__main__":

@@ -57,6 +57,11 @@ Contains generated fine-tuning packages. Each export includes `dataset.json`,
 `validation_report.json`, organized train/validation images and a ZIP archive.
 Exports are generated artifacts and are not committed.
 
+## `benchmarks/`
+
+Contains generated Raspberry Pi runtime characterization runs. The scientific
+protocol and output schema are documented in `docs/runtime-benchmark.md`.
+
 ## ONNX Smoke Test
 
 To validate the ONNX model before dashboard integration, run:
