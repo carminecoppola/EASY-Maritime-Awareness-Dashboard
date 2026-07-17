@@ -58,6 +58,13 @@ ZIP export. `scripts/smoke_dashboard.py` remains the fast whole-application
 check. GitHub Actions runs both suites plus Python, JavaScript, and shell syntax
 checks. Raspberry validation stays explicit and separate from CI.
 
+Hardware responsibilities are separated behind the compatibility module
+`easy_dashboard.hardware`: `system_probe.py` owns read-only host diagnostics,
+`rgb_capture.py` owns RGB command construction and MJPEG framing, and
+`thermal_discovery.py` owns PureThermal node recognition and ranking. Existing
+`SystemProbe`, `RgbMasterSource`, and `ThermalState` imports remain valid for
+routes and external scripts.
+
 ## Glossary
 
 - **Mission / session** — one bounded operating and persistence period.

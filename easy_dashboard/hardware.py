@@ -3,177 +3,28 @@ from __future__ import annotations
 import io
 import logging
 import os
-import re
-import signal
 import shutil
 import subprocess
 import threading
 import time
 from collections import deque
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 import numpy as np
-import psutil
 from flask import Response
 from PIL import Image, ImageDraw
 
-from .constants import PROJECT_ROOT
 from .media import RESAMPLE_NEAREST, draw_rounded_box, make_placeholder_jpeg, multipart_frame
+from .rgb_capture import RgbCaptureCommands, RgbCaptureSettings, split_mjpeg_buffer
 from .runtime_status import build_rgb_state_contract, build_thermal_state_contract
 from .stores import EventStore
-from .utils import get_boot_seconds, get_hostname, get_ip_address, human_uptime, read_cpu_temperature, read_text_file, run_command, safe_device_listing, which
+from .system_probe import SystemProbe
+from .thermal_discovery import PureThermalDiscovery
+from .utils import read_cpu_temperature, which
 
 
 LOGGER = logging.getLogger("easy-dashboard")
-
-
-class SystemProbe:
-    def hostname(self) -> str:
-        return get_hostname()
-
-    def ip_address(self) -> str:
-        return get_ip_address()
-
-    def model(self) -> str:
-        model_file = Path("/proc/device-tree/model")
-        if model_file.exists():
-            raw = model_file.read_bytes().replace(b"\x00", b"").decode("utf-8", errors="ignore").strip()
-            if raw:
-                return raw
-        return read_text_file(Path("/proc/device-tree/model")) or "unknown"
-
-    def os_release(self) -> str:
-        return read_text_file(Path("/etc/os-release"))
-
-    def python_version(self) -> str:
-        return subprocess.run(["python3", "--version"], capture_output=True, text=True, check=False).stdout.strip() or "unknown"
-
-    def cpu_temperature(self) -> Optional[float]:
-        return read_cpu_temperature()
-
-    def memory(self) -> Dict[str, Any]:
-        mem = psutil.virtual_memory()
-        return {
-            "used_mb": round(mem.used / 1024 / 1024, 1),
-            "available_mb": round(mem.available / 1024 / 1024, 1),
-            "total_mb": round(mem.total / 1024 / 1024, 1),
-            "percent": mem.percent,
-        }
-
-    def disk(self) -> Dict[str, Any]:
-        usage = psutil.disk_usage(str(PROJECT_ROOT))
-        return {
-            "used_gb": round(usage.used / 1024 / 1024 / 1024, 2),
-            "free_gb": round(usage.free / 1024 / 1024 / 1024, 2),
-            "total_gb": round(usage.total / 1024 / 1024 / 1024, 2),
-            "percent": usage.percent,
-        }
-
-    def camera_tools(self) -> Dict[str, bool]:
-        return {
-            "libcamera_hello": which("libcamera-hello") is not None,
-            "rpicam_hello": which("rpicam-hello") is not None,
-            "libcamera_vid": which("libcamera-vid") is not None,
-            "rpicam_vid": which("rpicam-vid") is not None,
-            "picamera2": _module_available("picamera2"),
-        }
-
-    def camera_list(self) -> str:
-        for command in (["libcamera-hello", "--list-cameras"], ["rpicam-hello", "--list-cameras"]):
-            if which(command[0]):
-                process = None
-                try:
-                    process = subprocess.Popen(
-                        command,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        text=True,
-                        start_new_session=True,
-                    )
-                    output, _ = process.communicate(timeout=3)
-                except subprocess.TimeoutExpired:
-                    if process is not None:
-                        try:
-                            os.killpg(process.pid, signal.SIGKILL)
-                        except ProcessLookupError:
-                            pass
-                        process.wait(timeout=2)
-                    output = "camera listing timed out"
-                    LOGGER.warning("Camera listing timed out command=%r", command)
-                    continue
-                except OSError as exc:
-                    LOGGER.warning("Camera listing failed command=%r error=%s", command, exc)
-                    continue
-                if output:
-                    return output
-        return "No camera tooling available"
-
-    def lsusb(self) -> str:
-        _, output = run_command(["lsusb"], timeout=10)
-        return output
-
-    def i2cdetect(self) -> str:
-        _, output = run_command(["i2cdetect", "-y", "1"], timeout=20)
-        return output
-
-    def video_devices(self) -> list[str]:
-        return safe_device_listing("/dev/video*")
-
-    def get_camera(self) -> str:
-        if which("vcgencmd") is None:
-            return "vcgencmd not available"
-        _, output = run_command(["vcgencmd", "get_camera"], timeout=8)
-        return output
-
-    def uname(self) -> str:
-        _, output = run_command(["uname", "-a"], timeout=8)
-        return output
-
-    def uptime(self) -> str:
-        _, output = run_command(["uptime", "-p"], timeout=8)
-        return output or human_uptime(get_boot_seconds())
-
-    def preflight_summary(self) -> Dict[str, Any]:
-        return {
-            "hostname": self.hostname(),
-            "ip_address": self.ip_address(),
-            "model": self.model(),
-            "os_release": self.os_release(),
-            "python_version": self.python_version(),
-            "cpu_temperature_c": self.cpu_temperature(),
-            "memory": self.memory(),
-            "disk": self.disk(),
-            "camera_tools": self.camera_tools(),
-            "camera_list": self.camera_list(),
-            "lsusb": self.lsusb(),
-            "i2cdetect": self.i2cdetect(),
-            "video_devices": self.video_devices(),
-            "vcgencmd_get_camera": self.get_camera(),
-            "uname": self.uname(),
-            "uptime": self.uptime(),
-        }
-
-
-def _module_available(name: str) -> bool:
-    try:
-        __import__(name)
-        return True
-    except Exception:
-        return False
-
-
-@dataclass
-class RgbFeedState:
-    name: str
-    hardware_name: str
-    crop: str
-    enabled: bool = True
-    status: str = "UNKNOWN"
-    fps: float = 0.0
-    last_acquisition_ts: float = 0.0
-    error: str = ""
 
 
 class RgbMasterSource:
@@ -190,6 +41,15 @@ class RgbMasterSource:
         self.height = int(config["rgb"].get("height", 480))
         self.fps_target = int(config["rgb"].get("fps", 10))
         self.quality = int(config["rgb"].get("quality", 85))
+        self._commands = RgbCaptureCommands(
+            RgbCaptureSettings(
+                camera_index=self.camera_index,
+                width=self.width,
+                height=self.height,
+                fps=self.fps_target,
+                quality=self.quality,
+            )
+        )
         self.process: Optional[subprocess.Popen] = None
         self._lock = threading.Lock()
         self._condition = threading.Condition(self._lock)
@@ -307,28 +167,7 @@ class RgbMasterSource:
             self._error = ""
             self._frame = None
             self._frame_ts = 0.0
-            command = [
-                which("rpicam-vid") or which("libcamera-vid") or "libcamera-vid",
-                "--camera",
-                str(self.camera_index),
-                "-t",
-                "0",
-                "--nopreview",
-                "--codec",
-                "mjpeg",
-                "--width",
-                str(self.width),
-                "--height",
-                str(self.height),
-                "--framerate",
-                str(self.fps_target),
-                "--quality",
-                str(self.quality),
-                "--inline",
-                "--flush",
-                "-o",
-                "-",
-            ]
+            command = self._commands.stream(which("rpicam-vid") or which("libcamera-vid") or "libcamera-vid")
             try:
                 self.process = subprocess.Popen(
                     command,
@@ -394,17 +233,8 @@ class RgbMasterSource:
                 time.sleep(0.02)
                 continue
             buffer += chunk
-            while True:
-                start = buffer.find(b"\xff\xd8")
-                end = buffer.find(b"\xff\xd9", start + 2)
-                if start == -1 or end == -1:
-                    if start > 0:
-                        buffer = buffer[start:]
-                    elif len(buffer) > 1024 * 1024:
-                        buffer = buffer[-65536:]
-                    break
-                frame = buffer[start : end + 2]
-                buffer = buffer[end + 2 :]
+            frames, buffer = split_mjpeg_buffer(buffer)
+            for frame in frames:
                 with self._condition:
                     self._frame = frame
                     self._frame_ts = time.time()
@@ -528,24 +358,7 @@ class RgbMasterSource:
     def _crop_snapshot(self, frame: bytes, side: str) -> bytes:
         if side not in {"left", "right"}:
             return frame
-        crop = "0:0:iw*0.5:ih" if side == "left" else "iw*0.5:0:iw*0.5:ih"
-        command = [
-            which("ffmpeg") or "ffmpeg",
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-f",
-            "mjpeg",
-            "-i",
-            "pipe:0",
-            "-vf",
-            f"crop={crop}",
-            "-frames:v",
-            "1",
-            "-f",
-            "mjpeg",
-            "pipe:1",
-        ]
+        command = self._commands.crop(which("ffmpeg") or "ffmpeg", side)
         try:
             completed = subprocess.run(command, input=frame, capture_output=True, check=True)
             return completed.stdout or frame
@@ -594,6 +407,7 @@ class ThermalState:
         self.device = self.configured_device
         self.input_format = str(os.environ.get("EASY_THERMAL_INPUT_FORMAT") or config["thermal"].get("input_format", "y16")).lower()
         self.video_size = str(os.environ.get("EASY_THERMAL_VIDEO_SIZE") or config["thermal"].get("video_size", "160x120"))
+        self._discovery = PureThermalDiscovery(self.video_size)
         self.threshold_celsius = float(config["thermal"].get("threshold_celsius", 35.0))
         self.delta_threshold = float(config["thermal"].get("delta_threshold", 8.0))
         self.detected = False
@@ -720,75 +534,20 @@ class ThermalState:
         return None
 
     def _discover_with_v4l2_ctl(self) -> list[Dict[str, Any]]:
-        if shutil.which("v4l2-ctl") is None:
-            return []
-        result = subprocess.run(["v4l2-ctl", "--list-devices"], capture_output=True, text=True, timeout=4.0, check=False)
-        if result.returncode != 0:
-            return []
-        candidates: list[Dict[str, Any]] = []
-        current_name = ""
-        for raw_line in result.stdout.splitlines():
-            line = raw_line.rstrip()
-            if not line:
-                current_name = ""
-                continue
-            if not line.startswith(("\t", " ")):
-                current_name = line
-                continue
-            device_path = line.strip()
-            if device_path.startswith("/dev/video") and self._name_looks_thermal(current_name):
-                candidates.append(self._inspect_video_candidate(device_path, current_name, "v4l2-ctl"))
+        candidates = self._discovery.discover_with_v4l2_ctl()
         self.device_candidates.extend(candidates)
         return candidates
 
     def _discover_with_sysfs(self) -> list[Dict[str, Any]]:
-        candidates: list[Dict[str, Any]] = []
-        for video_node in sorted(Path("/sys/class/video4linux").glob("video*")):
-            name = read_text_file(video_node / "name")
-            device_path = f"/dev/{video_node.name}"
-            if self._name_looks_thermal(name):
-                candidates.append(self._inspect_video_candidate(device_path, name, "sysfs"))
+        candidates = self._discovery.discover_with_sysfs()
         self.device_candidates.extend(candidates)
         return candidates
 
     def _inspect_video_candidate(self, device_path: str, name: str, source: str) -> Dict[str, Any]:
-        """Describe a candidate without opening the fragile UVC node.
-
-        PureThermal firmware v1.3.0 can stop delivering frames when a
-        capability ioctl is performed immediately before the real capture.
-        Discovery therefore relies on the node name and defers all format
-        negotiation to the bounded FFmpeg capture.
-        """
-        formats: list[str] = []
-        sizes: list[str] = []
-        error = "capabilities deferred until capture"
-        normalized_formats = {item.lower() for item in formats}
-        return {
-            "path": device_path,
-            "name": name,
-            "source": source,
-            "formats": formats,
-            "sizes": sizes,
-            "supports_y16": "y16 " in normalized_formats or "y16" in normalized_formats,
-            "supports_configured_size": self.video_size.lower() in {item.lower() for item in sizes},
-            "error": error,
-        }
+        return self._discovery.inspect_candidate(device_path, name, source)
 
     def _select_thermal_candidate(self, candidates: list[Dict[str, Any]]) -> str:
-        """Prefer the node that exposes radiometric Y16 at the configured size."""
-        def score(candidate: Dict[str, Any]) -> tuple[int, int, int]:
-            path_match = re.search(r"(\d+)$", str(candidate.get("path", "")))
-            node_number = int(path_match.group(1)) if path_match else 9999
-            return (
-                int(bool(candidate.get("supports_y16"))),
-                int(bool(candidate.get("supports_configured_size"))),
-                -node_number,
-            )
-
-        selected = max(candidates, key=score)
-        for candidate in candidates:
-            candidate["selected"] = candidate is selected
-        return str(selected["path"])
+        return PureThermalDiscovery.select_candidate(candidates)
 
     def _thermal_stream_candidates(self) -> list[str]:
         """Return candidate video nodes, trying the selected one first and then fallbacks."""
@@ -802,13 +561,11 @@ class ThermalState:
         return ordered
 
     def _is_purethermal_device(self, device_path: str) -> bool:
-        name_path = Path("/sys/class/video4linux") / Path(device_path).name / "name"
-        return self._name_looks_thermal(read_text_file(name_path))
+        return self._discovery.is_purethermal_device(device_path)
 
     @staticmethod
     def _name_looks_thermal(name: str) -> bool:
-        normalized = str(name or "").lower()
-        return any(token in normalized for token in ("purethermal", "pure thermal", "flir", "lepton"))
+        return PureThermalDiscovery.name_looks_thermal(name)
 
     def _friendly_thermal_error(self, stderr: str, returncode: int | None = None) -> str:
         message = (stderr or "").strip()
