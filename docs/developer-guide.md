@@ -50,6 +50,14 @@ Add a source by defining its catalog entry, device status provider, frame
 provider adapter, and capability flags. Add a model backend behind the inference
 backend contract; do not put model-specific loading into route handlers.
 
+## Regression strategy
+
+`tests/` covers normalized runtime states, manager propagation, stable API
+payloads, session lifecycle, synchronized capture sets, dataset validation, and
+ZIP export. `scripts/smoke_dashboard.py` remains the fast whole-application
+check. GitHub Actions runs both suites plus Python, JavaScript, and shell syntax
+checks. Raspberry validation stays explicit and separate from CI.
+
 ## Glossary
 
 - **Mission / session** — one bounded operating and persistence period.
