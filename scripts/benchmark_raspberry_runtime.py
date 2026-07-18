@@ -31,6 +31,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--startup-runs", type=int, default=0, help="Explicit service stop/start repetitions")
     parser.add_argument("--startup-timeout", type=float, default=45.0)
     parser.add_argument("--startup-cooldown", type=float, default=3.0)
+    parser.add_argument("--service-stability-seconds", type=float, default=2.0)
     parser.add_argument("--api-runs", "--runs", dest="api_runs", type=int, default=30)
     parser.add_argument("--api-paths", nargs="+", default=list(DEFAULT_API_PATHS))
     parser.add_argument("--request-delay", type=float, default=0.2)
