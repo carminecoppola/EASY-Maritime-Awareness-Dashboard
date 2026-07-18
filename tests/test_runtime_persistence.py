@@ -30,9 +30,23 @@ class RuntimePersistenceTests(unittest.TestCase):
                 }
             )
 
-            self.assertEqual(write_json.call_count, 2)
+            self.assertEqual(write_json.call_count, 1)
+            journal = Path(temp_dir) / "detection_history.jsonl"
+            self.assertEqual(len(journal.read_text(encoding="utf-8").splitlines()), 2)
             event_manager.record_detections.assert_called_once()
             self.assertEqual(len(event_manager.record_detections.call_args.args[0]), 2)
+
+    def test_detection_journal_is_replayed_and_compacted_on_restart(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            manager = DetectionManager(root)
+            manager.add_detection({"id": "det-journal", "class_name": "ship"}, source="replay")
+            self.assertTrue((root / "detection_history.jsonl").read_text(encoding="utf-8").strip())
+
+            restored = DetectionManager(root)
+
+            self.assertIsNotNone(restored.get_detection("det-journal"))
+            self.assertEqual((root / "detection_history.jsonl").read_text(encoding="utf-8"), "")
 
     def test_event_frame_syncs_only_the_affected_session_once(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir, patch("event_manager.atomic_write_json") as write_json:
