@@ -513,6 +513,895 @@ select {
   color: var(--easy-text);
 }
 
+/* Live — Maritime Command */
+body[data-page="live"] .live-page {
+  gap: 14px;
+}
+
+body[data-page="live"] .live-statusbar {
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 8px 10px;
+  border-color: var(--easy-line-strong);
+  background: rgba(5, 12, 10, 0.72);
+}
+
+body[data-page="live"] .live-statusbar-group,
+body[data-page="live"] .live-statusbar-actions {
+  gap: 5px;
+}
+
+body[data-page="live"] .live-status-pill {
+  min-height: 36px;
+  gap: 7px;
+  padding: 7px 9px;
+  border-radius: var(--easy-radius-sm);
+}
+
+body[data-page="live"] .live-status-label {
+  color: var(--easy-text-muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+body[data-page="live"] .live-status-pill strong {
+  color: var(--easy-text);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+}
+
+body[data-page="live"] .live-refresh-status {
+  color: var(--easy-text-secondary);
+  font-size: 11px;
+}
+
+body[data-page="live"] .live-explainer {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-left: 2px solid var(--easy-green);
+  background: linear-gradient(90deg, rgba(36, 214, 160, 0.055), transparent 48%);
+  color: var(--easy-text-secondary);
+  font-size: 12px;
+}
+
+body[data-page="live"] .live-explainer strong {
+  color: var(--easy-green);
+  font-weight: 680;
+}
+
+body[data-page="live"] .live-section-heading {
+  margin: 10px 2px 0;
+}
+
+body[data-page="live"] .live-section-heading strong {
+  color: var(--easy-text);
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+
+body[data-page="live"] .live-section-heading > span {
+  color: var(--easy-text-secondary);
+  font-size: 12px;
+}
+
+body[data-page="live"] .live-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+body[data-page="live"] .live-feed-card {
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  border-color: var(--easy-line-strong);
+  border-radius: var(--easy-radius-md);
+  background: #06100d;
+}
+
+body[data-page="live"] .live-feed-card:not(.live-feed-card-thermal) {
+  min-height: clamp(360px, 38vw, 650px);
+}
+
+body[data-page="live"] .live-feed-head {
+  min-height: 42px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--easy-line);
+  background: rgba(15, 28, 24, 0.88);
+}
+
+body[data-page="live"] .live-feed-name {
+  color: #bfcbc7;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+body[data-page="live"] .live-feed-body {
+  min-height: 300px;
+  background: #06110e;
+}
+
+body[data-page="live"] .live-feed-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #030706;
+}
+
+body[data-page="live"] .live-feed-foot {
+  min-height: 34px;
+  padding: 7px 12px;
+  border-top: 1px solid var(--easy-line);
+  background: rgba(5, 12, 10, 0.92);
+  color: var(--easy-text-muted);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+}
+
+body[data-page="live"] .live-offline-card,
+body[data-page="live"] .live-dark-frame-note,
+body[data-page="live"] .live-thermal-ready {
+  color: var(--easy-text-muted);
+}
+
+body[data-page="live"] .live-offline-card strong,
+body[data-page="live"] .live-dark-frame-note strong,
+body[data-page="live"] .live-thermal-ready strong {
+  color: var(--easy-text-secondary);
+}
+
+body[data-page="live"] .live-feed-card-thermal {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(280px, 34%) minmax(0, 1fr);
+  min-height: 190px;
+  background: var(--easy-surface-1);
+}
+
+body[data-page="live"] .live-feed-card-thermal .live-feed-body {
+  min-height: 190px;
+  border-right: 1px solid var(--easy-line-strong);
+}
+
+body[data-page="live"] .live-thermal-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  padding: 22px 26px;
+}
+
+body[data-page="live"] .live-thermal-content .live-feed-head {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+body[data-page="live"] .live-thermal-content p {
+  max-width: 68ch;
+  color: var(--easy-text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+body[data-page="live"] .live-thermal-actions {
+  padding-top: 2px;
+}
+
+/* Mission — clear command, data, source and history zones. */
+body[data-page="mission"] .mission-page {
+  display: grid;
+  gap: 14px;
+}
+
+body[data-page="mission"] .mission-command-bar {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px 28px;
+  padding: 20px;
+  overflow: hidden;
+  border-color: rgba(19, 184, 212, 0.28);
+  background:
+    linear-gradient(105deg, rgba(19, 184, 212, 0.1), transparent 52%),
+    var(--easy-surface-1);
+}
+
+body[data-page="mission"] .mission-command-state {
+  align-items: flex-start;
+}
+
+body[data-page="mission"] .mission-command-state strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--easy-text);
+  font-size: 20px;
+  font-weight: 680;
+  letter-spacing: -0.02em;
+}
+
+body[data-page="mission"] .mission-command-state p,
+body[data-page="mission"] .mission-command-helper {
+  color: var(--easy-text-secondary);
+  font-size: 12px;
+}
+
+body[data-page="mission"] .mission-command-actions {
+  align-items: flex-end;
+}
+
+body[data-page="mission"] .mission-command-actions .btn {
+  min-width: 140px;
+}
+
+body[data-page="mission"] .mission-workflow {
+  grid-column: 1 / -1;
+  width: min(620px, 100%);
+  margin: 2px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--easy-line);
+}
+
+body[data-page="mission"] .mission-workflow li {
+  color: var(--easy-text-muted);
+}
+
+body[data-page="mission"] .mission-workflow li::after {
+  background: var(--easy-line-strong);
+}
+
+body[data-page="mission"] .mission-workflow li > span {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--easy-line-strong);
+  border-radius: 50%;
+  background: var(--easy-surface-2);
+  color: var(--easy-text-secondary);
+}
+
+body[data-page="mission"] .mission-workflow li.is-active > span,
+body[data-page="mission"] .mission-workflow li.is-complete > span {
+  border-color: rgba(19, 184, 212, 0.45);
+  background: var(--easy-cyan-soft);
+  color: var(--easy-cyan-strong);
+}
+
+body[data-page="mission"] .dataset-session-panel,
+body[data-page="mission"] .mission-sources-panel,
+body[data-page="mission"] .mission-history-panel {
+  padding: 20px;
+}
+
+body[data-page="mission"] .dataset-session-path {
+  padding: 8px 10px;
+  border: 1px solid var(--easy-line);
+  border-radius: var(--easy-radius-sm);
+  background: var(--easy-bg-deep);
+  color: var(--easy-text-muted);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+body[data-page="mission"] .dataset-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: 12px;
+  overflow: hidden;
+  border: 1px solid var(--easy-line);
+  border-radius: var(--easy-radius-sm);
+  background: var(--easy-line);
+}
+
+body[data-page="mission"] .dataset-metric {
+  min-height: 100px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 15px;
+  border: 0;
+  border-radius: 0;
+  background: var(--easy-surface-2);
+}
+
+body[data-page="mission"] .dataset-metric > span {
+  color: var(--easy-text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+body[data-page="mission"] .dataset-metric > strong {
+  color: var(--easy-text);
+  font-size: 26px;
+  font-weight: 650;
+  line-height: 1.1;
+}
+
+body[data-page="mission"] .dataset-metric small {
+  color: var(--easy-text-muted);
+  font-size: 10px;
+}
+
+body[data-page="mission"] .dataset-session-secondary {
+  min-height: 52px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--easy-line);
+}
+
+body[data-page="mission"] .sources-grid {
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--easy-line);
+  border-radius: var(--easy-radius-sm);
+  background: var(--easy-bg-deep);
+}
+
+body[data-page="mission"] .source-row {
+  min-height: 62px;
+  padding: 9px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--easy-line);
+  border-radius: 0;
+  background: transparent;
+}
+
+body[data-page="mission"] .source-row:last-child {
+  border-bottom: 0;
+}
+
+body[data-page="mission"] .source-row:hover {
+  background: rgba(255, 255, 255, 0.022);
+}
+
+body[data-page="mission"] .source-row.is-selected {
+  background: linear-gradient(90deg, var(--easy-cyan-soft), transparent 52%);
+  box-shadow: inset 2px 0 var(--easy-cyan-strong);
+}
+
+body[data-page="mission"] .source-card-title {
+  color: var(--easy-text);
+  font-size: 12px;
+  font-weight: 680;
+}
+
+body[data-page="mission"] .source-card-copy {
+  color: var(--easy-text-muted);
+  font-size: 10px;
+}
+
+body[data-page="mission"] .mission-history-layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.78fr) minmax(0, 1.22fr);
+  gap: 12px;
+}
+
+body[data-page="mission"] .mission-history-list,
+body[data-page="mission"] .mission-history-detail {
+  height: 410px;
+  overflow: auto;
+  border: 1px solid var(--easy-line);
+  border-radius: var(--easy-radius-sm);
+  background: var(--easy-bg-deep);
+  scrollbar-color: var(--easy-surface-3) transparent;
+}
+
+body[data-page="mission"] .mission-history-item {
+  min-height: 58px;
+  border-color: var(--easy-line);
+  border-radius: 0;
+  background: transparent;
+}
+
+body[data-page="mission"] .mission-history-item:hover {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+body[data-page="mission"] .mission-history-item.is-selected {
+  background: var(--easy-cyan-soft);
+  box-shadow: inset 2px 0 var(--easy-cyan-strong);
+}
+
+body[data-page="mission"] .mission-history-detail {
+  padding: 18px;
+}
+
+/* Analysis — primary visual workspace plus a disciplined event rail. */
+body[data-page="detections"] .detections-page {
+  display: grid;
+  gap: 12px;
+}
+
+body[data-page="detections"] .ai-control-bar {
+  min-height: 70px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 18px;
+  padding: 12px 14px;
+  border-color: rgba(19, 184, 212, 0.25);
+  background:
+    linear-gradient(100deg, rgba(19, 184, 212, 0.09), transparent 42%),
+    var(--easy-surface-1);
+}
+
+body[data-page="detections"] .analysis-control-copy {
+  align-items: center;
+}
+
+body[data-page="detections"] .analysis-control-copy strong {
+  color: var(--easy-text);
+  font-size: 14px;
+}
+
+body[data-page="detections"] .analysis-control-copy p {
+  color: var(--easy-text-secondary);
+  font-size: 11px;
+}
+
+body[data-page="detections"] .ai-control-meta {
+  color: var(--easy-text-muted);
+}
+
+body[data-page="detections"] .analysis-source-mode,
+body[data-page="detections"] .analysis-session-reference {
+  min-height: 48px;
+  padding: 8px 11px;
+  background: rgba(11, 21, 18, 0.72);
+}
+
+body[data-page="detections"] .analysis-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.9fr) minmax(310px, 0.82fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+body[data-page="detections"] .analysis-monitor {
+  min-width: 0;
+  min-height: 620px;
+  display: flex;
+  flex-direction: column;
+  padding: 18px;
+  border-color: var(--easy-line-strong);
+}
+
+body[data-page="detections"] .analysis-monitor-head {
+  min-height: 66px;
+}
+
+body[data-page="detections"] .analysis-progress {
+  height: 3px;
+  margin: 12px 0 14px;
+  border-radius: 2px;
+  background: var(--easy-surface-3);
+}
+
+body[data-page="detections"] .analysis-progress > span {
+  background: var(--easy-cyan-strong);
+}
+
+body[data-page="detections"] .analysis-monitor-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--easy-line);
+  border-radius: var(--easy-radius-sm);
+  background: var(--easy-line);
+}
+
+body[data-page="detections"] .analysis-monitor-metrics > div {
+  min-height: 72px;
+  padding: 12px;
+  border: 0;
+  background: var(--easy-bg-deep);
+}
+
+body[data-page="detections"] .analysis-monitor-metrics span {
+  color: var(--easy-text-muted);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+body[data-page="detections"] .analysis-monitor-metrics strong {
+  margin-top: 4px;
+  color: var(--easy-text);
+  font-size: 12px;
+}
+
+body[data-page="detections"] .analysis-preview {
+  flex: 1;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--easy-line);
+}
+
+body[data-page="detections"] .ai-preview-grid {
+  grid-template-columns: minmax(220px, 0.68fr) minmax(0, 1.32fr);
+  min-height: 390px;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+body[data-page="detections"] .ai-preview-details,
+body[data-page="detections"] .ai-preview-media {
+  overflow: hidden;
+  border: 1px solid var(--easy-line);
+  border-radius: var(--easy-radius-sm);
+  background: var(--easy-bg-deep);
+}
+
+body[data-page="detections"] .ai-preview-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #020504;
+}
+
+body[data-page="detections"] .analysis-events-column {
+  min-width: 0;
+  height: 620px;
+  display: grid;
+  grid-template-rows: minmax(0, 0.82fr) minmax(0, 1.18fr);
+  gap: 12px;
+}
+
+body[data-page="detections"] .events-panel {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+  overflow: hidden;
+}
+
+body[data-page="detections"] .events-panel-head {
+  flex: 0 0 auto;
+  min-height: 58px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--easy-line);
+}
+
+body[data-page="detections"] .events-grid,
+body[data-page="detections"] .events-timeline {
+  min-height: 0;
+  flex: 1;
+  margin-top: 8px;
+  padding-right: 4px;
+  overflow-y: auto;
+  scrollbar-color: var(--easy-surface-3) transparent;
+}
+
+body[data-page="detections"] .event-card,
+body[data-page="detections"] .event-timeline-item {
+  margin: 0;
+  padding: 10px;
+  border: 0;
+  border-bottom: 1px solid var(--easy-line);
+  border-radius: 0;
+  background: transparent;
+}
+
+body[data-page="detections"] .event-card:hover,
+body[data-page="detections"] .event-timeline-item:hover {
+  background: rgba(255, 255, 255, 0.022);
+}
+
+body[data-page="detections"] .operations-panel,
+body[data-page="detections"] .debug-panel {
+  padding: 0;
+  overflow: hidden;
+  background: rgba(11, 21, 18, 0.72);
+}
+
+body[data-page="detections"] .operations-panel-summary,
+body[data-page="detections"] .debug-panel-summary {
+  padding: 12px 14px;
+}
+
+/* Archive — dense, filterable and predictable with large collections. */
+body[data-page="log"] .log-page {
+  display: grid;
+  gap: 12px;
+}
+
+body[data-page="log"] .archive-location {
+  color: var(--easy-text-muted);
+  font-size: 11px;
+}
+
+body[data-page="log"] .archive-tabs {
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(150px, 220px));
+  justify-content: start;
+  gap: 4px;
+  padding: 5px;
+  background: rgba(5, 12, 10, 0.72);
+}
+
+body[data-page="log"] .archive-tab {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--easy-text-secondary);
+}
+
+body[data-page="log"] .archive-tab.is-active {
+  border-color: rgba(19, 184, 212, 0.32);
+  background: var(--easy-cyan-soft);
+  color: var(--easy-text);
+}
+
+body[data-page="log"] .snapshot-library {
+  padding: 18px;
+}
+
+body[data-page="log"] .snapshot-library-summary {
+  gap: 6px;
+}
+
+body[data-page="log"] .snapshot-library-summary > span {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 9px;
+  border: 1px solid var(--easy-line);
+  border-radius: 999px;
+  background: var(--easy-bg-deep);
+  color: var(--easy-text-muted);
+  font-size: 10px;
+}
+
+body[data-page="log"] .snapshot-filters,
+body[data-page="log"] .log-count-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 14px 0;
+}
+
+body[data-page="log"] .snapshot-filter,
+body[data-page="log"] .log-count-chip {
+  padding: 8px 12px;
+  border: 1px solid var(--easy-line);
+  background: transparent;
+  color: var(--easy-text-secondary);
+}
+
+body[data-page="log"] .snapshot-filter.is-active,
+body[data-page="log"] .log-count-chip.is-active {
+  border-color: rgba(19, 184, 212, 0.4);
+  background: var(--easy-cyan-soft);
+  color: var(--easy-text);
+}
+
+body[data-page="log"] .snapshot-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+body[data-page="log"] .snapshot-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--easy-line);
+  border-radius: var(--easy-radius-sm);
+  background: var(--easy-bg-deep);
+  transition: border-color var(--easy-duration) var(--easy-ease), background var(--easy-duration) var(--easy-ease);
+}
+
+body[data-page="log"] .snapshot-card:hover {
+  border-color: var(--easy-line-strong);
+  background: var(--easy-surface-1);
+}
+
+body[data-page="log"] .snapshot-media {
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border-bottom: 1px solid var(--easy-line);
+  background: #020504;
+}
+
+body[data-page="log"] .snapshot-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+body[data-page="log"] .snapshot-card-body {
+  padding: 12px;
+}
+
+body[data-page="log"] .snapshot-card-title {
+  color: var(--easy-text);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+body[data-page="log"] .snapshot-card-meta {
+  color: var(--easy-text-muted);
+  font-size: 10px;
+}
+
+body[data-page="log"] .snapshot-pagination {
+  min-height: 52px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--easy-line);
+}
+
+body[data-page="log"] .log-toolbar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(180px, 280px);
+  gap: 10px;
+  padding: 12px;
+}
+
+body[data-page="log"] .log-list-panel {
+  padding: 0;
+  overflow: hidden;
+}
+
+body[data-page="log"] .log-list {
+  max-height: 640px;
+  overflow: auto;
+  scrollbar-color: var(--easy-surface-3) transparent;
+}
+
+body[data-page="log"] .log-item,
+body[data-page="log"] .log-row {
+  min-height: 58px;
+  margin: 0;
+  padding: 10px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--easy-line);
+  border-radius: 0;
+  background: transparent;
+}
+
+body[data-page="log"] .log-item:hover,
+body[data-page="log"] .log-row:hover {
+  background: rgba(255, 255, 255, 0.022);
+}
+
+body[data-page="log"] .log-load-more {
+  margin: 12px;
+}
+
+/* System and Guide — scientific instrument language. */
+body[data-page="system"] .system-page,
+body[data-page="help"] .help-page {
+  display: grid;
+  gap: 14px;
+}
+
+body[data-page="system"] .system-resources {
+  padding: 0;
+  overflow: hidden;
+}
+
+body[data-page="system"] .system-metric-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--easy-line);
+}
+
+body[data-page="system"] .system-metric {
+  min-height: 96px;
+  padding: 16px;
+  border: 0;
+  border-radius: 0;
+  background: var(--easy-surface-1);
+}
+
+body[data-page="system"] .system-metric span {
+  color: var(--easy-text-muted);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+body[data-page="system"] .system-metric strong {
+  color: var(--easy-text);
+  font-size: 22px;
+}
+
+body[data-page="system"] .system-error-list,
+body[data-page="system"] .system-device-list {
+  overflow: hidden;
+  border: 1px solid var(--easy-line);
+  border-radius: var(--easy-radius-sm);
+  background: var(--easy-bg-deep);
+}
+
+body[data-page="system"] .system-technical-details {
+  padding: 0;
+  overflow: hidden;
+}
+
+body[data-page="help"] .help-hero {
+  padding: 22px;
+  border-color: rgba(19, 184, 212, 0.24);
+  background:
+    linear-gradient(110deg, rgba(19, 184, 212, 0.08), transparent 45%),
+    var(--easy-surface-1);
+}
+
+body[data-page="help"] .help-flow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: 18px;
+  overflow: hidden;
+  border: 1px solid var(--easy-line);
+  border-radius: var(--easy-radius-sm);
+  background: var(--easy-line);
+}
+
+body[data-page="help"] .help-flow-step {
+  min-height: 100px;
+  padding: 15px;
+  background: var(--easy-bg-deep);
+}
+
+body[data-page="help"] .help-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+body[data-page="help"] .help-card {
+  min-height: 190px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+body[data-page="help"] .help-card .btn {
+  margin-top: auto;
+}
+
+/* Presentation preview keeps its disclosure visually dominant. */
+body.is-presentation-preview .presentation-banner {
+  border: 1px solid rgba(36, 214, 160, 0.34);
+  border-radius: var(--easy-radius-md);
+  background: linear-gradient(100deg, rgba(36, 214, 160, 0.1), transparent 60%);
+}
+
+body.is-presentation-preview .presentation-frame-label {
+  border: 1px solid var(--easy-line-strong);
+  border-radius: var(--easy-radius-sm);
+  background: rgba(5, 12, 10, 0.9);
+  color: var(--easy-text);
+}
+
+@media (max-width: 1280px) {
+  body[data-page="log"] .snapshot-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  body[data-page="detections"] .analysis-workspace {
+    grid-template-columns: minmax(0, 1.6fr) minmax(290px, 0.8fr);
+  }
+}
+
 @media (max-width: 900px) {
   body {
     font-size: 14px;
@@ -558,6 +1447,49 @@ select {
   .log-count-chip {
     min-height: 44px;
   }
+
+  body[data-page="live"] .live-statusbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  body[data-page="live"] .live-statusbar-group,
+  body[data-page="live"] .live-statusbar-actions {
+    justify-content: space-between;
+  }
+
+  body[data-page="live"] .live-grid,
+  body[data-page="detections"] .analysis-workspace,
+  body[data-page="mission"] .mission-history-layout {
+    grid-template-columns: 1fr;
+  }
+
+  body[data-page="live"] .live-feed-card:not(.live-feed-card-thermal) {
+    min-height: 420px;
+  }
+
+  body[data-page="detections"] .analysis-events-column {
+    height: auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: 440px;
+  }
+
+  body[data-page="mission"] .mission-history-list,
+  body[data-page="mission"] .mission-history-detail {
+    height: 340px;
+  }
+
+  body[data-page="log"] .snapshot-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  body[data-page="system"] .system-metric-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  body[data-page="help"] .help-flow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 560px) {
@@ -593,6 +1525,75 @@ select {
   .app-footer-links {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  body[data-page="live"] .live-statusbar-group,
+  body[data-page="live"] .live-statusbar-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  body[data-page="live"] .live-status-pill {
+    justify-content: space-between;
+  }
+
+  body[data-page="live"] .live-feed-card:not(.live-feed-card-thermal) {
+    min-height: 360px;
+  }
+
+  body[data-page="live"] .live-feed-card-thermal {
+    grid-template-columns: 1fr;
+  }
+
+  body[data-page="live"] .live-feed-card-thermal .live-feed-body {
+    min-height: 180px;
+    border-right: 0;
+    border-bottom: 1px solid var(--easy-line-strong);
+  }
+
+  body[data-page="live"] .live-thermal-content {
+    padding: 18px;
+  }
+
+  body[data-page="mission"] .mission-command-bar,
+  body[data-page="detections"] .ai-control-bar {
+    grid-template-columns: 1fr;
+  }
+
+  body[data-page="mission"] .mission-command-actions,
+  body[data-page="mission"] .mission-command-actions .btn {
+    width: 100%;
+  }
+
+  body[data-page="mission"] .dataset-metrics-grid,
+  body[data-page="detections"] .analysis-monitor-metrics,
+  body[data-page="system"] .system-metric-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  body[data-page="detections"] .analysis-monitor {
+    min-height: 0;
+  }
+
+  body[data-page="detections"] .ai-preview-grid,
+  body[data-page="detections"] .analysis-events-column {
+    grid-template-columns: 1fr;
+  }
+
+  body[data-page="detections"] .analysis-events-column {
+    grid-template-rows: 360px 420px;
+  }
+
+  body[data-page="log"] .archive-tabs,
+  body[data-page="log"] .snapshot-grid,
+  body[data-page="log"] .log-toolbar,
+  body[data-page="help"] .help-flow,
+  body[data-page="help"] .help-grid {
+    grid-template-columns: 1fr;
+  }
+
+  body[data-page="log"] .archive-tab {
+    width: 100%;
   }
 }
 
