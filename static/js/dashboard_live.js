@@ -356,7 +356,9 @@ function renderDatasetSessionPanel() {
   setText(liveActionElementId("datasetDetectionsCount"), `${manifestCounts.detections ?? 0}`);
 
   const synchronizedSamples = Number(datasetSummary.synchronized_samples ?? manifestCounts.synchronized_samples ?? 0);
-  const datasetReady = Boolean(sessionId && synchronizedSamples > 0);
+  const rgbImages = Number(byFeed.rgb_left ?? 0) + Number(byFeed.rgb_right ?? 0);
+  const thermalImages = Number(byFeed.thermal ?? 0);
+  const datasetReady = Boolean(sessionId && synchronizedSamples > 0 && rgbImages > 0 && thermalImages > 0);
   const validateButton = byId(liveActionElementId("datasetValidateButton"));
   const exportButton = byId(liveActionElementId("datasetExportButton"));
   [validateButton, exportButton].forEach((button) => {
