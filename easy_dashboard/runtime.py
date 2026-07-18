@@ -147,6 +147,18 @@ class DashboardRuntime:
             "events_count": len(self.events.list(9999)),
         }
 
+    def readiness_payload(self) -> Dict[str, Any]:
+        """Return only the state needed by service and tunnel readiness checks."""
+        rgb_state = self.rgb.latest_state()
+        thermal_state = self.thermal.status_payload()
+        orchestrator_state = self.orchestrator.health()
+        return {
+            "ok": runtime_is_healthy(rgb_state, thermal_state),
+            "service": "easy-dashboard",
+            "timestamp": utc_now_iso(),
+            "orchestrator_status": orchestrator_state.get("status"),
+        }
+
     def status_summary_payload(self) -> Dict[str, Any]:
         """Return a compact operator-facing status payload.
 
@@ -154,24 +166,27 @@ class DashboardRuntime:
         designed for UI cards, smoke checks, and first-level support: it keeps
         only the fields that answer "can I use the dashboard right now?".
         """
-        health_payload = self.health_payload()
+        rgb_state = self.rgb.latest_state()
+        thermal_state = self.thermal.status_payload()
+        runtime_state = {
+            "rgb": rgb_state.get("runtime_state") or build_rgb_state_contract(rgb_state),
+            "thermal": thermal_state.get("runtime_state") or build_thermal_state_contract(thermal_state),
+        }
+        sources_state = self.source_manager.get_status()
+        ready = runtime_is_healthy(rgb_state, thermal_state)
         acquisition_state = self.acquisition_manager.status()
         inference_state = self.inference_status_payload()
         session_state = self.session_manager.status()
-        thermal_state = health_payload.get("thermal") or {}
-        rgb_state = health_payload.get("rgb") or {}
-        runtime_state = health_payload.get("runtime_state") or {}
-        sources_state = health_payload.get("sources") or {}
         events_payload = self.events_payload(limit=8)
         dataset_summary = acquisition_state.get("dataset_summary") or {}
         manifest_counts = acquisition_state.get("manifest_counts") or {}
         latest_session = session_state.get("current") or session_state.get("latest") or {}
 
         return {
-            "ok": bool(health_payload.get("ok")),
+            "ok": ready,
             "service": "easy-dashboard",
-            "timestamp": health_payload.get("timestamp") or utc_now_iso(),
-            "operator_state": "ready" if health_payload.get("ok") else "needs_attention",
+            "timestamp": utc_now_iso(),
+            "operator_state": "ready" if ready else "needs_attention",
             "live": {
                 "rgb_state": rgb_state.get("camera_state"),
                 "thermal_state": thermal_state.get("status") or thermal_state.get("mode"),

@@ -14,6 +14,11 @@ def health():
     return jsonify(get_runtime().health_payload())
 
 
+@api_runtime_bp.route("/health/ready")
+def health_ready():
+    return jsonify(get_runtime().readiness_payload())
+
+
 @api_runtime_bp.route("/api/dashboard/state", methods=["GET"])
 def api_dashboard_state():
     return jsonify(get_runtime().dashboard_state_payload())

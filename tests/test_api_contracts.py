@@ -35,6 +35,12 @@ class ApiContractTests(unittest.TestCase):
             self.assertIn(state["availability"], {"STREAMING", "READY", "INITIALIZING", "NOT_PRESENT", "ERROR"})
             self.assertIn("service_healthy", state)
 
+    def test_lightweight_readiness_contract(self) -> None:
+        payload = self.client.get("/health/ready").get_json()
+        self.assertEqual(payload["service"], "easy-dashboard")
+        self.assertIn("ok", payload)
+        self.assertIn("orchestrator_status", payload)
+
     def test_thermal_status_does_not_capture_a_frame(self) -> None:
         runtime = self.app.easy_dashboard_runtime
         before = runtime.thermal.frame_seq

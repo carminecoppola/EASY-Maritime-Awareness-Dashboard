@@ -111,7 +111,7 @@ Each run creates an immutable directory under
 | `raw_samples.csv/json` | Timestamped system, process, temperature, FPS and component observations |
 | `startup.csv/json` | Every controlled startup measurement |
 | `api_latency.csv/json` | Every REST request, response status, size and latency |
-| `inference.csv/json` | Every inference wall time and runtime-reported engine time |
+| `inference.csv/json` | Every inference wall time, engine time and detailed pipeline stage |
 | `runtime_snapshots.json` | Full public API payloads before and after the experiment |
 | `summary.csv/json` | Aggregated count, minimum, mean, median, P95, maximum and standard deviation |
 | `report.md` | Human-readable automatic report and limitations |
@@ -131,6 +131,11 @@ explicitly. Do not select only the fastest run.
 Use wall latency for the user-visible inference request and engine time for the
 model execution reported by the runtime. These values answer different
 questions and must not be merged.
+
+The additive stage timings separate frame acquisition, preprocessing, ONNX
+execution, postprocessing, preview generation and durable persistence. Startup
+and tunnel checks use the lightweight `/health/ready` endpoint; `/health`
+remains the complete diagnostic endpoint measured by the benchmark.
 
 ## Experimental limitations
 

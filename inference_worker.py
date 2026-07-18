@@ -367,6 +367,7 @@ class InferenceWorker:
         return path
 
     def _execute_inference(self, image_path: Path, *, save_artifacts: bool = True, frame: FrameObject | None = None) -> Dict[str, Any]:
+        execute_started = time.perf_counter()
         ok, error = self._ensure_session()
         if not ok:
             return {
@@ -384,12 +385,16 @@ class InferenceWorker:
                     "detections": [],
                 }
 
-        start = time.perf_counter()
+        preprocess_started = time.perf_counter()
         if frame is not None and frame.image is not None:
             tensor, original_rgb, ratio, pad = preprocess_array(frame.image, self.input_size)
         else:
             tensor, original_rgb, ratio, pad = preprocess_image(image_path, self.input_size)
+        preprocess_ms = round((time.perf_counter() - preprocess_started) * 1000.0, 2)
+        backend_started = time.perf_counter()
         outputs = self.model_backend.run(tensor)
+        backend_ms = round((time.perf_counter() - backend_started) * 1000.0, 2)
+        postprocess_started = time.perf_counter()
         detections = decode_yolo_output(
             outputs=outputs,
             conf_threshold=self.confidence_threshold,
@@ -401,10 +406,18 @@ class InferenceWorker:
             image_shape=original_rgb.shape[:2],
             input_size=self.input_size,
         )
-        elapsed_ms = round((time.perf_counter() - start) * 1000.0, 2)
-        fps = round(1000.0 / elapsed_ms, 2) if elapsed_ms > 0 else None
         detections_payload = format_detections(detections, frame=frame)
+        postprocess_ms = round((time.perf_counter() - postprocess_started) * 1000.0, 2)
+        elapsed_ms = round(preprocess_ms + backend_ms + postprocess_ms, 2)
+        fps = round(1000.0 / elapsed_ms, 2) if elapsed_ms > 0 else None
         source, source_label = self._frame_source_payload(frame)
+        timings = {
+            "preprocess_ms": preprocess_ms,
+            "backend_ms": backend_ms,
+            "postprocess_ms": postprocess_ms,
+            "preview_ms": 0.0,
+            "persistence_ms": 0.0,
+        }
         payload = {
             "ok": True,
             "backend": self.backend,
@@ -423,17 +436,22 @@ class InferenceWorker:
             "frame": frame.to_dict() if frame else None,
             "frame_id": frame.frame_id if frame else None,
             "session_id": frame.session_id if frame else None,
+            "timings": timings,
         }
 
         if save_artifacts:
+            preview_started = time.perf_counter()
             if frame is not None and frame.image is not None:
                 draw_detections_on_array(frame.image, detections, self.current_preview_path)
             else:
                 draw_detections(image_path, detections, self.current_preview_path)
+            timings["preview_ms"] = round((time.perf_counter() - preview_started) * 1000.0, 2)
+            persistence_started = time.perf_counter()
             if self.detection_manager is not None:
                 self.detection_manager.record_inference_result(payload, mode=self._mode)
             else:
                 _atomic_write_json(self.current_detections_path, payload)
+            timings["persistence_ms"] = round((time.perf_counter() - persistence_started) * 1000.0, 2)
 
         if detections and self.detection_manager is None:
             summary = ", ".join(f"{item['class_name']}:{item['confidence']:.2f}" for item in detections_payload[:5])
@@ -449,6 +467,8 @@ class InferenceWorker:
                 },
             )
 
+        timings["execute_total_ms"] = round((time.perf_counter() - execute_started) * 1000.0, 2)
+        payload["pipeline_time_ms"] = timings["execute_total_ms"]
         return payload
 
     def run_on_image(self, image_path: str | Path | None = None) -> Dict[str, Any]:
@@ -572,8 +592,15 @@ class InferenceWorker:
         return self.frame_provider.configure_live_source(source_type)
 
     def run_on_next_frame(self) -> Dict[str, Any]:
+        request_started = time.perf_counter()
+        frame_started = time.perf_counter()
         frame = self._next_frame_object()
-        return self.run_on_frame(frame)
+        frame_acquisition_ms = round((time.perf_counter() - frame_started) * 1000.0, 2)
+        result = self.run_on_frame(frame)
+        timings = result.setdefault("timings", {})
+        timings["frame_acquisition_ms"] = frame_acquisition_ms
+        timings["request_pipeline_ms"] = round((time.perf_counter() - request_started) * 1000.0, 2)
+        return result
 
     def _demo_loop(self) -> None:
         while not self._stop_event.is_set():
