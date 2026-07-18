@@ -19,7 +19,7 @@ echo
 echo "Waiting for dashboard readiness (max ${STARTUP_TIMEOUT_SECONDS}s)..."
 ready=0
 for ((attempt = 1; attempt <= STARTUP_TIMEOUT_SECONDS; attempt++)); do
-  if curl -fsS --connect-timeout 1 --max-time 2 "${BASE_URL}/health" >/dev/null 2>&1; then
+  if curl -fsS --connect-timeout 1 --max-time 2 "${BASE_URL}/health/ready" >/dev/null 2>&1; then
     ready=1
     echo "Dashboard ready after ${attempt}s."
     break
@@ -38,6 +38,7 @@ fi
 echo
 echo "Checking HTTP endpoints..."
 for endpoint in \
+  "/health/ready" \
   "/health" \
   "/api/dashboard/state" \
   "/thermal/status" \

@@ -327,7 +327,7 @@ class BenchmarkRunner:
         }
 
     def endpoint_reachable(self, timeout: float = 1.0) -> bool:
-        request = urllib.request.Request(f"{self.client.base_url}/health", method="GET")
+        request = urllib.request.Request(f"{self.client.base_url}/health/ready", method="GET")
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
                 response.read(1)
@@ -357,8 +357,8 @@ class BenchmarkRunner:
         last_error = "service not queried"
         while time.monotonic() < deadline:
             try:
-                payload, _, _, _ = self.client.request("/health")
-                orchestrator_status = (payload.get("system_orchestrator") or {}).get("status")
+                payload, _, _, _ = self.client.request("/health/ready")
+                orchestrator_status = payload.get("orchestrator_status")
                 health_ready = bool(payload.get("ok")) or bool(self.args.allow_unhealthy)
                 if payload.get("service") == "easy-dashboard" and orchestrator_status == "RUNNING" and health_ready:
                     return time.monotonic(), payload
@@ -565,12 +565,24 @@ class BenchmarkRunner:
                     "/api/inference/run-on-next-frame", method="POST"
                 )
                 inference_ms = payload.get("inference_time_ms") or payload.get("last_inference_ms")
+                timings = payload.get("timings") if isinstance(payload.get("timings"), dict) else {}
                 record.update(
                     {
                         "ok": bool(payload.get("ok")),
                         "status_code": status,
                         "wall_latency_ms": round(elapsed_ms, 3),
                         "inference_time_ms": inference_ms,
+                        "pipeline_time_ms": payload.get("pipeline_time_ms"),
+                        **{key: timings.get(key) for key in (
+                            "frame_acquisition_ms",
+                            "preprocess_ms",
+                            "backend_ms",
+                            "postprocess_ms",
+                            "preview_ms",
+                            "persistence_ms",
+                            "execute_total_ms",
+                            "request_pipeline_ms",
+                        )},
                         "response_bytes": response_bytes,
                         "source": payload.get("source") or payload.get("source_label"),
                         "detections": len(payload.get("detections") or []),
@@ -653,6 +665,19 @@ class BenchmarkRunner:
             for name, state in (sample.get("component_states") or {}).items():
                 component_counts[name][str(state)] += 1
         inference_ok = [item for item in self.inference_measurements if item.get("ok")]
+        inference_stages = {
+            metric: numeric_summary(item.get(metric) for item in inference_ok)
+            for metric in (
+                "frame_acquisition_ms",
+                "preprocess_ms",
+                "backend_ms",
+                "postprocess_ms",
+                "preview_ms",
+                "persistence_ms",
+                "execute_total_ms",
+                "request_pipeline_ms",
+            )
+        }
         return {
             "schema": "easy.runtime-benchmark.summary.v1",
             "run_id": self.run_id,
@@ -686,6 +711,7 @@ class BenchmarkRunner:
                 "successful_runs": len(inference_ok),
                 "wall_latency_ms": numeric_summary(item.get("wall_latency_ms") for item in inference_ok),
                 "engine_time_ms": numeric_summary(item.get("inference_time_ms") for item in inference_ok),
+                "stages_ms": inference_stages,
             },
             "component_state_counts": {name: dict(counts) for name, counts in sorted(component_counts.items())},
             "temperature_limit_c": self.args.stop_temperature_limit,
@@ -742,6 +768,8 @@ class BenchmarkRunner:
         rows.append({"category": "startup", "metric": "ready_ms", **summary["startup"]["ready_ms"]})
         rows.append({"category": "inference", "metric": "wall_latency_ms", **summary["inference"]["wall_latency_ms"]})
         rows.append({"category": "inference", "metric": "engine_time_ms", **summary["inference"]["engine_time_ms"]})
+        for metric, values in summary["inference"].get("stages_ms", {}).items():
+            rows.append({"category": "inference_stage", "metric": metric, **values})
         return rows
 
     @staticmethod
@@ -807,6 +835,14 @@ class BenchmarkRunner:
             f"End-to-end API time: {self._format_metric(summary['inference']['wall_latency_ms'], ' ms')}; "
             f"runtime-reported inference time: {self._format_metric(summary['inference']['engine_time_ms'], ' ms')}."
         )
+        stage_values = summary["inference"].get("stages_ms", {})
+        if any(values.get("count") for values in stage_values.values()):
+            lines.extend(["", "| Pipeline stage | Mean (ms) | Median (ms) | P95 (ms) | Runs |", "|---|---:|---:|---:|---:|"])
+            for stage, values in stage_values.items():
+                if values.get("count"):
+                    lines.append(
+                        f"| `{stage}` | {values['mean']} | {values['median']} | {values['p95']} | {values['count']} |"
+                    )
         lines.extend(["", "## Component states", ""])
         if summary["component_state_counts"]:
             lines.extend(["| Component | Observed states |", "|---|---|"])
@@ -886,6 +922,11 @@ class BenchmarkRunner:
                 ("Inference API", summary["inference"]["wall_latency_ms"]),
                 ("Inference engine", summary["inference"]["engine_time_ms"]),
             ]
+        )
+        latency_rows.extend(
+            (f"Inference {stage.replace('_ms', '').replace('_', ' ')}", values)
+            for stage, values in summary["inference"].get("stages_ms", {}).items()
+            if values.get("count")
         )
         for label, values in latency_rows:
             def value(name: str) -> str:

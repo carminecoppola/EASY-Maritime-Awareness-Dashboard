@@ -176,6 +176,10 @@ def main() -> int:
     require_keys(health, ["ok", "rgb", "thermal", "runtime_state"], "/health")
     require_keys(health["runtime_state"], ["rgb", "thermal"], "/health runtime_state")
 
+    readiness = client.get("/health/ready").get_json()
+    assert_ok(isinstance(readiness, dict), "/health/ready did not return JSON")
+    require_keys(readiness, ["ok", "service", "orchestrator_status"], "/health/ready")
+
     summary = client.get("/api/status/summary").get_json()
     assert_ok(isinstance(summary, dict), "/api/status/summary did not return JSON")
     require_keys(summary, ["ok", "operator_state", "live", "mission", "dataset", "ai", "activity"], "/api/status/summary")

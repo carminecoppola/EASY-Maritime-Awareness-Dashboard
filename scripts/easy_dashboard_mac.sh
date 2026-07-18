@@ -43,7 +43,7 @@ find_local_port() {
       echo "${candidate}"
       return 0
     fi
-    if curl -fsS --connect-timeout 1 --max-time 2 "http://127.0.0.1:${candidate}/health" >/dev/null 2>&1; then
+    if curl -fsS --connect-timeout 1 --max-time 2 "http://127.0.0.1:${candidate}/health/ready" >/dev/null 2>&1; then
       echo "${candidate}"
       return 0
     fi
@@ -64,7 +64,7 @@ echo "2/4 Attendo che la dashboard sia pronta..."
 remote_ready=0
 for ((attempt = 1; attempt <= STARTUP_TIMEOUT; attempt++)); do
   if ssh "${SSH_OPTIONS[@]}" "${SSH_TARGET}" \
-    "curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1:${REMOTE_APP_PORT}/health >/dev/null" \
+    "curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1:${REMOTE_APP_PORT}/health/ready >/dev/null" \
     2>/dev/null; then
     remote_ready=1
     echo "    Servizio pronto dopo ${attempt}s."
@@ -83,7 +83,7 @@ fi
 LOCAL_PORT="$(find_local_port)" || fail "nessuna porta locale libera tra ${LOCAL_PORT_START} e $((LOCAL_PORT_START + 49))"
 LOCAL_URL="http://127.0.0.1:${LOCAL_PORT}"
 
-if curl -fsS --connect-timeout 1 --max-time 2 "${LOCAL_URL}/health" >/dev/null 2>&1; then
+if curl -fsS --connect-timeout 1 --max-time 2 "${LOCAL_URL}/health/ready" >/dev/null 2>&1; then
   echo "3/4 Tunnel già attivo sulla porta ${LOCAL_PORT}."
 else
   echo "3/4 Creo il tunnel SSH sulla porta ${LOCAL_PORT}..."
@@ -96,13 +96,13 @@ fi
 
 local_ready=0
 for _ in {1..15}; do
-  if curl -fsS --connect-timeout 1 --max-time 2 "${LOCAL_URL}/health" >/dev/null 2>&1; then
+  if curl -fsS --connect-timeout 1 --max-time 2 "${LOCAL_URL}/health/ready" >/dev/null 2>&1; then
     local_ready=1
     break
   fi
   sleep 1
 done
-[[ "${local_ready}" -eq 1 ]] || fail "tunnel creato, ma ${LOCAL_URL}/health non risponde"
+[[ "${local_ready}" -eq 1 ]] || fail "tunnel creato, ma ${LOCAL_URL}/health/ready non risponde"
 
 echo "4/4 Apro Safari..."
 open -a Safari "${LOCAL_URL}"

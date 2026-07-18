@@ -49,7 +49,8 @@ that same contract.
 
 Important endpoint groups:
 
-- `/health`, `/api/dashboard/state`, `/api/status/summary`
+- `/health/ready` for lightweight service readiness; `/health` for complete diagnostics
+- `/api/dashboard/state`, `/api/status/summary`
 - `/video/*`, `/thermal/*`, `/api/stream-state`
 - `/api/session/*`, `/api/acquisition/*`
 - `/api/inference/*`, `/api/detections/*`, `/api/events/*`

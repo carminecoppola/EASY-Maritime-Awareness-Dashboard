@@ -274,30 +274,28 @@ class DetectionManager:
         atomic_write_json(self.current_path, self._payload(current_only=True))
         atomic_write_json(self.history_path, self._payload(current_only=False))
 
-    def add_detection(
+    def _build_record(
         self,
         detection: Dict[str, Any],
         *,
-        source: str = "unknown",
-        source_label: str | None = None,
-        image_path: str | Path | None = None,
-        timestamp: str | None = None,
-        status: str = "NEW",
-    ) -> Dict[str, Any]:
+        session_id: str,
+        source: str,
+        source_label: str,
+        image_path: str,
+        timestamp: str,
+        status: str,
+    ) -> DetectionRecord:
         now = utc_now_iso()
-        image_path_value = "" if image_path is None else str(image_path)
-        class_name = str(detection.get("class_name") or detection.get("label") or "object")
-        active_source = str(source or detection.get("source") or "unknown")
-        record = DetectionRecord(
+        return DetectionRecord(
             id=str(detection.get("id") or f"det-{uuid.uuid4().hex[:12]}"),
-            timestamp=timestamp or now,
-            session_id=self._active_session_id(source=active_source),
-            source=active_source,
+            timestamp=timestamp,
+            session_id=session_id,
+            source=source,
             source_label=str(source_label or detection.get("source_label") or source or "Unknown"),
-            image_name=Path(image_path_value).name,
-            image_path=image_path_value,
+            image_name=Path(image_path).name,
+            image_path=image_path,
             class_id=detection.get("class_id"),
-            class_name=class_name,
+            class_name=str(detection.get("class_name") or detection.get("label") or "object"),
             confidence=self._float_or_none(detection.get("confidence")),
             bbox=self._bbox_dict(detection.get("bbox") or detection.get("box_xyxy") or detection.get("xyxy")),
             status=status,
@@ -312,14 +310,39 @@ class DetectionManager:
             source_type=detection.get("source_type"),
             source_name=detection.get("source_name"),
         )
+
+    def _append_record(self, record: DetectionRecord) -> None:
+        self._detections[record.id] = record
+        self._current_ids.append(record.id)
+        self._history_ids.append(record.id)
+        self._last_detection_id = record.id
+        self._last_image = record.image_path or self._last_image
+        self._last_source = record.source
+        self._last_source_label = record.source_label
+
+    def add_detection(
+        self,
+        detection: Dict[str, Any],
+        *,
+        source: str = "unknown",
+        source_label: str | None = None,
+        image_path: str | Path | None = None,
+        timestamp: str | None = None,
+        status: str = "NEW",
+    ) -> Dict[str, Any]:
+        image_path_value = "" if image_path is None else str(image_path)
+        active_source = str(source or detection.get("source") or "unknown")
+        record = self._build_record(
+            detection,
+            session_id=self._active_session_id(source=active_source),
+            source=active_source,
+            source_label=str(source_label or detection.get("source_label") or source or "Unknown"),
+            image_path=image_path_value,
+            timestamp=timestamp or utc_now_iso(),
+            status=status,
+        )
         with self._lock:
-            self._detections[record.id] = record
-            self._current_ids.append(record.id)
-            self._history_ids.append(record.id)
-            self._last_detection_id = record.id
-            self._last_image = image_path_value or self._last_image
-            self._last_source = record.source
-            self._last_source_label = record.source_label
+            self._append_record(record)
             self._persist()
         self._event(record)
         if self.event_manager is not None:
@@ -335,6 +358,19 @@ class DetectionManager:
         source_label = str(result.get("source_label") or ("Replay / Demo" if source == "replay" else source.replace("_", " ").title()))
         image_path = str(result.get("image_path") or result.get("last_image") or "")
         detections = result.get("detections") if isinstance(result.get("detections"), list) else []
+        session_id = self._active_session_id(source=source)
+        records = [
+            self._build_record(
+                detection,
+                session_id=session_id,
+                source=source,
+                source_label=source_label,
+                image_path=image_path,
+                timestamp=timestamp,
+                status="NEW",
+            )
+            for detection in detections
+        ]
         with self._lock:
             for item_id in self._current_ids:
                 if item_id in self._detections:
@@ -349,20 +385,22 @@ class DetectionManager:
             self._last_fps = result.get("fps")
             self._last_run_ts = timestamp
             self._last_error = "" if result.get("ok", True) else str(result.get("error") or "")
-        added = [
-            self.add_detection(
-                detection,
-                source=source,
-                source_label=source_label,
-                image_path=image_path,
-                timestamp=timestamp,
-                status="NEW",
-            )
-            for detection in detections
-        ]
-        if not added:
-            with self._lock:
-                self._persist()
+            for record in records:
+                self._append_record(record)
+            self._persist()
+        added = [record.to_dict() for record in records]
+        for record in records:
+            self._event(record)
+        if self.event_manager is not None and added:
+            try:
+                batch_recorder = getattr(self.event_manager, "record_detections", None)
+                if callable(batch_recorder):
+                    batch_recorder(added)
+                else:
+                    for detection in added:
+                        self.event_manager.record_detection(detection)
+            except Exception:
+                pass
         if self.acquisition_manager is not None:
             try:
                 self.acquisition_manager.record_inference_result(result, added)

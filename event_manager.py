@@ -192,15 +192,17 @@ class EventManager:
             payload["activity_log"] = []
         atomic_write_json(path, payload)
 
-    def _persist(self) -> None:
+    def _persist(self, session_ids: set[str] | None = None) -> None:
         atomic_write_json(self.current_path, self._event_payload(current_only=True))
         atomic_write_json(self.history_path, self._event_payload(current_only=False))
-        session_ids = {
-            self._records[item_id].session_id
-            for item_id in self._history_ids
-            if item_id in self._records and self._records[item_id].session_id
-        }
-        for session_id in session_ids:
+        affected_session_ids = session_ids
+        if affected_session_ids is None:
+            affected_session_ids = {
+                self._records[item_id].session_id
+                for item_id in self._history_ids
+                if item_id in self._records and self._records[item_id].session_id
+            }
+        for session_id in affected_session_ids:
             self._sync_session_file(session_id)
 
     def _classification(self, detection: Dict[str, Any]) -> Dict[str, str] | None:
@@ -222,7 +224,7 @@ class EventManager:
         except Exception:
             pass
 
-    def record_detection(self, detection: Dict[str, Any]) -> Dict[str, Any] | None:
+    def _record_detection_locked(self, detection: Dict[str, Any]) -> tuple[EventRecord, bool] | None:
         classification = self._classification(detection)
         if classification is None:
             return None
@@ -242,65 +244,78 @@ class EventManager:
         confidence = self._float_or_none(detection.get("confidence"))
         timestamp = str(detection.get("timestamp") or detection.get("created_at") or now)
 
-        with self._lock:
-            current_id = self._active_keys.get(event_key)
-            if current_id and current_id in self._records:
-                record = self._records[current_id]
-                if detection_id and detection_id not in record.related_detection_ids:
-                    record.related_detection_ids.append(detection_id)
-                record.updated_at = now
-                record.last_timestamp = timestamp
-                record.last_confidence = confidence
-                record.distance = self._float_or_none(detection.get("distance")) or record.distance
-                record.thermal_confirmation = detection.get("thermal_confirmation", record.thermal_confirmation)
-                record.track_id = detection.get("track_id", record.track_id)
-                record.source_label = str(detection.get("source_label") or record.source_label or source)
-                record.update_count += 1
-                record.status = "ACTIVE"
-                record.meta = {
-                    **record.meta,
-                    "class_name": detection.get("class_name") or detection.get("label"),
-                    "image_path": detection.get("image_path"),
-                    "bbox": detection.get("bbox") or detection.get("box_xyxy"),
-                }
-                self._persist()
-                self._emit_activity(record, created=False)
-                return record.to_dict()
+        current_id = self._active_keys.get(event_key)
+        if current_id and current_id in self._records:
+            record = self._records[current_id]
+            if detection_id and detection_id not in record.related_detection_ids:
+                record.related_detection_ids.append(detection_id)
+            record.updated_at = now
+            record.last_timestamp = timestamp
+            record.last_confidence = confidence
+            record.distance = self._float_or_none(detection.get("distance")) or record.distance
+            record.thermal_confirmation = detection.get("thermal_confirmation", record.thermal_confirmation)
+            record.track_id = detection.get("track_id", record.track_id)
+            record.source_label = str(detection.get("source_label") or record.source_label or source)
+            record.update_count += 1
+            record.status = "ACTIVE"
+            record.meta = {
+                **record.meta,
+                "class_name": detection.get("class_name") or detection.get("label"),
+                "image_path": detection.get("image_path"),
+                "bbox": detection.get("bbox") or detection.get("box_xyxy"),
+            }
+            return record, False
 
-            record = EventRecord(
-                event_id=f"evt-{uuid.uuid4().hex[:12]}",
-                session_id=session_id,
-                type=event_type,
-                severity=classification["severity"],
-                status="NEW",
-                source=source,
-                related_detection_ids=[detection_id] if detection_id else [],
-                created_at=now,
-                updated_at=now,
-                track_id=detection.get("track_id"),
-                thermal_confirmation=detection.get("thermal_confirmation"),
-                distance=self._float_or_none(detection.get("distance")),
-                priority=None,
-                resolved_at=None,
-                notes=None,
-                update_count=1,
-                last_timestamp=timestamp,
-                last_confidence=confidence,
-                source_label=str(detection.get("source_label") or source),
-                event_key=event_key,
-                meta={
-                    "class_name": detection.get("class_name") or detection.get("label"),
-                    "image_path": detection.get("image_path"),
-                    "bbox": detection.get("bbox") or detection.get("box_xyxy"),
-                },
-            )
-            self._records[record.event_id] = record
-            self._history_ids.append(record.event_id)
-            self._current_ids.append(record.event_id)
-            self._active_keys[event_key] = record.event_id
-            self._persist()
-            self._emit_activity(record, created=True)
-            return record.to_dict()
+        record = EventRecord(
+            event_id=f"evt-{uuid.uuid4().hex[:12]}",
+            session_id=session_id,
+            type=event_type,
+            severity=classification["severity"],
+            status="NEW",
+            source=source,
+            related_detection_ids=[detection_id] if detection_id else [],
+            created_at=now,
+            updated_at=now,
+            track_id=detection.get("track_id"),
+            thermal_confirmation=detection.get("thermal_confirmation"),
+            distance=self._float_or_none(detection.get("distance")),
+            priority=None,
+            resolved_at=None,
+            notes=None,
+            update_count=1,
+            last_timestamp=timestamp,
+            last_confidence=confidence,
+            source_label=str(detection.get("source_label") or source),
+            event_key=event_key,
+            meta={
+                "class_name": detection.get("class_name") or detection.get("label"),
+                "image_path": detection.get("image_path"),
+                "bbox": detection.get("bbox") or detection.get("box_xyxy"),
+            },
+        )
+        self._records[record.event_id] = record
+        self._history_ids.append(record.event_id)
+        self._current_ids.append(record.event_id)
+        self._active_keys[event_key] = record.event_id
+        return record, True
+
+    def record_detections(self, detections: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Record one inference frame with a single durable write."""
+        changed: List[tuple[EventRecord, bool]] = []
+        with self._lock:
+            for detection in detections:
+                result = self._record_detection_locked(detection)
+                if result is not None:
+                    changed.append(result)
+            if changed:
+                self._persist({record.session_id for record, _ in changed if record.session_id})
+        for record, created in changed:
+            self._emit_activity(record, created=created)
+        return [record.to_dict() for record, _ in changed]
+
+    def record_detection(self, detection: Dict[str, Any]) -> Dict[str, Any] | None:
+        records = self.record_detections([detection])
+        return records[0] if records else None
 
     def resolve_event(self, event_id: str, *, notes: str | None = None) -> Dict[str, Any] | None:
         with self._lock:
