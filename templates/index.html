@@ -16,23 +16,31 @@
       <div class="live-statusbar-group">
         <div class="live-status-pill" id="live-status-pill-rgb-left">
           <span class="live-status-dot" id="live-feed-rgb-left-dot" aria-hidden="true"></span>
-          <span class="live-status-label">RGB-L:</span>
+          <span class="live-status-label">Left RGB</span>
           <strong id="live-feed-rgb-left-statusline">{% if presentation_mode %}Recorded sample{% else %}Checking{% endif %}</strong>
         </div>
         <div class="live-status-pill" id="live-status-pill-thermal">
           <span class="live-status-dot" id="live-feed-thermal-dot" aria-hidden="true"></span>
-          <span class="live-status-label">Thermal:</span>
+          <span class="live-status-label">Thermal</span>
           <strong id="live-feed-thermal-statusline">{% if presentation_mode %}Illustrative reference{% else %}Checking{% endif %}</strong>
         </div>
         <div class="live-status-pill" id="live-status-pill-rgb-right">
           <span class="live-status-dot" id="live-feed-rgb-right-dot" aria-hidden="true"></span>
-          <span class="live-status-label">RGB-R:</span>
+          <span class="live-status-label">Right RGB</span>
           <strong id="live-feed-rgb-right-statusline">{% if presentation_mode %}Recorded sample{% else %}Checking{% endif %}</strong>
         </div>
       </div>
       <div class="live-statusbar-actions">
         <span class="live-refresh-status"><span class="live-refresh-dot"></span><span id="live-refresh-status-text">{% if presentation_mode %}SeaShips recorded dataset{% else %}Automatic refresh{% endif %}</span></span>
-        {% if not presentation_mode %}<button class="btn btn-ghost btn-small" id="button-live-refresh" type="button">Refresh status</button>{% endif %}
+        {% if not presentation_mode %}
+          <button class="btn btn-ghost btn-small live-sensor-check" id="button-live-refresh" type="button">
+            <svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M20 11a8 8 0 1 0-2.3 5.7"></path>
+              <path d="M20 4v7h-7"></path>
+            </svg>
+            <span>Check sensors</span>
+          </button>
+        {% endif %}
         <div class="live-status-pill live-status-pill-ai" id="live-status-pill-ai">
           <span class="live-status-dot live-status-dot-ai" id="live-ai-status-dot" aria-hidden="true"></span>
           <span class="live-status-label">AI ·</span>
@@ -62,7 +70,13 @@
     <section class="live-grid" aria-label="Live video feeds">
       <article class="panel live-feed-card" data-feed="rgb_left">
         <div class="live-feed-head">
-          <span class="live-feed-name">Left camera</span>
+          <div class="live-feed-identity">
+            <svg class="live-feed-channel-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7.5h2.8l1.6-2h3.2l1.6 2H18a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9.5a2 2 0 0 1 2-2Z"></path>
+              <circle cx="12" cy="13" r="3.2"></circle>
+            </svg>
+            <span><strong class="live-feed-name">Left camera</strong><small>RGB channel · Left</small></span>
+          </div>
           <span class="badge {% if presentation_mode %}badge-online{% else %}badge-muted{% endif %}" id="live-feed-rgb-left-badge">{% if presentation_mode %}Recorded{% else %}Loading{% endif %}</span>
         </div>
         <div class="live-feed-body">
@@ -88,14 +102,20 @@
           </div>
         </div>
         <div class="live-feed-foot">
-          <span class="live-feed-fps" id="live-feed-rgb-left-fps">{% if presentation_mode %}AI-ready RGB{% else %}--{% endif %}</span>
-          <span class="live-feed-time" id="live-feed-rgb-left-last-frame">{% if presentation_mode %}Recorded dataset{% else %}--{% endif %}</span>
+          <span class="live-feed-meta"><small>Frame rate</small><strong class="live-feed-fps" id="live-feed-rgb-left-fps">{% if presentation_mode %}AI-ready RGB{% else %}--{% endif %}</strong></span>
+          <span class="live-feed-meta is-right"><small>Last frame</small><strong class="live-feed-time" id="live-feed-rgb-left-last-frame">{% if presentation_mode %}Recorded dataset{% else %}--{% endif %}</strong></span>
         </div>
       </article>
 
       <article class="panel live-feed-card" data-feed="rgb_right">
         <div class="live-feed-head">
-          <span class="live-feed-name">Right camera</span>
+          <div class="live-feed-identity">
+            <svg class="live-feed-channel-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7.5h2.8l1.6-2h3.2l1.6 2H18a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9.5a2 2 0 0 1 2-2Z"></path>
+              <circle cx="12" cy="13" r="3.2"></circle>
+            </svg>
+            <span><strong class="live-feed-name">Right camera</strong><small>RGB channel · Right</small></span>
+          </div>
           <span class="badge {% if presentation_mode %}badge-online{% else %}badge-muted{% endif %}" id="live-feed-rgb-right-badge">{% if presentation_mode %}Recorded{% else %}Loading{% endif %}</span>
         </div>
         <div class="live-feed-body">
@@ -121,8 +141,8 @@
           </div>
         </div>
         <div class="live-feed-foot">
-          <span class="live-feed-fps" id="live-feed-rgb-right-fps">{% if presentation_mode %}AI-ready RGB{% else %}--{% endif %}</span>
-          <span class="live-feed-time" id="live-feed-rgb-right-last-frame">{% if presentation_mode %}Recorded dataset{% else %}--{% endif %}</span>
+          <span class="live-feed-meta"><small>Frame rate</small><strong class="live-feed-fps" id="live-feed-rgb-right-fps">{% if presentation_mode %}AI-ready RGB{% else %}--{% endif %}</strong></span>
+          <span class="live-feed-meta is-right"><small>Last frame</small><strong class="live-feed-time" id="live-feed-rgb-right-last-frame">{% if presentation_mode %}Recorded dataset{% else %}--{% endif %}</strong></span>
         </div>
       </article>
 
@@ -169,12 +189,12 @@
             {% if presentation_mode %}
               <a class="btn btn-secondary btn-small" href="/help#paper-preview">Preview notes</a>
             {% else %}
-            <button class="btn btn-secondary btn-small" id="button-thermal-capture" type="button">
+            <button class="btn btn-secondary btn-small thermal-capture-button" id="button-thermal-capture" type="button">
               <svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M20 11a8 8 0 1 0-2.3 5.7"></path>
-                <path d="M20 4v7h-7"></path>
+                <path d="M4 7.5h2.8l1.6-2h3.2l1.6 2H18a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9.5a2 2 0 0 1 2-2Z"></path>
+                <circle cx="12" cy="13" r="3.2"></circle>
               </svg>
-              <span>Capture thermal frame</span>
+              <span>Capture thermal image</span>
             </button>
             {% endif %}
           </div>
