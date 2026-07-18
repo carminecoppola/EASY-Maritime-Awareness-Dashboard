@@ -16,7 +16,9 @@ def health():
 
 @api_runtime_bp.route("/health/ready")
 def health_ready():
-    return jsonify(get_runtime().readiness_payload())
+    payload = get_runtime().readiness_payload()
+    ready = bool(payload.get("ok")) and payload.get("orchestrator_status") == "RUNNING"
+    return jsonify(payload), 200 if ready else 503
 
 
 @api_runtime_bp.route("/api/dashboard/state", methods=["GET"])

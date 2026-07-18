@@ -36,10 +36,12 @@ class ApiContractTests(unittest.TestCase):
             self.assertIn("service_healthy", state)
 
     def test_lightweight_readiness_contract(self) -> None:
-        payload = self.client.get("/health/ready").get_json()
+        response = self.client.get("/health/ready")
+        payload = response.get_json()
         self.assertEqual(payload["service"], "easy-dashboard")
         self.assertIn("ok", payload)
         self.assertIn("orchestrator_status", payload)
+        self.assertEqual(response.status_code, 200 if payload["ok"] and payload["orchestrator_status"] == "RUNNING" else 503)
 
     def test_thermal_status_does_not_capture_a_frame(self) -> None:
         runtime = self.app.easy_dashboard_runtime
