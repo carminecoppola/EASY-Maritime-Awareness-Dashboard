@@ -47,7 +47,9 @@ function liveActionElementId(action) {
     captureLink: "live-capture-feedback-link",
     datasetStateBadge: "dataset-session-state-badge",
     datasetExplanation: "dataset-session-explanation",
+    datasetHeadingLabel: "dataset-session-heading-label",
     datasetSessionId: "dataset-session-id",
+    datasetSessionReference: "dataset-session-reference",
     datasetManifestPath: "dataset-manifest-path",
     datasetSamplesCount: "dataset-samples-count",
     datasetPairedCount: "dataset-paired-count",
@@ -174,7 +176,7 @@ function renderLivePage(health) {
   setText(
     liveSummaryElementId("sessionCopy"),
     healthSession.running
-      ? `Session ${healthSession.session_id || "--"} · ${formatUptimeShort(healthSession.duration_seconds || 0)}`
+      ? `Mission in progress · ${formatUptimeShort(healthSession.duration_seconds || 0)}`
       : "Start a session when you want to archive mission detections and events.",
   );
   setText(liveSummaryElementId("detectionsCount"), `${detectionCount}`);
@@ -305,7 +307,7 @@ function renderLivePage(health) {
   setText(
     liveActionElementId("missionCopy"),
     sessionRunning
-      ? `${session?.session_id || "EASY session"} · ${formatUptimeShort(session?.metrics?.session_duration ?? session?.duration ?? 0)} · data saved on the Raspberry Pi`
+      ? `Mission in progress · ${formatUptimeShort(session?.metrics?.session_duration ?? session?.duration ?? 0)} · data saved on the Raspberry Pi`
       : "Start a mission to save detections, events and metrics on the Raspberry Pi.",
   );
   byId("mission-workflow-start")?.classList.toggle("is-complete", sessionRunning);
@@ -328,18 +330,24 @@ function renderDatasetSessionPanel() {
   const manifestPath = acquisition.manifest_path || activeSession.manifest_path || "";
 
   setBadge(liveActionElementId("datasetStateBadge"), running ? "Active mission" : sessionId ? "Latest mission" : "Standby", running ? "online" : sessionId ? "warning" : "muted");
+  setText(liveActionElementId("datasetHeadingLabel"), running ? "Current mission" : "Latest mission");
   setText(
     liveActionElementId("datasetExplanation"),
     running
-      ? "Each capture is added to the current session manifest."
+      ? "Photos, sensor captures and AI results are being saved to this mission on the Raspberry Pi."
       : sessionId
         ? "These are the latest archived data. Start a new mission to continue collecting."
         : "Start a mission to create a manifest with photos, inference runs and RGB/thermal pairs.",
   );
-  setText(liveActionElementId("datasetSessionId"), sessionId || "No session");
+  const missionDate = activeSession.start_time || activeSession.started_at || activeSession.created_at || null;
+  setText(
+    liveActionElementId("datasetSessionId"),
+    running ? "Mission in progress" : missionDate ? `Mission · ${formatRomeDateTime(missionDate)}` : sessionId ? "Latest archived mission" : "No mission recorded",
+  );
+  setText(liveActionElementId("datasetSessionReference"), sessionId || "Not available");
   setText(
     liveActionElementId("datasetManifestPath"),
-    manifestPath ? `Manifest: ${compactPath(manifestPath)}` : "The manifest will appear here after the mission saves its first item.",
+    manifestPath ? compactPath(manifestPath) : "The manifest will appear after the mission saves its first item.",
   );
   setText(liveActionElementId("datasetSamplesCount"), `${datasetSummary.samples ?? manifestCounts.samples ?? 0}`);
   setText(liveActionElementId("datasetPairedCount"), `${datasetSummary.synchronized_samples ?? manifestCounts.synchronized_samples ?? datasetSummary.paired_items ?? manifestCounts.paired_items ?? 0}`);
@@ -374,7 +382,7 @@ function renderMissionHistory(sessions) {
   list.innerHTML = items.map((session, index) => {
     const sessionId = String(session.session_id || "");
     const running = String(session.status || "").toUpperCase() === "RUNNING";
-    return `<button class="mission-history-row${index === 0 ? " is-active" : ""}" type="button" data-mission-history-id="${escapeHtml(sessionId)}" aria-pressed="${index === 0 ? "true" : "false"}"><span><strong>${escapeHtml(formatRomeDateTime(session.start_time))}</strong><small>${escapeHtml(sessionId || "EASY session")}</small></span><span><span class="badge badge-${running ? "online" : "muted"}">${running ? "Running" : "Archived"}</span><small>${escapeHtml(formatSessionDuration(session.duration))}</small></span></button>`;
+    return `<button class="mission-history-row${index === 0 ? " is-active" : ""}" type="button" data-mission-history-id="${escapeHtml(sessionId)}" aria-pressed="${index === 0 ? "true" : "false"}"><span><strong>${escapeHtml(formatRomeDateTime(session.start_time))}</strong><small>${running ? "Currently recording" : "Recorded mission"}</small></span><span><span class="badge badge-${running ? "online" : "muted"}">${running ? "Running" : "Archived"}</span><small>${escapeHtml(formatSessionDuration(session.duration))}</small></span></button>`;
   }).join("");
 }
 
@@ -384,7 +392,30 @@ function renderMissionHistoryDetail(session, manifest) {
   const counts = manifest?.counts || {};
   const byFeed = counts.by_feed || {};
   const sessionId = String(session?.session_id || manifest?.session_id || "");
-  detail.innerHTML = `<div class="mission-history-detail-head"><span class="mission-data-label">Selected mission</span><strong>${escapeHtml(formatRomeDateTime(session?.start_time))}</strong><p>${escapeHtml(sessionId || "EASY session")} · ${escapeHtml(formatSessionDuration(session?.duration))}</p></div><dl class="mission-history-counts"><div><dt>Samples</dt><dd>${escapeHtml(String(counts.samples || 0))}</dd></div><div><dt>Photos</dt><dd>${escapeHtml(String(counts.snapshots || 0))}</dd></div><div><dt>Inference runs</dt><dd>${escapeHtml(String(counts.inference || 0))}</dd></div><div><dt>Detections</dt><dd>${escapeHtml(String(counts.detections || 0))}</dd></div></dl><div class="mission-history-feeds"><span>Left RGB <strong>${escapeHtml(String(byFeed.rgb_left || 0))}</strong></span><span>Right RGB <strong>${escapeHtml(String(byFeed.rgb_right || 0))}</strong></span><span>Thermal <strong>${escapeHtml(String(byFeed.thermal || 0))}</strong></span></div><p class="mission-history-feedback" id="mission-history-feedback">${manifest?.ok === false ? "Manifest unavailable for this mission." : "Manifest loaded: you can validate the dataset or export it."}</p><div class="mission-history-actions"><button class="btn btn-ghost btn-small" type="button" data-history-validate="${escapeHtml(sessionId)}">Validate dataset</button><button class="btn btn-secondary btn-small" type="button" data-history-export="${escapeHtml(sessionId)}">Export ZIP</button><a class="panel-link" href="/snapshots">View photos</a></div>`;
+  detail.innerHTML = `
+    <div class="mission-history-detail-head">
+      <span class="mission-data-label">Selected mission</span>
+      <strong>${escapeHtml(formatRomeDateTime(session?.start_time))}</strong>
+      <p>${String(session?.status || "").toUpperCase() === "RUNNING" ? "Currently recording" : "Archived mission"} · ${escapeHtml(formatSessionDuration(session?.duration))}</p>
+    </div>
+    <dl class="mission-history-counts">
+      <div><dt>Samples</dt><dd>${escapeHtml(String(counts.samples || 0))}</dd></div>
+      <div><dt>Photos</dt><dd>${escapeHtml(String(counts.snapshots || 0))}</dd></div>
+      <div><dt>Inference runs</dt><dd>${escapeHtml(String(counts.inference || 0))}</dd></div>
+      <div><dt>Detections</dt><dd>${escapeHtml(String(counts.detections || 0))}</dd></div>
+    </dl>
+    <div class="mission-history-feeds">
+      <span>Left RGB <strong>${escapeHtml(String(byFeed.rgb_left || 0))}</strong></span>
+      <span>Right RGB <strong>${escapeHtml(String(byFeed.rgb_right || 0))}</strong></span>
+      <span>Thermal <strong>${escapeHtml(String(byFeed.thermal || 0))}</strong></span>
+    </div>
+    <details class="mission-history-reference"><summary>Technical reference</summary><code>${escapeHtml(sessionId || "Not available")}</code></details>
+    <p class="mission-history-feedback" id="mission-history-feedback">${manifest?.ok === false ? "Manifest unavailable for this mission." : "Manifest loaded: you can validate the dataset or export it."}</p>
+    <div class="mission-history-actions">
+      <button class="btn btn-ghost btn-small" type="button" data-history-validate="${escapeHtml(sessionId)}">Validate dataset</button>
+      <button class="btn btn-secondary btn-small" type="button" data-history-export="${escapeHtml(sessionId)}">Export ZIP</button>
+      <a class="panel-link" href="/snapshots">View photos</a>
+    </div>`;
 }
 
 async function loadMissionHistory() {
@@ -515,7 +546,7 @@ function setupLivePage() {
         } else {
           const payload = await callInferenceAction("/api/session/start", { mode: "live", operator: "dashboard" });
           const sessionId = payload?.session?.session_id;
-          showToast("Mission started", sessionId ? `Active archive: ${sessionId}` : "Operational recording is active.", "success");
+          showToast("Mission started", sessionId ? "A new mission archive is now recording." : "Operational recording is active.", "success");
         }
         const inlineFeedback = byId(liveActionElementId("captureTitle"));
         if (inlineFeedback) {

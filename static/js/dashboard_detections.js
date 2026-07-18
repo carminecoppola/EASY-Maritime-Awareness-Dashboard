@@ -251,13 +251,13 @@ function renderSessionPanel(status) {
   if (title) title.textContent = session ? (running ? "Mission recording" : "Latest archived mission") : "No active mission";
   if (helper) {
     helper.textContent = session
-      ? `${session.session_id || "EASY session"} · data is stored in the Raspberry Pi runtime archive.`
+      ? `Archived mission from ${formatRomeDateTime(session.start_time)} · data is stored on the Raspberry Pi.`
       : "Start a mission to save detections, events and metrics on the Raspberry Pi.";
   }
   if (startButton) startButton.hidden = running;
   if (stopButton) stopButton.hidden = !running;
 
-  setText(detectionsElementId("sessionId"), session?.session_id || "—");
+  setText(detectionsElementId("sessionId"), session?.start_time ? formatRomeDateTime(session.start_time) : "—");
   setText(detectionsElementId("sessionStatus"), session?.status || "IDLE");
   setText(detectionsElementId("sessionStartTime"), session?.start_time ? formatRomeTimeOnly(session.start_time) : "—");
   setText(detectionsElementId("sessionDuration"), formatSessionDuration(metrics.session_duration ?? session?.duration));

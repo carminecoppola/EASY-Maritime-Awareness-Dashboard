@@ -23,7 +23,7 @@
     <section class="panel dataset-session-panel" aria-label="Latest session">
       <div class="panel-head">
         <div>
-          <span class="mission-data-label">Latest session</span>
+          <span class="mission-data-label" id="dataset-session-heading-label">Latest mission</span>
           <h2 class="panel-title" id="dataset-session-id">No session</h2>
           <p class="panel-copy" id="dataset-session-explanation">Start a mission to begin collecting data.</p>
         </div>
@@ -33,7 +33,15 @@
           <a class="btn btn-ghost btn-small" id="dataset-export-download" href="/api/dataset/export/download" hidden>Download ZIP</a>
         </div>
       </div>
-      <p class="dataset-session-path" id="dataset-manifest-path">The summary will appear after the first capture.</p>
+      <details class="dataset-technical-reference">
+        <summary>Technical reference</summary>
+        <div>
+          <span>Session ID</span>
+          <code id="dataset-session-reference">Not available</code>
+          <span>Manifest</span>
+          <code id="dataset-manifest-path">The manifest will appear after the first capture.</code>
+        </div>
+      </details>
       <div class="dataset-metrics-grid">
         <div class="dataset-metric"><span>Samples</span><strong id="dataset-samples-count">0</strong><small><strong id="dataset-paired-count">0</strong> synchronised</small></div>
         <div class="dataset-metric"><span>Photos</span><strong id="dataset-snapshots-count">0</strong><small>saved images</small></div>

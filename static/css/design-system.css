@@ -887,6 +887,43 @@ body[data-page="mission"] .dataset-session-path {
   overflow-wrap: anywhere;
 }
 
+body[data-page="mission"] .dataset-technical-reference,
+body[data-page="mission"] .mission-history-reference {
+  margin-top: 12px;
+  color: var(--easy-text-muted);
+  font-size: 11px;
+}
+
+body[data-page="mission"] .dataset-technical-reference summary,
+body[data-page="mission"] .mission-history-reference summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--easy-text-secondary);
+  font-weight: 650;
+}
+
+body[data-page="mission"] .dataset-technical-reference > div {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 7px 14px;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--easy-line);
+  border-radius: var(--easy-radius-sm);
+  background: rgba(3, 9, 7, 0.45);
+}
+
+body[data-page="mission"] .dataset-technical-reference code,
+body[data-page="mission"] .mission-history-reference code {
+  overflow-wrap: anywhere;
+  color: var(--easy-text-muted);
+}
+
+body[data-page="mission"] .mission-history-reference code {
+  display: block;
+  margin-top: 7px;
+}
+
 body[data-page="mission"] .dataset-metrics-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
