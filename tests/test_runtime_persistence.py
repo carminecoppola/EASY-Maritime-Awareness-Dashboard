@@ -48,6 +48,16 @@ class RuntimePersistenceTests(unittest.TestCase):
             self.assertIsNotNone(restored.get_detection("det-journal"))
             self.assertEqual((root / "detection_history.jsonl").read_text(encoding="utf-8"), "")
 
+    def test_small_journal_does_not_trigger_expensive_periodic_compaction(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir, patch("detection_manager.atomic_write_json") as write_json:
+            manager = DetectionManager(Path(temp_dir))
+            write_json.reset_mock()
+            manager._last_history_compaction = 0.0
+
+            manager.add_detection({"id": "det-small", "class_name": "ship"}, source="replay")
+
+            self.assertEqual(write_json.call_count, 1)
+
     def test_event_frame_syncs_only_the_affected_session_once(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir, patch("event_manager.atomic_write_json") as write_json:
             manager = EventManager(Path(temp_dir))

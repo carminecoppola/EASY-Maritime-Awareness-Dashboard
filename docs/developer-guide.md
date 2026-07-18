@@ -40,7 +40,8 @@ temperature limit.
 
 Detection history uses an append-only `detection_history.jsonl` journal on the
 hot path. `detection_history.json` remains the compatible compact snapshot and
-is refreshed periodically or when the manager starts and clears its state.
+is refreshed when both the age and size thresholds are reached, or when the
+manager starts and clears its state.
 
 ## Stable interfaces
 
