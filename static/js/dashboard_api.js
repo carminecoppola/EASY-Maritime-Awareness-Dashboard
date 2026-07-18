@@ -39,7 +39,7 @@ const DashboardApi = (() => {
     } catch (error) {
       const message = error?.name === "AbortError"
         ? "The Raspberry Pi did not respond within the expected time."
-        : "Dashboard non raggiungibile";
+        : "Dashboard unavailable";
       return { ok: false, status: 0, data: null, error, message };
     } finally {
       window.clearTimeout(timeoutId);
