@@ -78,6 +78,10 @@ class DetectionManager:
             30.0,
             float(os.environ.get("EASY_DETECTION_HISTORY_COMPACTION_SECONDS", "300")),
         )
+        self._history_compaction_bytes = max(
+            4096,
+            int(os.environ.get("EASY_DETECTION_HISTORY_COMPACTION_BYTES", "262144")),
+        )
         self._last_history_compaction = time.monotonic()
         self.events = events
         self.session_manager = session_manager
@@ -320,7 +324,11 @@ class DetectionManager:
     ) -> None:
         atomic_write_json(self.current_path, self._payload(current_only=True))
         self._append_history_journal(journal_records or [])
-        compaction_due = time.monotonic() - self._last_history_compaction >= self._history_compaction_interval
+        journal_size = self.history_journal_path.stat().st_size if self.history_journal_path.exists() else 0
+        compaction_due = (
+            time.monotonic() - self._last_history_compaction >= self._history_compaction_interval
+            and journal_size >= self._history_compaction_bytes
+        )
         if force_history or compaction_due:
             atomic_write_json(self.history_path, self._payload(current_only=False))
             self.history_journal_path.write_text("", encoding="utf-8")
