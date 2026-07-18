@@ -407,7 +407,7 @@ function setupLivePage() {
     thermalCaptureButton.addEventListener("click", async () => {
       thermalCaptureButton.disabled = true;
       const label = thermalCaptureButton.querySelector("span");
-      if (label) label.textContent = "Lettura in corso…";
+      if (label) label.textContent = "Capturing reading…";
       try {
         reloadThermalFrame();
       } finally {
@@ -424,7 +424,7 @@ function setupLivePage() {
       liveRefreshButton.disabled = true;
       liveRefreshButton.textContent = "Refreshing…";
       await refreshDashboard();
-      setText(liveActionElementId("liveRefreshText"), `Status aggiornato alle ${formatRomeTimeOnly(Date.now())}`);
+      setText(liveActionElementId("liveRefreshText"), `Status updated at ${formatRomeTimeOnly(Date.now())}`);
       window.setTimeout(() => {
         liveRefreshButton.disabled = false;
         liveRefreshButton.textContent = "Refresh status";

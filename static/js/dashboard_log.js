@@ -150,7 +150,7 @@ function renderSnapshots(snapshots, summary) {
       ? item.meta?.anomaly_active === true
         ? "Anomaly detected in the reading"
         : item.meta?.anomaly_active === false
-          ? "Letture entro soglia al momento dello scatto"
+          ? "Reading within range at capture time"
           : "Thermal reading status unavailable"
       : "";
     const thermalReadingTone = item.meta?.anomaly_active === true ? "is-alert" : item.meta?.anomaly_active === false ? "is-normal" : "is-unknown";
