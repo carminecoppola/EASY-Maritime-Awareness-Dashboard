@@ -27,6 +27,22 @@
       <span id="analysis-source-mode-copy">Checking whether analysis is using replay data or a live camera.</span>
     </div>
 
+    <section class="analysis-operating-guide" aria-label="Analysis workflow">
+      <div class="analysis-guide-heading">
+        <span class="ai-section-label">Operating flow</span>
+        <strong>Run recognition, review the results, then decide whether to collect training data.</strong>
+      </div>
+      <ol class="analysis-flow-steps">
+        <li id="analysis-flow-source"><span>1</span><div><strong>Select a source</strong><small>Replay or a live RGB camera</small></div></li>
+        <li id="analysis-flow-run"><span>2</span><div><strong>Run analysis</strong><small>Pause or resume at any time</small></div></li>
+        <li id="analysis-flow-review"><span>3</span><div><strong>Review results</strong><small>Inspect objects and events below</small></div></li>
+      </ol>
+      <div class="analysis-dataset-callout">
+        <div><strong>Need a dataset for fine-tuning?</strong><span>Analysis results are not training samples. During a mission, use “Save sensor set” to capture a synchronized RGB + thermal sample.</span></div>
+        <a class="btn btn-ghost btn-small" href="/mission">Open Mission</a>
+      </div>
+    </section>
+
     <section class="analysis-session-reference" aria-label="Current session">
       <span class="state-dot state-dot-muted" aria-hidden="true"></span>
       <div class="analysis-session-reference-copy">

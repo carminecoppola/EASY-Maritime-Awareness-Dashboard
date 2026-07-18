@@ -802,8 +802,8 @@ body[data-page="mission"] .mission-command-bar {
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 18px 28px;
-  padding: 20px;
+  gap: 12px 24px;
+  padding: 16px 18px;
   overflow: hidden;
   border-color: rgba(19, 184, 212, 0.28);
   background:
@@ -819,7 +819,7 @@ body[data-page="mission"] .mission-command-state strong {
   display: block;
   margin-top: 3px;
   color: var(--easy-text);
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 680;
   letter-spacing: -0.02em;
 }
@@ -840,9 +840,9 @@ body[data-page="mission"] .mission-command-actions .btn {
 
 body[data-page="mission"] .mission-workflow {
   grid-column: 1 / -1;
-  width: min(620px, 100%);
-  margin: 2px 0 0;
-  padding-top: 16px;
+  width: min(520px, 100%);
+  margin: 0;
+  padding-top: 10px;
   border-top: 1px solid var(--easy-line);
 }
 
@@ -855,8 +855,8 @@ body[data-page="mission"] .mission-workflow li::after {
 }
 
 body[data-page="mission"] .mission-workflow li > span {
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   border: 1px solid var(--easy-line-strong);
   border-radius: 50%;
   background: var(--easy-surface-2);
@@ -1094,6 +1094,128 @@ body[data-page="detections"] .analysis-session-reference {
   min-height: 48px;
   padding: 8px 11px;
   background: rgba(11, 21, 18, 0.72);
+}
+
+body[data-page="detections"] .analysis-operating-guide {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(0, 2fr);
+  gap: 12px 20px;
+  padding: 14px 16px;
+  border: 1px solid var(--easy-line);
+  border-radius: var(--easy-radius-md);
+  background: rgba(8, 17, 14, 0.82);
+}
+
+body[data-page="detections"] .analysis-guide-heading {
+  display: grid;
+  align-content: center;
+  gap: 4px;
+}
+
+body[data-page="detections"] .analysis-guide-heading strong {
+  max-width: 38ch;
+  color: var(--easy-text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+body[data-page="detections"] .analysis-flow-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--easy-line);
+  border-radius: var(--easy-radius-sm);
+  background: var(--easy-line);
+  list-style: none;
+}
+
+body[data-page="detections"] .analysis-flow-steps li {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px;
+  background: var(--easy-surface-1);
+}
+
+body[data-page="detections"] .analysis-flow-steps li > span {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--easy-line-strong);
+  border-radius: 50%;
+  color: var(--easy-text-muted);
+  font-size: 10px;
+  font-weight: 750;
+}
+
+body[data-page="detections"] .analysis-flow-steps li > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+body[data-page="detections"] .analysis-flow-steps strong {
+  color: var(--easy-text-secondary);
+  font-size: 11px;
+}
+
+body[data-page="detections"] .analysis-flow-steps small {
+  overflow: hidden;
+  color: var(--easy-text-muted);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-page="detections"] .analysis-flow-steps li.is-current,
+body[data-page="detections"] .analysis-flow-steps li.is-complete {
+  background: rgba(19, 184, 212, 0.055);
+}
+
+body[data-page="detections"] .analysis-flow-steps li.is-current > span {
+  border-color: var(--easy-cyan);
+  background: var(--easy-cyan-soft);
+  color: var(--easy-cyan-strong);
+}
+
+body[data-page="detections"] .analysis-flow-steps li.is-complete > span {
+  border-color: rgba(36, 214, 160, 0.42);
+  color: var(--easy-green);
+}
+
+body[data-page="detections"] .analysis-dataset-callout {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 10px 12px;
+  border-left: 2px solid var(--easy-cyan);
+  background: rgba(19, 184, 212, 0.045);
+}
+
+body[data-page="detections"] .analysis-dataset-callout > div {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+body[data-page="detections"] .analysis-dataset-callout strong {
+  flex: 0 0 auto;
+  color: var(--easy-text);
+  font-size: 11px;
+}
+
+body[data-page="detections"] .analysis-dataset-callout span {
+  color: var(--easy-text-secondary);
+  font-size: 10px;
+  line-height: 1.45;
 }
 
 body[data-page="detections"] .analysis-workspace {
@@ -1599,6 +1721,10 @@ body.is-presentation-preview .presentation-frame-label {
     grid-template-columns: 1fr;
   }
 
+  body[data-page="detections"] .analysis-operating-guide {
+    grid-template-columns: 1fr;
+  }
+
   body[data-page="live"] .live-feed-card:not(.live-feed-card-thermal) {
     min-height: 420px;
   }
@@ -1731,6 +1857,28 @@ body.is-presentation-preview .presentation-frame-label {
 
   body[data-page="mission"] .mission-command-actions,
   body[data-page="mission"] .mission-command-actions .btn {
+    width: 100%;
+  }
+
+  body[data-page="mission"] .mission-workflow {
+    width: 100%;
+  }
+
+  body[data-page="detections"] .analysis-flow-steps {
+    grid-template-columns: 1fr;
+  }
+
+  body[data-page="detections"] .analysis-flow-steps small {
+    white-space: normal;
+  }
+
+  body[data-page="detections"] .analysis-dataset-callout,
+  body[data-page="detections"] .analysis-dataset-callout > div {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  body[data-page="detections"] .analysis-dataset-callout .btn {
     width: 100%;
   }
 

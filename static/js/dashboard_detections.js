@@ -197,6 +197,7 @@ function renderAnalysisMonitor(status, current) {
   const source = status?.source_label || provider.source_type || "—";
   const hasProgress = Number.isFinite(frameIndex) && Number.isFinite(totalFrames) && totalFrames > 0;
   const progress = hasProgress ? Math.min(100, Math.max(0, ((frameIndex + 1) / totalFrames) * 100)) : 0;
+  const hasPreviousRun = Boolean(status?.last_run_ts);
 
   let title = "Analysis stopped";
   let copy = "Press “Start analysis”: a mission will open and frames will be processed in sequence.";
@@ -234,6 +235,20 @@ function renderAnalysisMonitor(status, current) {
   if (bar) {
     bar.style.width = `${running && !hasProgress ? 100 : progress}%`;
     bar.classList.toggle("is-indeterminate", running && !hasProgress);
+  }
+
+  const flowSource = byId("analysis-flow-source");
+  const flowRun = byId("analysis-flow-run");
+  const flowReview = byId("analysis-flow-review");
+  [flowSource, flowRun, flowReview].forEach((node) => node?.classList.remove("is-current", "is-complete"));
+  flowSource?.classList.add("is-complete");
+  if (running) {
+    flowRun?.classList.add("is-current");
+  } else if (hasPreviousRun) {
+    flowRun?.classList.add("is-complete");
+    flowReview?.classList.add("is-current");
+  } else {
+    flowRun?.classList.add("is-current");
   }
 }
 
