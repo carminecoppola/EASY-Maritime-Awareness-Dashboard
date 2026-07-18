@@ -263,7 +263,7 @@ function renderLivePage(health) {
   const thermalCaptureButton = byId("button-thermal-capture");
   if (thermalCaptureButton && !thermalCaptureButton.disabled) {
     const label = thermalCaptureButton.querySelector("span");
-    if (label) label.textContent = thermalVisual.hasCachedFrame ? "Refresh reading" : "Capture thermal frame";
+    if (label) label.textContent = thermalVisual.hasCachedFrame ? "Capture new thermal image" : "Capture thermal image";
   }
 
   const sessionStatus = dashboardState.sessionStatus || health.session || {};
@@ -407,13 +407,13 @@ function setupLivePage() {
     thermalCaptureButton.addEventListener("click", async () => {
       thermalCaptureButton.disabled = true;
       const label = thermalCaptureButton.querySelector("span");
-      if (label) label.textContent = "Capturing reading…";
+      if (label) label.textContent = "Capturing thermal image…";
       try {
         reloadThermalFrame();
       } finally {
         window.setTimeout(() => {
           thermalCaptureButton.disabled = false;
-          if (label) label.textContent = "Refresh reading";
+          if (label) label.textContent = "Capture new thermal image";
         }, 3500);
       }
     });
@@ -422,12 +422,13 @@ function setupLivePage() {
   if (liveRefreshButton) {
     liveRefreshButton.addEventListener("click", async () => {
       liveRefreshButton.disabled = true;
-      liveRefreshButton.textContent = "Refreshing…";
+      const label = liveRefreshButton.querySelector("span");
+      if (label) label.textContent = "Checking…";
       await refreshDashboard();
       setText(liveActionElementId("liveRefreshText"), `Status updated at ${formatRomeTimeOnly(Date.now())}`);
       window.setTimeout(() => {
         liveRefreshButton.disabled = false;
-        liveRefreshButton.textContent = "Refresh status";
+        if (label) label.textContent = "Check sensors";
       }, 350);
     });
   }
