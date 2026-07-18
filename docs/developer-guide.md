@@ -38,6 +38,10 @@ temporarily pauses RGB ownership when required, caches the resulting JPEG, and
 releases the V4L2 node. Thermal capture is refused above the configured CPU
 temperature limit.
 
+Detection history uses an append-only `detection_history.jsonl` journal on the
+hot path. `detection_history.json` remains the compatible compact snapshot and
+is refreshed periodically or when the manager starts and clears its state.
+
 ## Stable interfaces
 
 Public Flask routes and required payload fields are compatibility boundaries.

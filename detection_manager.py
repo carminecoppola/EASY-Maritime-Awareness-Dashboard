@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 import time
 import uuid
@@ -72,6 +73,12 @@ class DetectionManager:
         self.sessions_dir = Path(sessions_dir)
         self.current_path = self.sessions_dir / "current_detections.json"
         self.history_path = self.sessions_dir / "detection_history.json"
+        self.history_journal_path = self.sessions_dir / "detection_history.jsonl"
+        self._history_compaction_interval = max(
+            30.0,
+            float(os.environ.get("EASY_DETECTION_HISTORY_COMPACTION_SECONDS", "300")),
+        )
+        self._last_history_compaction = time.monotonic()
         self.events = events
         self.session_manager = session_manager
         self.acquisition_manager = acquisition_manager
@@ -89,10 +96,15 @@ class DetectionManager:
         self._last_fps: float | None = None
         self._last_run_ts: str | None = None
         self._last_error = ""
+        self._journal_record_ids: set[str] = set()
         self.sessions_dir.mkdir(parents=True, exist_ok=True)
         self._load_history_snapshot()
+        self._load_history_journal()
         self._load_current_snapshot()
-        self._persist()
+        for record_id in self._journal_record_ids - set(self._current_ids):
+            if record_id in self._detections:
+                self._detections[record_id].status = "RESOLVED"
+        self._persist(force_history=True)
 
     def _load_history_snapshot(self) -> None:
         if not self.history_path.exists():
@@ -194,6 +206,29 @@ class DetectionManager:
         self._last_run_ts = payload.get("last_run_ts") or payload.get("updated_at")
         self._last_error = str(payload.get("error") or "")
 
+    def _load_history_journal(self) -> None:
+        if not self.history_journal_path.exists():
+            return
+        try:
+            with self.history_journal_path.open("r", encoding="utf-8") as stream:
+                for line in stream:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    record = self._record_from_payload_item(json.loads(line))
+                    if record is None:
+                        continue
+                    self._journal_record_ids.add(record.id)
+                    if record.id in self._detections:
+                        continue
+                    self._detections[record.id] = record
+                    self._history_ids.append(record.id)
+                    self._last_detection_id = record.id
+        except Exception:
+            # A compact snapshot remains available if shutdown interrupted the
+            # final append-only journal line.
+            return
+
     def _bbox_dict(self, value: Any) -> Dict[str, Optional[float]]:
         if isinstance(value, dict):
             return {
@@ -270,9 +305,27 @@ class DetectionManager:
             "updated_at": utc_now_iso(),
         }
 
-    def _persist(self) -> None:
+    def _append_history_journal(self, records: List[DetectionRecord]) -> None:
+        if not records:
+            return
+        with self.history_journal_path.open("a", encoding="utf-8") as stream:
+            for record in records:
+                stream.write(json.dumps(record.to_dict(), ensure_ascii=False, separators=(",", ":")) + "\n")
+
+    def _persist(
+        self,
+        *,
+        force_history: bool = False,
+        journal_records: List[DetectionRecord] | None = None,
+    ) -> None:
         atomic_write_json(self.current_path, self._payload(current_only=True))
-        atomic_write_json(self.history_path, self._payload(current_only=False))
+        self._append_history_journal(journal_records or [])
+        compaction_due = time.monotonic() - self._last_history_compaction >= self._history_compaction_interval
+        if force_history or compaction_due:
+            atomic_write_json(self.history_path, self._payload(current_only=False))
+            self.history_journal_path.write_text("", encoding="utf-8")
+            self._journal_record_ids.clear()
+            self._last_history_compaction = time.monotonic()
 
     def _build_record(
         self,
@@ -343,7 +396,7 @@ class DetectionManager:
         )
         with self._lock:
             self._append_record(record)
-            self._persist()
+            self._persist(journal_records=[record])
         self._event(record)
         if self.event_manager is not None:
             try:
@@ -387,7 +440,7 @@ class DetectionManager:
             self._last_error = "" if result.get("ok", True) else str(result.get("error") or "")
             for record in records:
                 self._append_record(record)
-            self._persist()
+            self._persist(journal_records=records)
         added = [record.to_dict() for record in records]
         for record in records:
             self._event(record)
@@ -434,5 +487,5 @@ class DetectionManager:
             self._history_ids = []
             self._last_detection_id = None
             self._last_error = ""
-            self._persist()
+            self._persist(force_history=True)
             return self._payload(current_only=True)
