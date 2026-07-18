@@ -182,6 +182,15 @@ class ProcessTreeSampler:
                 process_count += 1
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
+        if process_count == 0:
+            self.previous_cpu_seconds = None
+            self.previous_timestamp = None
+            return {
+                "easy_pid": self.pid,
+                "easy_process_count": 0,
+                "easy_cpu_percent": None,
+                "easy_rss_mb": None,
+            }
         cpu_percent = None
         if self.previous_cpu_seconds is not None and self.previous_timestamp is not None:
             elapsed = timestamp - self.previous_timestamp
@@ -255,6 +264,7 @@ class BenchmarkRunner:
         self.errors: List[Dict[str, Any]] = []
         self.raw_snapshots: List[Dict[str, Any]] = []
         self._sampler: Optional[ProcessTreeSampler] = None
+        self._observed_service_pids: set[int] = set()
         psutil.cpu_percent(interval=None)
 
     def systemctl_command(self, action: str, *extra: str) -> List[str]:
@@ -275,6 +285,72 @@ class BenchmarkRunner:
         if pid <= 0:
             raise RuntimeError(f"Unable to resolve MainPID for {self.args.service_name}: {result.get('stderr')}")
         return pid
+
+    def service_status(self) -> Dict[str, Any]:
+        explicit_pid = int(getattr(self.args, "pid", 0) or 0)
+        if explicit_pid > 0:
+            return {
+                "main_pid": explicit_pid,
+                "active_state": "active" if psutil.pid_exists(explicit_pid) else "inactive",
+                "sub_state": "running" if psutil.pid_exists(explicit_pid) else "dead",
+                "restart_count": None,
+            }
+        result = run_command(
+            [
+                "systemctl",
+                "show",
+                self.args.service_name,
+                "--property",
+                "MainPID,ActiveState,SubState,NRestarts",
+            ],
+            timeout=5,
+        )
+        values: Dict[str, str] = {}
+        for line in str(result.get("stdout") or "").splitlines():
+            key, separator, value = line.partition("=")
+            if separator:
+                values[key] = value
+        try:
+            main_pid = int(values.get("MainPID") or 0)
+        except ValueError:
+            main_pid = 0
+        try:
+            restart_count = int(values.get("NRestarts") or 0)
+        except ValueError:
+            restart_count = None
+        return {
+            "main_pid": main_pid,
+            "active_state": values.get("ActiveState") or "unknown",
+            "sub_state": values.get("SubState") or "unknown",
+            "restart_count": restart_count,
+            "command_error": result.get("stderr") or "",
+        }
+
+    def endpoint_reachable(self, timeout: float = 1.0) -> bool:
+        request = urllib.request.Request(f"{self.client.base_url}/health", method="GET")
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                response.read(1)
+            return True
+        except urllib.error.HTTPError:
+            return True
+        except (OSError, urllib.error.URLError):
+            return False
+
+    def wait_until_stopped(self, timeout: float = 8.0) -> None:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            status = self.service_status()
+            if status.get("main_pid") == 0 and not self.endpoint_reachable():
+                return
+            time.sleep(0.2)
+        status = self.service_status()
+        if self.endpoint_reachable():
+            raise RuntimeError(
+                "Dashboard still responds after systemd stop; another or orphan process owns port 5000. "
+                "Stop that process before benchmarking."
+            )
+        raise RuntimeError(f"Service did not stop cleanly: {status}")
 
     def wait_until_ready(self, timeout: float) -> Tuple[float, Dict[str, Any]]:
         deadline = time.monotonic() + timeout
@@ -301,6 +377,7 @@ class BenchmarkRunner:
             stop_result = run_command(self.systemctl_command("stop"), timeout=20)
             if stop_result.get("returncode") != 0:
                 raise RuntimeError(f"Unable to stop service: {stop_result.get('stderr')}")
+            self.wait_until_stopped()
             time.sleep(self.args.startup_cooldown)
             started = time.monotonic()
             start_result = run_command(self.systemctl_command("start"), timeout=20)
@@ -308,6 +385,20 @@ class BenchmarkRunner:
             if start_result.get("returncode") != 0:
                 raise RuntimeError(f"Unable to start service: {start_result.get('stderr')}")
             ready_at, health = self.wait_until_ready(self.args.startup_timeout)
+            ready_status = self.service_status()
+            ready_pid = int(ready_status.get("main_pid") or 0)
+            if ready_pid <= 0:
+                raise RuntimeError(f"Service has no MainPID after readiness: {ready_status}")
+            time.sleep(self.args.service_stability_seconds)
+            stable_status = self.service_status()
+            if (
+                int(stable_status.get("main_pid") or 0) != ready_pid
+                or stable_status.get("active_state") != "active"
+                or stable_status.get("sub_state") != "running"
+            ):
+                raise RuntimeError(
+                    f"Service did not remain stable after readiness: ready={ready_status}, stable={stable_status}"
+                )
             temperature_ready = read_cpu_temperature()
             self.enforce_temperature(temperature_ready, "startup readiness")
             self.startup_measurements.append(
@@ -319,7 +410,8 @@ class BenchmarkRunner:
                     "temperature_before_c": temperature_before,
                     "temperature_ready_c": temperature_ready,
                     "health_ok": bool(health.get("ok")),
-                    "main_pid": self.service_pid(),
+                    "main_pid": ready_pid,
+                    "restart_count": stable_status.get("restart_count"),
                 }
             )
 
@@ -385,9 +477,21 @@ class BenchmarkRunner:
         load_average = os.getloadavg() if hasattr(os, "getloadavg") else (None, None, None)
         temperature = read_cpu_temperature()
         self.enforce_temperature(temperature, phase)
-        if self._sampler is None:
-            self._sampler = ProcessTreeSampler(self.service_pid())
+        service_status = self.service_status()
+        current_pid = int(service_status.get("main_pid") or 0)
+        if current_pid <= 0:
+            raise RuntimeError(f"easy-dashboard.service has no active MainPID during {phase}: {service_status}")
+        if self._sampler is None or self._sampler.pid != current_pid:
+            if self._observed_service_pids and current_pid not in self._observed_service_pids:
+                raise RuntimeError(
+                    f"easy-dashboard.service MainPID changed during the benchmark: "
+                    f"{sorted(self._observed_service_pids)} -> {current_pid}"
+                )
+            self._sampler = ProcessTreeSampler(current_pid)
+        self._observed_service_pids.add(current_pid)
         process_metrics = self._sampler.sample(timestamp)
+        if process_metrics.get("easy_process_count") == 0:
+            raise RuntimeError(f"EASY process tree disappeared during {phase} (PID {current_pid})")
         try:
             payloads = self._query_runtime()
             runtime_fields = extract_runtime_fields(
@@ -408,6 +512,9 @@ class BenchmarkRunner:
             "load_1m": load_average[0],
             "load_5m": load_average[1],
             "load_15m": load_average[2],
+            "service_active_state": service_status.get("active_state"),
+            "service_sub_state": service_status.get("sub_state"),
+            "service_restart_count": service_status.get("restart_count"),
             **process_metrics,
             **runtime_fields,
         }
@@ -502,6 +609,7 @@ class BenchmarkRunner:
                 self.measure_startup()
             self.wait_until_ready(self.args.startup_timeout)
             self._sampler = ProcessTreeSampler(self.service_pid())
+            self._observed_service_pids.add(self._sampler.pid)
             self.capture_snapshot("before_warmup")
             if self.args.warmup_seconds > 0:
                 self.sample_phase("warmup", self.args.warmup_seconds)

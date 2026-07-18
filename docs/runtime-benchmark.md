@@ -62,6 +62,10 @@ The default protocol uses:
 
 The wrapper asks for `sudo` once because startup characterization must restart
 the service. It leaves the service running when the experiment completes.
+Before every startup measurement, the collector verifies that stopping the
+systemd unit also makes the HTTP endpoint unreachable. It rejects the run if
+an orphan process still owns port 5000, if the systemd MainPID changes, or if
+the unit enters an automatic restart loop.
 
 ## Controlled variants
 

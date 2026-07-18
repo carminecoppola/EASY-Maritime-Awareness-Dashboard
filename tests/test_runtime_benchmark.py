@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import unittest
 
-from easy_dashboard.runtime_benchmark import extract_runtime_fields, latex_escape, numeric_summary, percentile
+from easy_dashboard.runtime_benchmark import (
+    ProcessTreeSampler,
+    extract_runtime_fields,
+    latex_escape,
+    numeric_summary,
+    percentile,
+)
 
 
 class RuntimeBenchmarkTests(unittest.TestCase):
@@ -39,6 +45,13 @@ class RuntimeBenchmarkTests(unittest.TestCase):
 
     def test_latex_escape_protects_identifiers(self) -> None:
         self.assertEqual(latex_escape("rgb_left & health"), r"rgb\_left \& health")
+
+    def test_missing_process_is_not_reported_as_zero_usage(self) -> None:
+        sampler = ProcessTreeSampler(99999999)
+        sample = sampler.sample(1.0)
+        self.assertEqual(sample["easy_process_count"], 0)
+        self.assertIsNone(sample["easy_cpu_percent"])
+        self.assertIsNone(sample["easy_rss_mb"])
 
 
 if __name__ == "__main__":
