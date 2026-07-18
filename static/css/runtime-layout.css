@@ -747,7 +747,7 @@ body[data-page="detections"] .header-meta {
 }
 
 .operations-panel-summary::after {
-  content: "Apri";
+  content: "Open";
   flex: 0 0 auto;
   color: var(--accent);
   font-size: 11px;
@@ -757,7 +757,7 @@ body[data-page="detections"] .header-meta {
 }
 
 .operations-panel[open] .operations-panel-summary::after {
-  content: "Chiudi";
+  content: "Close";
 }
 
 .operations-panel-summary strong {

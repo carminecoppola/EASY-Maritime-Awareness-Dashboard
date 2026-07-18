@@ -355,6 +355,26 @@ function renderDatasetSessionPanel() {
   setText(liveActionElementId("datasetInferenceCount"), `${manifestCounts.inference ?? 0}`);
   setText(liveActionElementId("datasetDetectionsCount"), `${manifestCounts.detections ?? 0}`);
 
+  const synchronizedSamples = Number(datasetSummary.synchronized_samples ?? manifestCounts.synchronized_samples ?? 0);
+  const datasetReady = Boolean(sessionId && synchronizedSamples > 0);
+  const validateButton = byId(liveActionElementId("datasetValidateButton"));
+  const exportButton = byId(liveActionElementId("datasetExportButton"));
+  [validateButton, exportButton].forEach((button) => {
+    if (!button) return;
+    button.disabled = !datasetReady;
+    button.title = datasetReady
+      ? "This mission contains at least one synchronized RGB and thermal sample"
+      : "Save at least one sensor set containing RGB and thermal data before continuing";
+  });
+  if (!datasetReady) {
+    setText(
+      liveActionElementId("datasetExportFeedback"),
+      sessionId
+        ? "Dataset not ready · save at least one synchronized RGB + thermal sensor set during a mission."
+        : "Start a mission and save a sensor set before validating or exporting a dataset.",
+    );
+  }
+
   const feedLabels = {
     rgb_left: "Left RGB",
     rgb_right: "Right RGB",
