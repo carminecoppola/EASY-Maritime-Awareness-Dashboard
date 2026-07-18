@@ -642,6 +642,7 @@ body[data-page="live"] .live-feed-card {
 
 body[data-page="live"] .live-feed-card:not(.live-feed-card-thermal) {
   min-height: clamp(360px, 38vw, 650px);
+  grid-template-rows: 52px minmax(0, 1fr) 44px;
 }
 
 body[data-page="live"] .live-feed-head {
