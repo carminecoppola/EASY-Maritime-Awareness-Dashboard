@@ -1,4 +1,4 @@
-# Validation report — 17 July 2026
+# Validation report — 19 July 2026
 
 ## Current validation scope
 
@@ -20,7 +20,7 @@ process remains after `systemctl stop`.
 ## Local regression for the current change
 
 - Python compilation: PASS through `scripts/validate_local_release.sh`.
-- Unit and integration suite: PASS, 27 tests.
+- Unit and integration suite: PASS, 41 tests.
 - Dashboard smoke suite: PASS.
 - JavaScript syntax checks: PASS.
 - Shell syntax checks: PASS.
@@ -48,8 +48,18 @@ continuous stream. Hardware payloads retain their existing fields and add
 - `NOT_PRESENT`: disabled or not detected.
 - `ERROR`: capture/runtime failure requiring attention.
 
-## Deferred benchmark
+## Runtime benchmark status
 
-The ONNX benchmark has not been repeated in this change. The last recorded
-Raspberry Pi 4 median was approximately 4.1 seconds per inference. A cooled,
-sustained live-RGB benchmark remains required before release sign-off.
+The repeatable replay-based Raspberry Pi 4 benchmark is complete for the paper
+evaluation. Ten inference requests produced a mean ONNX backend time of
+608.17 ms and a mean end-to-end API latency of 1014.19 ms after persistence
+optimization. The earlier value of approximately 4.1 seconds belongs to the
+pre-optimization implementation and is not the current result.
+
+This replay protocol does not establish sustained inference performance on both
+live RGB views. A cooled, long-duration live-source benchmark remains future
+work and must be reported separately rather than mixed with the replay results.
+
+Generated measurement directories are intentionally excluded from source
+history. The paper evaluation archive must preserve the complete raw run,
+environment metadata, exact dependency versions and checksums.

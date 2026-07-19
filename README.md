@@ -97,6 +97,10 @@ The same regression suite runs on every push and pull request through
 `.github/workflows/quality.yml`. Hardware tests remain separate because hosted
 CI cannot validate V4L2, libcamera, CPU temperature, or the physical sensors.
 
+The current suite contains 41 automated regression tests. The paper evaluation
+also uses scripted Raspberry and browser checks; these are reported separately
+because they depend on physical cameras and the target device.
+
 On the Raspberry, use `scripts/validate_raspberry_runtime.sh` only during a
 controlled validation window. Stop the service if CPU temperature reaches
 78 °C or the thermal device fails to produce frames. The validator performs one
@@ -119,3 +123,19 @@ Existing HTTP routes and required JSON fields are kept stable. Internal modules
 may be reorganized behind compatibility adapters as the project is simplified.
 Hardware payloads also expose a `runtime_state` object with normalized
 availability, readiness, streaming, health, and capture-mode fields.
+
+## Reproducibility
+
+The Raspberry benchmark writes raw samples, environment metadata, dependency
+versions, summaries, LaTeX tables and checksums. Generated runs are deliberately
+kept outside Git history and must be copied intact into the companion paper
+evaluation archive. `requirements.txt` defines supported installation ranges;
+the exact packages used for a reported experiment belong in that archive's
+`environment.json` or an exported lock file.
+
+## License
+
+The dashboard software is distributed under the BSD 3-Clause License. See
+[`LICENSE`](LICENSE). Captured images, replay material, model files and other
+third-party assets may have separate provenance and usage conditions; the
+software license does not override those terms.
