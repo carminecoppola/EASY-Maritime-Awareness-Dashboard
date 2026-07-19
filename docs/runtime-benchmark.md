@@ -26,7 +26,8 @@ This avoids interrupting RGB capture and keeps the measurement workload stable.
 
 ## Preconditions
 
-- Use the final paper commit and record the commit hash.
+- Use the source version corresponding to the paper evaluation and preserve its
+  revision in the generated environment metadata.
 - Install and enable `easy-dashboard.service` using the unit in `services/`.
 - Close browser tabs or other processes that repeatedly poll the Raspberry API.
 - Stop unrelated CPU-intensive workloads.
@@ -102,12 +103,13 @@ This short form is not the paper protocol.
 
 ## Output layout
 
-Each run creates an immutable directory under
-`runtime/benchmarks/easy-runtime-YYYYMMDD-HHMMSS/`:
+Each run creates an immutable evaluation directory under
+`runtime/benchmarks/`. Its generated name is an internal storage detail and
+should not be used as the experiment name in the paper.
 
 | File | Content |
 |---|---|
-| `environment.json` | Host, OS, Python, dependencies, commit, service unit, hashes and parameters |
+| `environment.json` | Host, OS, Python, dependencies, source revision, service unit, hashes and parameters |
 | `raw_samples.csv/json` | Timestamped system, process, temperature, FPS and component observations |
 | `startup.csv/json` | Every controlled startup measurement |
 | `api_latency.csv/json` | Every REST request, response status, size and latency |
@@ -118,8 +120,10 @@ Each run creates an immutable directory under
 | `tables.tex` | Two IEEE-compatible LaTeX tables |
 | `checksums.sha256` | SHA-256 integrity record for every generated artifact |
 
-Generated runs are ignored by Git. Copy the complete run directory to the
-paper experiment archive without editing individual files.
+Generated runs are ignored by Git. Copy the complete run directory to a clearly
+named paper evaluation archive without editing individual files. The paper may
+refer to the baseline, instrumented and optimized implementations; internal
+directory names and revision identifiers remain in metadata only.
 
 ## Repetition and reporting
 
@@ -139,7 +143,7 @@ remains the complete diagnostic endpoint measured by the benchmark.
 
 ## Experimental limitations
 
-- Results characterize this Raspberry, service configuration and commit; they
+- Results characterize this Raspberry, service configuration and source state; they
   are not general hardware specifications.
 - Monitoring and API probes add a small observer load. The fixed interval and
   raw request log make this load repeatable and visible.

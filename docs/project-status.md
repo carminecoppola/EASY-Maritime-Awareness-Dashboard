@@ -46,8 +46,11 @@ they form part of the planned thermal and multimodal extension.
 
 The Analysis page supports the stable test/replay workflow and can select the
 live RGB providers exposed by the camera runtime. Replay remains the repeatable
-validation source; sustained live-RGB inference still requires a dedicated
-cooled field test. The deployed model accepts RGB input only.
+validation source. The paper runtime benchmark completed ten replay-based
+inference requests with a mean backend time of 608.17 ms and a mean end-to-end
+API latency of 1014.19 ms. Sustained live-RGB inference still requires a
+dedicated cooled field test and is not claimed by those replay measurements.
+The deployed model accepts RGB input only.
 
 The Mission page groups one acquisition period into a session. While a mission
 is active, EASY can associate captured images, inference results, detections,
