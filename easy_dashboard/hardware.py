@@ -41,6 +41,7 @@ class RgbMasterSource:
         self.height = int(config["rgb"].get("height", 480))
         self.fps_target = int(config["rgb"].get("fps", 10))
         self.quality = int(config["rgb"].get("quality", 85))
+        self.crop_ratio = min(0.9, max(0.1, float(config["rgb"].get("crop_ratio", 0.5))))
         self._commands = RgbCaptureCommands(
             RgbCaptureSettings(
                 camera_index=self.camera_index,
@@ -365,10 +366,15 @@ class RgbMasterSource:
     def _crop_snapshot(self, frame: bytes, side: str) -> bytes:
         if side not in {"left", "right"}:
             return frame
-        command = self._commands.crop(which("ffmpeg") or "ffmpeg", side)
         try:
-            completed = subprocess.run(command, input=frame, capture_output=True, check=True)
-            return completed.stdout or frame
+            with Image.open(io.BytesIO(frame)) as source:
+                image = source.convert("RGB")
+                split_x = max(1, min(image.width - 1, int(round(image.width * self.crop_ratio))))
+                bounds = (0, 0, split_x, image.height) if side == "left" else (split_x, 0, image.width, image.height)
+                cropped = image.crop(bounds)
+                output = io.BytesIO()
+                cropped.save(output, format="JPEG", quality=self.quality)
+                return output.getvalue()
         except Exception:
             LOGGER.exception("Failed to crop RGB snapshot; returning full frame")
             return frame
