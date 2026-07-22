@@ -40,6 +40,15 @@ From the project clone on the Mac:
 ./scripts/easy_dashboard_mac.sh
 ```
 
+To make the launcher available directly from your Mac home directory, run once:
+
+```bash
+./scripts/easy_dashboard_mac.sh --install-home-launcher
+```
+
+After that, launch EASY from any directory with `~/easy_dashboard_mac.sh`. Transient
+SSH or ProxyJump interruptions are retried automatically three times.
+
 The launcher connects through the configured jump host, installs the current
 systemd unit, restarts the Raspberry service, waits for `/health`, creates a
 local SSH tunnel on the first available port from `5500`, and opens Safari only

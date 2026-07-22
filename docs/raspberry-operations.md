@@ -11,6 +11,17 @@ Use the Mac launcher for normal operation:
 ./scripts/easy_dashboard_mac.sh
 ```
 
+Optional Mac home launcher:
+
+```bash
+./scripts/easy_dashboard_mac.sh --install-home-launcher
+~/easy_dashboard_mac.sh
+```
+
+The launcher retries transient SSH and tunnel failures automatically. Override the
+defaults with `EASY_SSH_RETRIES` and `EASY_SSH_RETRY_DELAY_SECONDS` if the jump host
+is temporarily unstable.
+
 ## Service commands
 
 ```bash
