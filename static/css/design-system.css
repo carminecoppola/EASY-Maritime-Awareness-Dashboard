@@ -692,6 +692,7 @@ body[data-page="live"] .live-feed-name {
 
 body[data-page="live"] .live-feed-body {
   min-height: 300px;
+  overflow: hidden;
   background: #06110e;
 }
 
@@ -700,6 +701,21 @@ body[data-page="live"] .live-feed-image {
   height: 100%;
   object-fit: cover;
   background: #030706;
+}
+
+/* The UC512 exposes both RGB channels in one side-by-side MJPEG frame. */
+body[data-page="live"]:not(.is-presentation-preview) .live-feed-card[data-feed="rgb_left"] .live-feed-image,
+body[data-page="live"]:not(.is-presentation-preview) .live-feed-card[data-feed="rgb_right"] .live-feed-image {
+  width: 200%;
+  max-width: none;
+}
+
+body[data-page="live"]:not(.is-presentation-preview) .live-feed-card[data-feed="rgb_left"] .live-feed-image {
+  transform: translateX(0);
+}
+
+body[data-page="live"]:not(.is-presentation-preview) .live-feed-card[data-feed="rgb_right"] .live-feed-image {
+  transform: translateX(-50%);
 }
 
 body[data-page="live"] .live-feed-foot {
@@ -1647,6 +1663,17 @@ body.is-presentation-preview .presentation-frame-label {
 }
 
 @media (max-width: 1280px) {
+  body[data-page="live"] .live-statusbar-group {
+    width: 100%;
+    max-width: none;
+    flex: none;
+  }
+
+  body[data-page="live"] .live-statusbar-actions {
+    width: 100%;
+    flex: none;
+  }
+
   body[data-page="log"] .snapshot-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
