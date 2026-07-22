@@ -14,6 +14,7 @@ REMOTE_APP_PORT="${EASY_REMOTE_APP_PORT:-5000}"
 REMOTE_PROJECT="${EASY_REMOTE_PROJECT:-/home/pi/Desktop/carmine/easy-dashboard}"
 LOCAL_PORT_START="${EASY_LOCAL_PORT:-5500}"
 STARTUP_TIMEOUT="${EASY_STARTUP_TIMEOUT_SECONDS:-45}"
+DEGRADED_START_DELAY="${EASY_DEGRADED_START_DELAY_SECONDS:-5}"
 SSH_RETRIES="${EASY_SSH_RETRIES:-3}"
 SSH_RETRY_DELAY="${EASY_SSH_RETRY_DELAY_SECONDS:-3}"
 SCRIPT_PATH="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/$(basename -- "${BASH_SOURCE[0]}")"
@@ -87,7 +88,7 @@ find_local_port() {
       echo "${candidate}"
       return 0
     fi
-    if curl -fsS --connect-timeout 1 --max-time 2 "http://127.0.0.1:${candidate}/health/ready" >/dev/null 2>&1; then
+    if curl -fsS --connect-timeout 1 --max-time 2 "http://127.0.0.1:${candidate}/health" >/dev/null 2>&1; then
       echo "${candidate}"
       return 0
     fi
@@ -106,6 +107,7 @@ run_remote_with_retry \
 
 echo "2/4 Waiting for dashboard readiness..."
 remote_ready=0
+remote_available=0
 for ((attempt = 1; attempt <= STARTUP_TIMEOUT; attempt++)); do
   if ssh "${SSH_OPTIONS[@]}" "${SSH_TARGET}" \
     "curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1:${REMOTE_APP_PORT}/health/ready >/dev/null" \
@@ -114,20 +116,33 @@ for ((attempt = 1; attempt <= STARTUP_TIMEOUT; attempt++)); do
     echo "    Service ready after ${attempt}s."
     break
   fi
+  if ssh "${SSH_OPTIONS[@]}" "${SSH_TARGET}" \
+    "curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1:${REMOTE_APP_PORT}/health >/dev/null" \
+    2>/dev/null; then
+    remote_available=1
+    if ((attempt >= DEGRADED_START_DELAY)); then
+      echo "    Dashboard available after ${attempt}s; sensor readiness still needs attention."
+      break
+    fi
+  fi
   sleep 1
 done
 
-if [[ "${remote_ready}" -ne 1 ]]; then
+if [[ "${remote_ready}" -ne 1 && "${remote_available}" -ne 1 ]]; then
   ssh "${SSH_OPTIONS[@]}" "${SSH_TARGET}" \
     "sudo systemctl status easy-dashboard.service --no-pager; journalctl -u easy-dashboard.service -n 40 --no-pager" \
     || true
-  fail "the service did not respond within ${STARTUP_TIMEOUT}s"
+  fail "the dashboard did not respond within ${STARTUP_TIMEOUT}s"
+fi
+
+if [[ "${remote_ready}" -ne 1 ]]; then
+  echo "    WARNING: the interface will open in degraded mode; check the sensor status in Live/System."
 fi
 
 LOCAL_PORT="$(find_local_port)" || fail "no local port available between ${LOCAL_PORT_START} and $((LOCAL_PORT_START + 49))"
 LOCAL_URL="http://127.0.0.1:${LOCAL_PORT}"
 
-if curl -fsS --connect-timeout 1 --max-time 2 "${LOCAL_URL}/health/ready" >/dev/null 2>&1; then
+if curl -fsS --connect-timeout 1 --max-time 2 "${LOCAL_URL}/health" >/dev/null 2>&1; then
   echo "3/4 Tunnel already active on port ${LOCAL_PORT}."
 else
   echo "3/4 Creating the SSH tunnel on port ${LOCAL_PORT}..."
@@ -137,16 +152,20 @@ fi
 
 local_ready=0
 for _ in {1..15}; do
-  if curl -fsS --connect-timeout 1 --max-time 2 "${LOCAL_URL}/health/ready" >/dev/null 2>&1; then
+  if curl -fsS --connect-timeout 1 --max-time 2 "${LOCAL_URL}/health" >/dev/null 2>&1; then
     local_ready=1
     break
   fi
   sleep 1
 done
-[[ "${local_ready}" -eq 1 ]] || fail "the tunnel is open, but ${LOCAL_URL}/health/ready is not responding"
+[[ "${local_ready}" -eq 1 ]] || fail "the tunnel is open, but ${LOCAL_URL}/health is not responding"
 
 echo "4/4 Opening Safari..."
 open -a Safari "${LOCAL_URL}"
 echo
-echo "Dashboard ready: ${LOCAL_URL}"
+if [[ "${remote_ready}" -eq 1 ]]; then
+  echo "Dashboard ready: ${LOCAL_URL}"
+else
+  echo "Dashboard available with sensor warnings: ${LOCAL_URL}"
+fi
 echo "The service remains managed by systemd on the Raspberry."
