@@ -125,7 +125,8 @@ class SystemProbe:
         return output
 
     def i2cdetect(self) -> str:
-        _, output = run_command(["i2cdetect", "-y", "1"], timeout=20)
+        """List I2C adapters without actively probing camera bus addresses."""
+        _, output = run_command(["i2cdetect", "-l"], timeout=8)
         return output
 
     def video_devices(self) -> list[str]:

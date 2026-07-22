@@ -27,6 +27,10 @@ If Flask is reachable through `/health` but a sensor is unavailable, the launche
 opens the dashboard after a short delay and reports that it is running in degraded
 mode instead of blocking access to diagnostics.
 
+The automatic preflight lists available I2C adapters but deliberately does not
+scan every bus address. Active `i2cdetect -y` scans can interfere with camera or
+multiplexer control buses and must only be run during isolated hardware diagnosis.
+
 ## Service commands
 
 ```bash
