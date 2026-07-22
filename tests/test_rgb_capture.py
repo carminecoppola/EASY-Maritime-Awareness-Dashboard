@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import io
 import unittest
+
+from PIL import Image
 
 from easy_dashboard.rgb_capture import RgbCaptureCommands, RgbCaptureSettings, split_mjpeg_buffer
 from easy_dashboard.hardware import RgbMasterSource
@@ -52,6 +55,34 @@ class RgbCaptureTests(unittest.TestCase):
         self.assertEqual(source._next_retry_ts, 0.0)
         self.assertEqual(source._frame, b"jpeg-frame")
         self.assertEqual(source.camera_state(), "DETECTED")
+
+    def test_runtime_crop_returns_only_the_requested_rgb_channel(self) -> None:
+        source = RgbMasterSource(
+            {
+                "rgb": {
+                    "camera_index": 0,
+                    "width": 1280,
+                    "height": 480,
+                    "fps": 10,
+                    "quality": 90,
+                    "crop_ratio": 0.5,
+                }
+            },
+            events=None,  # type: ignore[arg-type]
+            probe=None,  # type: ignore[arg-type]
+        )
+        stereo = Image.new("RGB", (8, 4), "red")
+        stereo.paste(Image.new("RGB", (4, 4), "blue"), (4, 0))
+        encoded = io.BytesIO()
+        stereo.save(encoded, format="JPEG", quality=100, subsampling=0)
+
+        left = Image.open(io.BytesIO(source._crop_snapshot(encoded.getvalue(), "left"))).convert("RGB")
+        right = Image.open(io.BytesIO(source._crop_snapshot(encoded.getvalue(), "right"))).convert("RGB")
+
+        self.assertEqual(left.size, (4, 4))
+        self.assertEqual(right.size, (4, 4))
+        self.assertGreater(left.getpixel((1, 1))[0], left.getpixel((1, 1))[2])
+        self.assertGreater(right.getpixel((1, 1))[2], right.getpixel((1, 1))[0])
 
 
 if __name__ == "__main__":
