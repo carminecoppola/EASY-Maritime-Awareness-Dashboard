@@ -23,7 +23,9 @@ def run_preflight_script() -> None:
         LOGGER.warning("Preflight script missing: %s", script)
         return
     try:
-        subprocess.run(["bash", str(script)], cwd=PROJECT_ROOT, check=False)
+        subprocess.run(["bash", str(script)], cwd=PROJECT_ROOT, check=False, timeout=15)
+    except subprocess.TimeoutExpired:
+        LOGGER.warning("Preflight script exceeded 15 seconds and was stopped")
     except Exception:
         LOGGER.exception("Failed to run preflight script")
 
