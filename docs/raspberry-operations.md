@@ -22,6 +22,11 @@ The launcher retries transient SSH and tunnel failures automatically. Override t
 defaults with `EASY_SSH_RETRIES` and `EASY_SSH_RETRY_DELAY_SECONDS` if the jump host
 is temporarily unstable.
 
+Full readiness (`/health/ready`) requires the expected sensors to be operational.
+If Flask is reachable through `/health` but a sensor is unavailable, the launcher
+opens the dashboard after a short delay and reports that it is running in degraded
+mode instead of blocking access to diagnostics.
+
 ## Service commands
 
 ```bash
