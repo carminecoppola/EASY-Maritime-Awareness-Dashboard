@@ -235,13 +235,7 @@ class RgbMasterSource:
             buffer += chunk
             frames, buffer = split_mjpeg_buffer(buffer)
             for frame in frames:
-                with self._condition:
-                    self._frame = frame
-                    self._frame_ts = time.time()
-                    self._frame_seq += 1
-                    if self._status != "ERROR":
-                        self._status = "ONLINE"
-                    self._condition.notify_all()
+                self._store_frame(frame)
 
         with self._condition:
             if self._status != "ERROR":
@@ -251,6 +245,19 @@ class RgbMasterSource:
                 if self._status != "BUSY":
                     self._error = "RGB source stopped unexpectedly."
                     self.events.add("UC512_MULTIPLEXER", "STREAM_STOP", self._error, "warning")
+
+    def _store_frame(self, frame: bytes) -> None:
+        with self._condition:
+            # libcamera can report a transient timeout while recovering
+            # internally. A subsequent valid frame is the authoritative
+            # signal that the shared RGB source is healthy again.
+            self._error = ""
+            self._next_retry_ts = 0.0
+            self._frame = frame
+            self._frame_ts = time.time()
+            self._frame_seq += 1
+            self._status = "ONLINE"
+            self._condition.notify_all()
 
     def _read_stderr(self) -> None:
         assert self.process and self.process.stderr
