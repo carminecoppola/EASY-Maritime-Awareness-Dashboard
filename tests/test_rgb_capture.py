@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from easy_dashboard.rgb_capture import RgbCaptureCommands, RgbCaptureSettings, split_mjpeg_buffer
+from easy_dashboard.hardware import RgbMasterSource
 
 
 class RgbCaptureTests(unittest.TestCase):
@@ -32,6 +33,25 @@ class RgbCaptureTests(unittest.TestCase):
         frames, remainder = split_mjpeg_buffer(b"noise" + first + second + partial)
         self.assertEqual(frames, [first, second])
         self.assertEqual(remainder, partial)
+
+    def test_valid_frame_clears_transient_recovery_error(self) -> None:
+        source = RgbMasterSource(
+            {"rgb": {"camera_index": 0, "width": 1280, "height": 480, "fps": 10, "quality": 85}},
+            events=None,  # type: ignore[arg-type]
+            probe=None,  # type: ignore[arg-type]
+        )
+        source.detected = True
+        source._status = "BUSY"
+        source._error = "ERROR: Device timeout detected, attempting a restart!!!"
+        source._next_retry_ts = 123.0
+
+        source._store_frame(b"jpeg-frame")
+
+        self.assertEqual(source._status, "ONLINE")
+        self.assertEqual(source._error, "")
+        self.assertEqual(source._next_retry_ts, 0.0)
+        self.assertEqual(source._frame, b"jpeg-frame")
+        self.assertEqual(source.camera_state(), "DETECTED")
 
 
 if __name__ == "__main__":
