@@ -7,14 +7,19 @@ thresholds, sessions, sources or saved data.
 
 ## What is measured
 
-The benchmark records three distinct phases so their costs are not mixed:
+The benchmark records distinct phases so their costs are not mixed:
 
 1. **Startup:** controlled systemd stop/start cycles and time from `systemctl
    start` to an HTTP-ready Flask service with the System Orchestrator in
    `RUNNING` state.
 2. **Steady state:** CPU, memory, temperature, source FPS and component states
    at a fixed sampling interval.
-3. **Workloads:** REST API latency followed by explicitly requested inference
+3. **Thermal stress (optional, disabled by default):** a synthetic CPU-saturation
+   phase, purely software (a multiprocessing busy loop, one worker per logical
+   core by default), inserted after steady state and before the workload
+   phases. It exists to observe throttling/undervoltage behavior under load
+   without requiring any external heat source or power-measurement hardware.
+4. **Workloads:** REST API latency followed by explicitly requested inference
    calls on the source already selected by the runtime.
 
 System CPU and memory come from `psutil`. EASY CPU and RSS include the systemd
@@ -23,6 +28,14 @@ Process CPU follows `top` semantics: 100% means one fully occupied core.
 
 The benchmark observes the thermal status but does not request a thermal frame.
 This avoids interrupting RGB capture and keeps the measurement workload stable.
+
+Every sample also records CPU frequency (`/sys/.../scaling_cur_freq`, MHz) and
+the decoded `vcgencmd get_throttled` bitmask (`undervoltage_now`,
+`freq_capped_now`, `throttled_now`, and their `_occurred`-since-boot latches).
+Both are read purely in software — no INA219/INA226 or other external sensor
+is used, and none is required to detect under-voltage or thermal throttling on
+a Raspberry Pi. Actual power draw in Watts is a separate, harder measurement
+that does need such a sensor; this benchmark does not attempt it.
 
 ## Preconditions
 
@@ -86,6 +99,13 @@ To measure the idle runtime without inference calls:
 
 ```bash
 EASY_BENCHMARK_INFERENCE_RUNS=0 ./scripts/run_raspberry_benchmark.sh
+```
+
+To additionally observe throttling behavior under a synthetic CPU load (disabled
+by default; still subject to the 78 °C safety cutoff):
+
+```bash
+EASY_BENCHMARK_THERMAL_STRESS_SECONDS=120 ./scripts/run_raspberry_benchmark.sh
 ```
 
 For a short engineering check, bypass the wrapper and avoid service restarts:
@@ -156,3 +176,12 @@ remains the complete diagnostic endpoint measured by the benchmark.
   frame. Failed requests remain in the raw output and make the run fail.
 - Thermal status is observed without forcing a capture, so this protocol does
   not characterize FLIR acquisition latency.
+- The thermal-stress phase measures throttling/undervoltage under a synthetic
+  CPU load, not under the actual detection workload's real thermal profile;
+  the two need not agree.
+- This protocol does not measure electrical power draw (Watts/Amps). Doing so
+  needs an external sensor (e.g. INA219/INA226) in the power path, which this
+  Raspberry does not have; only firmware-reported throttling/undervoltage and
+  CPU-frequency scaling are captured, and both are software-only proxies.
+- No degraded-connectivity scenario (packet loss, Wi-Fi instability) is
+  exercised by this protocol.

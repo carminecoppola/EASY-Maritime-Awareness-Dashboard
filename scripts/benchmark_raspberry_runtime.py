@@ -41,6 +41,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--http-timeout", type=float, default=60.0)
     parser.add_argument("--stop-temperature-limit", type=float, default=78.0)
     parser.add_argument(
+        "--thermal-stress-seconds",
+        type=float,
+        default=0.0,
+        help="Run a synthetic CPU-saturation phase for this many seconds after steady-state "
+        "sampling, to observe throttling/undervoltage behavior under load. 0 disables it "
+        "(default). Purely software (multiprocessing busy loop); no extra hardware. Still "
+        "subject to --stop-temperature-limit.",
+    )
+    parser.add_argument(
+        "--thermal-stress-workers",
+        type=int,
+        default=0,
+        help="Worker processes for --thermal-stress-seconds. 0 (default) uses one per logical CPU.",
+    )
+    parser.add_argument(
         "--allow-unhealthy",
         action="store_true",
         help="Allow collection when /health is false (engineering diagnostics only, not the paper protocol)",
@@ -48,6 +63,8 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args()
     if args.duration <= 0 or args.interval <= 0 or args.api_runs < 1 or args.startup_runs < 0 or args.inference_runs < 0:
         parser.error("duration/interval/api-runs must be positive; startup/inference runs cannot be negative")
+    if args.thermal_stress_seconds < 0 or args.thermal_stress_workers < 0:
+        parser.error("thermal-stress-seconds/workers cannot be negative")
     if args.pid and args.startup_runs:
         parser.error("--pid cannot be combined with --startup-runs")
     return args
