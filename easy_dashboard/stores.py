@@ -34,17 +34,14 @@ class EventStore:
         except OSError:
             LOGGER.exception("Failed to open existing events log")
             return
-        skipped = 0
-        for line in lines:
-            line = line.strip()
+        for line_no, line in enumerate(lines, start=1):
+            line = line.strip("\x00").strip()
             if not line:
                 continue
             try:
                 self._events.append(json.loads(line))
             except (json.JSONDecodeError, ValueError):
-                skipped += 1
-        if skipped:
-            LOGGER.warning("Skipped %d corrupted line(s) in existing events log", skipped)
+                LOGGER.warning("Skipping malformed events log line %d in %s", line_no, self.path)
 
     def add(self, source: str, event_type: str, description: str, severity: str = "info", meta: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         meta = meta or {}
