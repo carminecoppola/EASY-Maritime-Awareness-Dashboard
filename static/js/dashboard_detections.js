@@ -223,7 +223,7 @@ function renderAnalysisMonitor(status, current) {
   setText(detectionsElementId("monitorIndicator"), indicator);
   setText(detectionsElementId("monitorSource"), source);
   setText(detectionsElementId("monitorProgress"), hasProgress ? `${frameIndex + 1} of ${totalFrames}` : running ? "Continuous stream" : "—");
-  setText(detectionsElementId("monitorLastFrame"), status?.last_run_ts ? formatRomeTimeOnly(status.last_run_ts) : "Not analysed yet");
+  setText(detectionsElementId("monitorLastFrame"), status?.last_run_ts ? formatRomeDateTime(status.last_run_ts) : "Not analysed yet");
   setText(detectionsElementId("monitorResults"), `${resultCount}`);
 
   const indicatorNode = byId(detectionsElementId("monitorIndicator"));
@@ -342,8 +342,8 @@ function renderCurrentEventsPanel() {
         <span class="badge badge-muted">${escapeHtml(eventSourceLabel(event))}</span>
       </div>
       <div class="event-card-times">
-        <span>Created ${escapeHtml(formatRomeTimeOnly(event?.created_at || event?.timestamp))}</span>
-        <span>Updated ${escapeHtml(formatRomeTimeOnly(event?.updated_at || event?.last_timestamp))}</span>
+        <span>Created ${escapeHtml(formatRomeDateTime(event?.created_at || event?.timestamp))}</span>
+        <span>Updated ${escapeHtml(formatRomeDateTime(event?.updated_at || event?.last_timestamp))}</span>
       </div>
       <div class="event-card-updates">${escapeHtml(eventUpdateLabel(event))}</div>
     `;
@@ -372,7 +372,7 @@ function renderEventTimeline() {
         <span class="badge badge-severity-${severityTone}">${escapeHtml(eventSeverityLabel(event?.severity))}</span>
       </div>
       <div class="event-card-meta timeline-event-meta">
-        <span><time>${escapeHtml(formatRomeTimeOnly(event?.updated_at || event?.created_at || event?.timestamp))}</time> · ${escapeHtml(eventSourceLabel(event))}</span>
+        <span><time>${escapeHtml(formatRomeDateTime(event?.updated_at || event?.created_at || event?.timestamp))}</time> · ${escapeHtml(eventSourceLabel(event))}</span>
         <span class="badge badge-status-${statusTone}">${escapeHtml(eventStatusLabel(event?.status))}</span>
       </div>
       <div class="event-card-updates">${escapeHtml(eventUpdateLabel(event))}</div>
