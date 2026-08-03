@@ -34,9 +34,11 @@ sensor or replay frame
 
 RGB live providers consume callbacks from the existing camera owner, avoiding a
 second camera process. PureThermal performs a bounded FFmpeg capture on demand,
-temporarily pauses RGB ownership when required, caches the resulting JPEG, and
-releases the V4L2 node. Thermal capture is refused above the configured CPU
-temperature limit.
+caches the resulting JPEG, and releases the V4L2 node. RGB (CSI/libcamera) and
+thermal (USB/UVC) go through independent V4L2 paths, so RGB capture is not
+paused during thermal capture; a concurrent capture test showed RGB was never
+interrupted. Thermal capture is refused above the configured CPU temperature
+limit.
 
 Detection history uses an append-only `detection_history.jsonl` journal on the
 hot path. `detection_history.json` remains the compatible compact snapshot and
@@ -73,6 +75,18 @@ loads paths and thresholds, `inference_backend.py` owns ONNX Runtime,
 drawing, `inference_results.py` preserves the public detection representation,
 and `InferenceWorker` coordinates frames, lifecycle, persistence, and events.
 
+## Security model
+
+The dashboard has no login and assumes a trusted LAN, matching how it's
+deployed today (Raspberry Pi reachable over LAN and an SSH tunnel from the
+operator's Mac). For a demo on a network with untrusted peers, set
+`security.shared_token` in `config.yaml` (or the `EASY_DASHBOARD_TOKEN` env
+var, which takes precedence) to require an `X-EASY-Token` header on every
+state-changing request; GETs stay open. The token is rendered into the page
+itself (`templates/base.html` → `window.EASY_DASHBOARD_TOKEN`), so it blocks
+requests that never loaded the real dashboard origin — it is not a substitute
+for real authentication. Leave it unset for the default trust model.
+
 ## Regression strategy
 
 `tests/` covers normalized runtime states, manager propagation, stable API
@@ -82,11 +96,15 @@ check. GitHub Actions runs both suites plus Python, JavaScript, and shell syntax
 checks. Raspberry validation stays explicit and separate from CI.
 
 Hardware responsibilities are separated behind the compatibility module
-`easy_dashboard.hardware`: `system_probe.py` owns read-only host diagnostics,
-`rgb_capture.py` owns RGB command construction and MJPEG framing, and
-`thermal_discovery.py` owns PureThermal node recognition and ranking. Existing
-`SystemProbe`, `RgbMasterSource`, and `ThermalState` imports remain valid for
-routes and external scripts.
+`easy_dashboard.hardware`, which re-exports `RgbMasterSource` from
+`rgb_hardware.py` and `ThermalState` from `thermal_hardware.py` (split apart
+once their RGB/thermal coordination was removed). `system_probe.py` owns
+read-only host diagnostics, `rgb_capture.py` owns RGB command construction and
+MJPEG framing, and `thermal_discovery.py` owns PureThermal node recognition and
+ranking. Existing `SystemProbe`, `RgbMasterSource`, and `ThermalState` imports
+remain valid for routes and external scripts. `RgbMasterSource.focus_score()`
+reports a Laplacian-variance sharpness estimate for the live page's manual
+focus assist (there is no autofocus actuator on these fixed-lens modules).
 
 ## Glossary
 
