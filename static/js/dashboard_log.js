@@ -159,7 +159,7 @@ function renderSnapshots(snapshots, summary) {
     card.innerHTML = `
       <div class="snapshot-media">
         <a class="snapshot-image-link" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">
-          <img class="snapshot-image" src="${escapeHtml(item.url)}" alt="${escapeHtml(feedLabel)} snapshot" loading="lazy">
+          <img class="snapshot-image" src="${escapeHtml(item.url)}" alt="${escapeHtml(feedLabel)} snapshot">
         </a>
         <div class="snapshot-overlay">
           <span class="snapshot-feed ${feedClass}">${escapeHtml(feedLabel)}</span>
@@ -188,11 +188,25 @@ function renderSnapshots(snapshots, summary) {
     const img = card.querySelector(".snapshot-image");
     const fallback = card.querySelector(".snapshot-fallback");
     if (img && fallback) {
+      let retried = false;
+      const originalSrc = img.src;
+      const stallTimer = window.setTimeout(() => {
+        if (img.complete) return;
+        retried = true;
+        img.src = `${originalSrc}${originalSrc.includes("?") ? "&" : "?"}retry=${Date.now()}`;
+      }, 6000);
       img.addEventListener("error", () => {
+        window.clearTimeout(stallTimer);
+        if (!retried) {
+          retried = true;
+          img.src = `${originalSrc}${originalSrc.includes("?") ? "&" : "?"}retry=${Date.now()}`;
+          return;
+        }
         img.hidden = true;
         fallback.hidden = false;
       });
       img.addEventListener("load", () => {
+        window.clearTimeout(stallTimer);
         img.hidden = false;
         fallback.hidden = true;
       });
