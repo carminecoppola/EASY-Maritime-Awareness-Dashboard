@@ -215,23 +215,29 @@ class DetectionManager:
             return
         try:
             with self.history_journal_path.open("r", encoding="utf-8") as stream:
-                for line in stream:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    record = self._record_from_payload_item(json.loads(line))
-                    if record is None:
-                        continue
-                    self._journal_record_ids.add(record.id)
-                    if record.id in self._detections:
-                        continue
-                    self._detections[record.id] = record
-                    self._history_ids.append(record.id)
-                    self._last_detection_id = record.id
-        except Exception:
-            # A compact snapshot remains available if shutdown interrupted the
-            # final append-only journal line.
+                lines = stream.readlines()
+        except OSError:
+            # A compact snapshot remains available if the journal can't be read.
             return
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                item = json.loads(line)
+            except (json.JSONDecodeError, ValueError):
+                # Skip only the corrupted line (e.g. shutdown interrupted an
+                # append); one bad line must not drop every record after it.
+                continue
+            record = self._record_from_payload_item(item)
+            if record is None:
+                continue
+            self._journal_record_ids.add(record.id)
+            if record.id in self._detections:
+                continue
+            self._detections[record.id] = record
+            self._history_ids.append(record.id)
+            self._last_detection_id = record.id
 
     def _bbox_dict(self, value: Any) -> Dict[str, Optional[float]]:
         if isinstance(value, dict):

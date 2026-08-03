@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from detection_manager import DetectionManager
+from easy_dashboard.stores import EventStore
 from event_manager import EventManager
 
 
@@ -57,6 +58,34 @@ class RuntimePersistenceTests(unittest.TestCase):
             manager.add_detection({"id": "det-small", "class_name": "ship"}, source="replay")
 
             self.assertEqual(write_json.call_count, 1)
+
+    def test_detection_journal_replay_skips_only_the_corrupted_line(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            manager = DetectionManager(root)
+            manager.add_detection({"id": "det-before", "class_name": "ship"}, source="replay")
+            journal = root / "detection_history.jsonl"
+            with journal.open("a", encoding="utf-8") as stream:
+                stream.write("not-json\n")
+            manager.add_detection({"id": "det-after", "class_name": "boat"}, source="replay")
+
+            restored = DetectionManager(root)
+
+            self.assertIsNotNone(restored.get_detection("det-before"))
+            self.assertIsNotNone(restored.get_detection("det-after"))
+
+    def test_event_store_replay_skips_only_the_corrupted_line(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "events.jsonl"
+            path.write_text(
+                '{"id": "1", "type": "before"}\nnot-json\n{"id": "2", "type": "after"}\n',
+                encoding="utf-8",
+            )
+
+            store = EventStore(path)
+
+            ids = [event["id"] for event in store._events]
+            self.assertEqual(ids, ["1", "2"])
 
     def test_event_frame_syncs_only_the_affected_session_once(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir, patch("event_manager.atomic_write_json") as write_json:

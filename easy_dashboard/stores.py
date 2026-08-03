@@ -30,13 +30,21 @@ class EventStore:
             return
         try:
             with self.path.open("r", encoding="utf-8") as fh:
-                for line in fh:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    self._events.append(json.loads(line))
-        except Exception:
-            LOGGER.exception("Failed to load existing events log")
+                lines = fh.readlines()
+        except OSError:
+            LOGGER.exception("Failed to open existing events log")
+            return
+        skipped = 0
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                self._events.append(json.loads(line))
+            except (json.JSONDecodeError, ValueError):
+                skipped += 1
+        if skipped:
+            LOGGER.warning("Skipped %d corrupted line(s) in existing events log", skipped)
 
     def add(self, source: str, event_type: str, description: str, severity: str = "info", meta: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         meta = meta or {}
