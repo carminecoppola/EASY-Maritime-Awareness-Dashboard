@@ -210,6 +210,8 @@ class SourceManager:
 
     def list_sources(self) -> list[dict[str, Any]]:
         with self._lock:
+            for record in self._sources.values():
+                self._update_source_record(record, self._resolve_source_status(record))
             return [self._serialize_source(record) for record in self._sources.values()]
 
     def get_source(self, source_id: str | None) -> dict[str, Any] | None:
@@ -217,13 +219,18 @@ class SourceManager:
             return None
         with self._lock:
             record = self._sources.get(source_id)
-            return self._serialize_source(record) if record else None
+            if not record:
+                return None
+            self._update_source_record(record, self._resolve_source_status(record))
+            return self._serialize_source(record)
 
     def get_selected_source(self) -> dict[str, Any]:
         with self._lock:
             record = self._get_selected_record()
             if not record and self._sources:
                 record = next(iter(self._sources.values()))
+            if record:
+                self._update_source_record(record, self._resolve_source_status(record))
             if not record:
                 return {
                     "id": None,
