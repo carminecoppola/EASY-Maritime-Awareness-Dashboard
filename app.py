@@ -32,7 +32,12 @@ def build_runtime(*, run_startup_checks: bool = True, start_runtime_services: bo
     probe = SystemProbe()
     thermal = ThermalState(config, events)
     rgb = RgbMasterSource(config, events, probe)
-    thermal.set_rgb_coordinator(rgb.pause_for_thermal, rgb.resume_after_thermal)
+    # RGB (CSI/libcamera) and thermal (USB/UVC) use independent V4L2 paths; a
+    # concurrent capture test (3/3 successful runs, RGB never interrupted)
+    # showed pausing RGB during thermal capture is not required, so the
+    # coordinator is left unregistered. pause_for_thermal/resume_after_thermal
+    # stay available on RgbMasterSource if a future PureThermal regression
+    # needs it back.
     orchestrator = SystemOrchestrator(
         runtime_root=PROJECT_ROOT / "runtime",
         replay_root=PROJECT_ROOT / "runtime" / "replay",
