@@ -45,6 +45,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "video_size": "160x120",
     },
     "events": {"max_events": 200},
+    # Empty by default: no auth check runs unless a token is set here or via
+    # the EASY_DASHBOARD_TOKEN env var (see app.py's before_request hook).
+    "security": {"shared_token": ""},
 }
 
 NAV_ITEMS = [

@@ -26,6 +26,9 @@ const DashboardApi = (() => {
       requestOptions.body = JSON.stringify(requestOptions.body);
     }
     headers.set("Accept", "application/json");
+    if (window.EASY_DASHBOARD_TOKEN) {
+      headers.set("X-EASY-Token", window.EASY_DASHBOARD_TOKEN);
+    }
 
     try {
       const response = await fetch(url, requestOptions);
