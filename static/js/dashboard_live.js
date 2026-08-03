@@ -330,15 +330,24 @@ function renderLivePage(health) {
         : "Waiting to start";
   }
 
+  const MISSION_LONG_RUNNING_SECONDS = 6 * 60 * 60;
+  const missionDurationSeconds = Number(session?.metrics?.session_duration ?? session?.duration ?? 0);
+  const missionIsLongRunning = sessionRunning && missionDurationSeconds > MISSION_LONG_RUNNING_SECONDS;
   const missionBar = byId(liveActionElementId("missionBar"));
   const missionIndicator = byId(liveActionElementId("missionIndicator"));
-  if (missionBar) missionBar.classList.toggle("is-running", sessionRunning);
-  if (missionIndicator) missionIndicator.classList.toggle("is-running", sessionRunning);
-  setText(liveActionElementId("missionTitle"), sessionRunning ? "Mission recording" : "No active mission");
+  if (missionBar) {
+    missionBar.classList.toggle("is-running", sessionRunning);
+    missionBar.classList.toggle("is-long-running", missionIsLongRunning);
+  }
+  if (missionIndicator) {
+    missionIndicator.classList.toggle("is-running", sessionRunning);
+    missionIndicator.classList.toggle("is-long-running", missionIsLongRunning);
+  }
+  setText(liveActionElementId("missionTitle"), sessionRunning ? (missionIsLongRunning ? "Mission recording · running a long time" : "Mission recording") : "No active mission");
   setText(
     liveActionElementId("missionCopy"),
     sessionRunning
-      ? `Mission in progress · ${formatUptimeShort(session?.metrics?.session_duration ?? session?.duration ?? 0)} · data saved on the Raspberry Pi`
+      ? `Mission in progress · ${formatUptimeShort(missionDurationSeconds)} · data saved on the Raspberry Pi${missionIsLongRunning ? " · if this was left on by mistake, end it so the dataset stays clean" : ""}`
       : "Start a mission to save detections, events and metrics on the Raspberry Pi.",
   );
   byId("mission-workflow-start")?.classList.toggle("is-complete", sessionRunning);
