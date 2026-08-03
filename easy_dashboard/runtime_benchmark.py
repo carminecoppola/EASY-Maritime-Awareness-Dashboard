@@ -11,6 +11,7 @@ import csv
 import hashlib
 import json
 import math
+import multiprocessing
 import os
 import platform
 import shutil
@@ -123,6 +124,57 @@ def read_cpu_temperature() -> Optional[float]:
         return float(output.split("=")[-1].split("'")[0])
     except (ValueError, IndexError):
         return None
+
+
+# Bit layout of `vcgencmd get_throttled` (firmware-reported, no extra hardware
+# needed): low bits are the condition *now*, the corresponding high bits are
+# "has happened since boot" latches. See:
+# https://www.raspberrypi.com/documentation/computers/os.html#vcgencmd
+THROTTLED_BIT_FLAGS = (
+    ("undervoltage_now", 0),
+    ("freq_capped_now", 1),
+    ("throttled_now", 2),
+    ("undervoltage_occurred", 16),
+    ("freq_capped_occurred", 17),
+    ("throttled_occurred", 18),
+)
+
+
+def read_throttled_state() -> Dict[str, Any]:
+    """Decode `vcgencmd get_throttled` into named flags, no extra sensor required."""
+    result = run_command(["vcgencmd", "get_throttled"], timeout=3)
+    output = result.get("stdout") or ""
+    try:
+        raw_hex = output.split("=")[-1].strip()
+        mask = int(raw_hex, 16)
+    except (ValueError, IndexError):
+        return {"throttled_raw": None, **{name: None for name, _ in THROTTLED_BIT_FLAGS}}
+    return {
+        "throttled_raw": raw_hex,
+        **{name: int(bool(mask & (1 << bit))) for name, bit in THROTTLED_BIT_FLAGS},
+    }
+
+
+def read_cpu_frequency_mhz() -> Optional[float]:
+    """CPU frequency scaling as a software-only, no-extra-hardware power-draw proxy."""
+    freq_path = Path("/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq")
+    try:
+        if freq_path.is_file():
+            return round(float(freq_path.read_text(encoding="utf-8").strip()) / 1000.0, 1)
+    except (OSError, ValueError):
+        pass
+    try:
+        frequency = psutil.cpu_freq()
+        return round(frequency.current, 1) if frequency else None
+    except Exception:
+        return None
+
+
+def _thermal_stress_worker(stop_event: Any) -> None:
+    """CPU-bound busy loop, no I/O: purely software thermal/frequency load."""
+    value = 0
+    while not stop_event.is_set():
+        value = (value * 1103515245 + 12345) & 0x7FFFFFFF
 
 
 class HttpClient:
@@ -477,6 +529,8 @@ class BenchmarkRunner:
         load_average = os.getloadavg() if hasattr(os, "getloadavg") else (None, None, None)
         temperature = read_cpu_temperature()
         self.enforce_temperature(temperature, phase)
+        throttled_state = read_throttled_state()
+        cpu_freq_mhz = read_cpu_frequency_mhz()
         service_status = self.service_status()
         current_pid = int(service_status.get("main_pid") or 0)
         if current_pid <= 0:
@@ -509,6 +563,8 @@ class BenchmarkRunner:
             "system_memory_used_mb": round(memory.used / 1024.0 / 1024.0, 3),
             "system_memory_available_mb": round(memory.available / 1024.0 / 1024.0, 3),
             "cpu_temperature_c": temperature,
+            "cpu_freq_mhz": cpu_freq_mhz,
+            **throttled_state,
             "load_1m": load_average[0],
             "load_5m": load_average[1],
             "load_15m": load_average[2],
@@ -531,6 +587,28 @@ class BenchmarkRunner:
             if now - started >= duration:
                 break
             time.sleep(min(0.1, max(0.0, next_sample - time.monotonic())))
+
+    def induce_thermal_load(self, duration: float, workers: int) -> None:
+        """Saturate CPU cores with a synthetic busy loop to observe throttling
+        behavior under load. Purely software (multiprocessing), no external
+        heat source or hardware sensor. Workers are always terminated, even if
+        the temperature safety cutoff aborts the run mid-phase."""
+        stop_event = multiprocessing.Event()
+        processes = [
+            multiprocessing.Process(target=_thermal_stress_worker, args=(stop_event,), daemon=True)
+            for _ in range(max(1, workers))
+        ]
+        for process in processes:
+            process.start()
+        try:
+            self.sample_phase("thermal_stress", duration)
+        finally:
+            stop_event.set()
+            for process in processes:
+                process.join(timeout=5)
+                if process.is_alive():
+                    process.terminate()
+                    process.join(timeout=5)
 
     def measure_api_latency(self) -> None:
         for run_number in range(1, self.args.api_runs + 1):
@@ -627,6 +705,11 @@ class BenchmarkRunner:
                 self.sample_phase("warmup", self.args.warmup_seconds)
             self.capture_snapshot("steady_start")
             self.sample_phase("steady", self.args.duration)
+            if self.args.thermal_stress_seconds > 0:
+                stress_workers = self.args.thermal_stress_workers or psutil.cpu_count(logical=True) or 4
+                self.capture_snapshot("thermal_stress_start")
+                self.induce_thermal_load(self.args.thermal_stress_seconds, stress_workers)
+                self.capture_snapshot("thermal_stress_end")
             self.measure_api_latency()
             self.measure_inference()
             self.capture_snapshot("completed")
@@ -646,12 +729,16 @@ class BenchmarkRunner:
             "system_memory_used_mb",
             "easy_rss_mb",
             "cpu_temperature_c",
+            "cpu_freq_mhz",
+            "undervoltage_now",
+            "freq_capped_now",
+            "throttled_now",
             "rgb_left_fps",
             "rgb_right_fps",
         )
         resources = {metric: numeric_summary(sample.get(metric) for sample in steady) for metric in metric_names}
         resources_by_phase = {}
-        for phase in ("warmup", "steady", "api", "inference"):
+        for phase in ("warmup", "steady", "thermal_stress", "api", "inference"):
             phase_samples = [sample for sample in self.samples if sample.get("phase") == phase]
             resources_by_phase[phase] = {
                 metric: numeric_summary(sample.get(metric) for sample in phase_samples) for metric in metric_names
@@ -664,6 +751,12 @@ class BenchmarkRunner:
         for sample in steady:
             for name, state in (sample.get("component_states") or {}).items():
                 component_counts[name][str(state)] += 1
+        # "occurred" bits latch for the whole boot, not just this run's phases,
+        # so report them once across every sample rather than per-phase.
+        throttling_since_boot = {
+            name: bool(max((sample.get(name) or 0 for sample in self.samples), default=0))
+            for name in ("undervoltage_occurred", "freq_capped_occurred", "throttled_occurred")
+        }
         inference_ok = [item for item in self.inference_measurements if item.get("ok")]
         inference_stages = {
             metric: numeric_summary(item.get(metric) for item in inference_ok)
@@ -714,6 +807,8 @@ class BenchmarkRunner:
                 "stages_ms": inference_stages,
             },
             "component_state_counts": {name: dict(counts) for name, counts in sorted(component_counts.items())},
+            "throttling_since_boot": throttling_since_boot,
+            "thermal_stress_seconds": self.args.thermal_stress_seconds,
             "temperature_limit_c": self.args.stop_temperature_limit,
             "errors": self.errors,
             "artifacts": {
@@ -813,6 +908,8 @@ class BenchmarkRunner:
             "system_memory_used_mb": "System memory used (MiB)",
             "easy_rss_mb": "EASY process-tree RSS (MiB)",
             "cpu_temperature_c": "CPU temperature (°C)",
+            "cpu_freq_mhz": "CPU frequency (MHz)",
+            "throttled_now": "Throttled now (fraction of samples)",
             "rgb_left_fps": "RGB left FPS",
             "rgb_right_fps": "RGB right FPS",
         }
@@ -824,6 +921,23 @@ class BenchmarkRunner:
                 f"| {label} | {display(values.get('mean'))} | {display(values.get('median'))} | "
                 f"{display(values.get('p95'))} | {display(values.get('max'))} | {values.get('count', 0)} |"
             )
+        lines.extend(["", "## Thermal throttling and undervoltage (software-only, `vcgencmd get_throttled`)", ""])
+        throttling = summary.get("throttling_since_boot", {})
+        lines.append(
+            f"Since boot: under-voltage {'occurred' if throttling.get('undervoltage_occurred') else 'never occurred'}, "
+            f"frequency cap {'occurred' if throttling.get('freq_capped_occurred') else 'never occurred'}, "
+            f"throttling {'occurred' if throttling.get('throttled_occurred') else 'never occurred'}."
+        )
+        if summary.get("thermal_stress_seconds"):
+            stress = summary.get("resources_by_phase", {}).get("thermal_stress", {})
+            lines.append(
+                f"Synthetic CPU stress ran for {summary['thermal_stress_seconds']:.0f}s: "
+                f"temperature {self._format_metric(stress.get('cpu_temperature_c', {}), ' °C')}, "
+                f"CPU frequency {self._format_metric(stress.get('cpu_freq_mhz', {}), ' MHz')}, "
+                f"throttled-now fraction {self._format_metric(stress.get('throttled_now', {}))}."
+            )
+        else:
+            lines.append("No synthetic thermal-stress phase was run for this experiment.")
         lines.extend(["", "## Startup", ""])
         lines.append(f"Application ready time: {self._format_metric(summary['startup']['ready_ms'], ' ms')}.")
         lines.extend(["", "## REST API latency", "", "| Endpoint | Mean (ms) | Median (ms) | P95 (ms) | Runs |", "|---|---:|---:|---:|---:|"])
@@ -882,6 +996,7 @@ class BenchmarkRunner:
             "system_memory_percent": ("System RAM", r"\%"),
             "easy_rss_mb": ("EASY RSS", "MiB"),
             "cpu_temperature_c": ("CPU temperature", r"$^\circ$C"),
+            "cpu_freq_mhz": ("CPU frequency", "MHz"),
             "rgb_left_fps": ("RGB left", "FPS"),
             "rgb_right_fps": ("RGB right", "FPS"),
         }

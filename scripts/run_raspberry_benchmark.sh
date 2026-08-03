@@ -16,6 +16,7 @@ INTERVAL="${EASY_BENCHMARK_INTERVAL:-2}"
 STARTUP_RUNS="${EASY_BENCHMARK_STARTUP_RUNS:-3}"
 API_RUNS="${EASY_BENCHMARK_API_RUNS:-30}"
 INFERENCE_RUNS="${EASY_BENCHMARK_INFERENCE_RUNS:-10}"
+THERMAL_STRESS_SECONDS="${EASY_BENCHMARK_THERMAL_STRESS_SECONDS:-0}"
 
 temperature="$(vcgencmd measure_temp 2>/dev/null | sed -E "s/[^0-9.]+//g")"
 if [[ -z "${temperature}" ]]; then
@@ -32,6 +33,9 @@ echo "EASY Raspberry Pi runtime benchmark"
 echo "Initial temperature: ${temperature} C"
 echo "Steady-state duration: ${DURATION}s"
 echo "Startup runs: ${STARTUP_RUNS}; API runs: ${API_RUNS}; inference runs: ${INFERENCE_RUNS}"
+if [[ "${THERMAL_STRESS_SECONDS}" != "0" ]]; then
+  echo "Thermal stress phase: ${THERMAL_STRESS_SECONDS}s of synthetic CPU load after steady-state sampling"
+fi
 echo
 echo "The benchmark will restart easy-dashboard.service. Refreshing sudo credentials..."
 sudo -v
@@ -42,4 +46,5 @@ exec "${PYTHON_BIN}" scripts/benchmark_raspberry_runtime.py \
   --startup-runs "${STARTUP_RUNS}" \
   --api-runs "${API_RUNS}" \
   --inference-runs "${INFERENCE_RUNS}" \
+  --thermal-stress-seconds "${THERMAL_STRESS_SECONDS}" \
   --stop-temperature-limit "${STOP_LIMIT}"
