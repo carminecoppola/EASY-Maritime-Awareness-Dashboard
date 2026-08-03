@@ -9,6 +9,13 @@ env/
 .agents/
 skills-lock.json
 
+# Paper-writing scratch/output, not part of the software project.
+/artifacts/
+/output/
+/tmp/
+/paper_revision/
+/*.pdf
+
 data/logs/*
 !data/logs/.gitkeep
 data/reports/*
