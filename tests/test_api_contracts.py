@@ -92,6 +92,20 @@ class ApiContractTests(unittest.TestCase):
         # Default LAN-only trust model: unset token must not block anything.
         self.assertNotEqual(self.client.post("/api/session/stop").status_code, 401)
 
+    def test_focus_endpoints_expose_the_rgb_focus_score_contract(self) -> None:
+        runtime = self.app.easy_dashboard_runtime
+        original = runtime.rgb.focus_score
+        try:
+            runtime.rgb.focus_score = lambda side: {"ok": True, "side": side, "score": 42.5}
+            for route, expected_side in (("/api/focus/rgb_left", "left"), ("/api/focus/rgb_right", "right")):
+                with self.subTest(route=route):
+                    payload = self.client.get(route).get_json()
+                    self.assertTrue(payload["ok"])
+                    self.assertEqual(payload["side"], expected_side)
+                    self.assertEqual(payload["score"], 42.5)
+        finally:
+            runtime.rgb.focus_score = original
+
 
 if __name__ == "__main__":
     unittest.main()
