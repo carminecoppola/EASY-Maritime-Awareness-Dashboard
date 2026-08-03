@@ -9,6 +9,14 @@ from typing import Any, Dict, List, Optional
 
 from runtime_support import atomic_write_json, parse_utc_ts, read_json, utc_now_iso
 
+# status() reads every session's metadata.json from disk (list_sessions()) and,
+# if a session is running, also rewrites its metadata and recomputes metrics
+# (get_current_session()). Several independent call paths (health_payload,
+# system_orchestrator's health()/components(), acquisition_manager) all ask
+# for status() within the same dashboard poll, so cache it briefly instead of
+# repeating that disk I/O every time.
+STATUS_CACHE_SECONDS = 1.0
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 RUNTIME_ROOT = PROJECT_ROOT / "runtime"
@@ -42,6 +50,7 @@ class SessionManager:
         self._lock = threading.RLock()
         self._index: List[Dict[str, Any]] = []
         self._current: Dict[str, Any] | None = None
+        self._status_cache: tuple[float, Dict[str, Any]] | None = None
         self.sessions_root.mkdir(parents=True, exist_ok=True)
         self._load_session_index()
         self._restore_running_session()
@@ -233,6 +242,7 @@ class SessionManager:
             )
             self._current = metadata
             self._write_metadata(metadata)
+            self._status_cache = None
             self._emit("SESSION_START", f"Session {session_id} started", "info", metadata)
             return {"ok": True, "message": "Session started", "session": self.get_current_session()}
 
@@ -249,6 +259,7 @@ class SessionManager:
             metadata = dict(self._current)
             if metadata.get("status") == "STOPPED":
                 self._current = None
+                self._status_cache = None
                 return {"ok": True, "message": "Session already stopped", "session": metadata}
             end_time = utc_now_iso()
             metadata = self._metadata_payload(
@@ -263,6 +274,7 @@ class SessionManager:
             self._current = None
             self._write_metadata(metadata)
             self._refresh_metrics(metadata["session_id"])
+            self._status_cache = None
             self._emit("SESSION_STOP", f"Session {metadata['session_id']} stopped", "info", metadata)
             return {"ok": True, "message": "Session stopped", "session": self._session_payload(metadata)}
 
@@ -288,6 +300,16 @@ class SessionManager:
             return self._session_payload(metadata)
 
     def status(self) -> Dict[str, Any]:
+        with self._lock:
+            if self._status_cache is not None:
+                cached_at, cached_value = self._status_cache
+                if time.monotonic() - cached_at < STATUS_CACHE_SECONDS:
+                    return cached_value
+            value = self._status_uncached()
+            self._status_cache = (time.monotonic(), value)
+            return value
+
+    def _status_uncached(self) -> Dict[str, Any]:
         current = self.get_current_session()
         recent_sessions = self.list_sessions().get("sessions", [])[:3]
         return {
