@@ -80,9 +80,10 @@ class DashboardRuntime:
             "summary": {"severity": severity_counts, "sources": source_counts},
         }
 
-    def inference_status_payload(self) -> Dict[str, Any]:
+    def inference_status_payload(self, *, detection_state: Dict[str, Any] | None = None) -> Dict[str, Any]:
         status_payload = self.inference.status()
-        detection_state = self.detection_manager.get_current_detections()
+        if detection_state is None:
+            detection_state = self.detection_manager.get_current_detections()
         status_payload["count"] = detection_state.get("count", status_payload.get("count", 0))
         status_payload["last_detections"] = detection_state.get(
             "detections",
@@ -100,14 +101,15 @@ class DashboardRuntime:
         status_payload["frame_provider"] = self.inference.frame_provider_status()
         return status_payload
 
-    def health_payload(self) -> Dict[str, Any]:
+    def health_payload(self, *, detection_state: Dict[str, Any] | None = None) -> Dict[str, Any]:
         camera_inventory = build_camera_inventory(self.rgb, self.thermal)
         system_payload = build_system_payload(self.probe)
         rgb_state = self.rgb.latest_state()
         thermal_state = self.thermal.status_payload()
         inference_state = self.inference.status()
         sources_state = self.source_manager.get_status()
-        detection_state = self.detection_manager.get_current_detections()
+        if detection_state is None:
+            detection_state = self.detection_manager.get_current_detections()
         session_state = self.session_manager.status()
         device_state = self.device_manager.get_status()
         operations_inference_state = dict(inference_state)
@@ -226,10 +228,13 @@ class DashboardRuntime:
         }
 
     def dashboard_state_payload(self) -> Dict[str, Any]:
-        # health_payload() already computes sources/devices/session/detections/
-        # orchestrator state once; reuse those instead of asking each manager
-        # again so a single dashboard poll doesn't do the disk/status I/O twice.
-        health_payload = self.health_payload()
+        # health_payload() and inference_status_payload() each independently
+        # ask detection_manager for current detections; compute it once here
+        # and hand it to both so a single dashboard poll doesn't do that I/O
+        # twice. Also reuse health_payload()'s sources/devices/session/
+        # orchestrator state instead of asking each manager again.
+        detection_state = self.detection_manager.get_current_detections()
+        health_payload = self.health_payload(detection_state=detection_state)
         snapshots_limit = int(request.args.get("snapshots_limit", 12))
         events_limit = int(request.args.get("events_limit", 9999))
         snapshots_summary = self.snapshot_store.summary()
@@ -246,8 +251,8 @@ class DashboardRuntime:
             },
             "sources": health_payload.get("sources") or self.source_manager.get_status(),
             "devices": health_payload.get("devices") or self.device_manager.get_status(),
-            "inference": self.inference_status_payload(),
-            "detections": health_payload.get("detection_manager") or self.detection_manager.get_current_detections(),
+            "inference": self.inference_status_payload(detection_state=detection_state),
+            "detections": detection_state,
             "session": health_payload.get("session") or self.session_manager.status(),
             "acquisition": self.acquisition_manager.status(),
             "events_current": self.event_manager.get_current_events(),

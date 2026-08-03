@@ -106,6 +106,36 @@ class ApiContractTests(unittest.TestCase):
         finally:
             runtime.rgb.focus_score = original
 
+    def test_dashboard_state_reuses_health_payload_instead_of_recomputing(self) -> None:
+        runtime = self.app.easy_dashboard_runtime
+        original_detections = runtime.detection_manager.get_current_detections
+        # system_orchestrator.health()/components() and acquisition_manager
+        # each legitimately call session_manager.status() on their own; what
+        # must not repeat is the expensive disk read/write behind it, which
+        # status()'s short cache absorbs. Patch that, not the public method.
+        original_session_uncached = runtime.session_manager._status_uncached
+        detection_calls = []
+        session_uncached_calls = []
+        try:
+            runtime.detection_manager.get_current_detections = lambda: (
+                detection_calls.append(1) or original_detections()
+            )
+            runtime.session_manager._status_cache = None
+            runtime.session_manager._status_uncached = lambda: (
+                session_uncached_calls.append(1) or original_session_uncached()
+            )
+
+            self.client.get("/api/dashboard/state")
+
+            self.assertEqual(len(detection_calls), 1, "detections should be computed once, not once per caller")
+            self.assertEqual(
+                len(session_uncached_calls), 1, "session status disk I/O should run once, not once per caller"
+            )
+        finally:
+            runtime.detection_manager.get_current_detections = original_detections
+            runtime.session_manager._status_uncached = original_session_uncached
+            runtime.session_manager._status_cache = None
+
 
 if __name__ == "__main__":
     unittest.main()
