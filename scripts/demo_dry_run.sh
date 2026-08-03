@@ -100,8 +100,7 @@ if [[ -n "${session_id}" ]]; then
   items="$(echo "${manifest_json}" | python3 -c "
 import json, sys
 data = json.load(sys.stdin)
-manifest = data.get('manifest') or {}
-print(manifest.get('counts', {}).get('items', 0))
+print(data.get('counts', {}).get('items', 0))
 " 2>/dev/null || echo 0)"
   check "session manifest recorded items (count=${items})" "$([ "${items}" -gt 0 ] && echo 1 || echo 0)"
 else
