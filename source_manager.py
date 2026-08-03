@@ -3,6 +3,7 @@ from __future__ import annotations
 """Registry of operator-selectable frame sources shown in the dashboard UI."""
 
 import threading
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -20,6 +21,12 @@ class SourceStatus:
     ERROR = "ERROR"
     INITIALIZING = "INITIALIZING"
     UNKNOWN = "UNKNOWN"
+
+
+# Recursive directory walk; a running replay folder's frame set doesn't
+# change fast enough to justify redoing it on every dashboard poll (every
+# 1-2s), so cache the result for a short window instead.
+REPLAY_FRAMES_CACHE_SECONDS = 2.0
 
 
 VALID_SOURCE_STATUSES = {
@@ -90,6 +97,7 @@ class SourceManager:
         self.logger = logger
         self._lock = threading.RLock()
         self._sources: dict[str, SourceRecord] = {}
+        self._replay_frames_cache: tuple[float, bool] | None = None
         self._selected_source_id = "replay"
         self._selected_last_update = utc_now_iso()
         self._register_default_sources()
@@ -178,13 +186,23 @@ class SourceManager:
         record.last_update = utc_now_iso()
         return record
 
+    def _replay_has_frames(self, replay_dir: Path) -> bool:
+        now = time.monotonic()
+        if self._replay_frames_cache is not None:
+            cached_at, cached_value = self._replay_frames_cache
+            if now - cached_at < REPLAY_FRAMES_CACHE_SECONDS:
+                return cached_value
+        value = directory_has_frames(replay_dir)
+        self._replay_frames_cache = (now, value)
+        return value
+
     def _resolve_source_status(self, record: SourceRecord) -> str:
         if not record.enabled:
             return SourceStatus.NOT_AVAILABLE
 
         if record.type == "replay_folder":
             replay_dir = Path(str(record.configuration.get("replay_dir") or self.replay_root))
-            replay_ready = replay_dir.exists() and directory_has_frames(replay_dir)
+            replay_ready = replay_dir.exists() and self._replay_has_frames(replay_dir)
             replay_device = self.device_manager.get_device_status("replay") if self.device_manager else None
             device_status = self._map_device_status_to_source_status(replay_device.get("status")) if replay_device else SourceStatus.UNKNOWN
 
