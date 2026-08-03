@@ -36,7 +36,9 @@ function formatAgeIt(epochSeconds) {
   if (age < 60) return `${age}s ago`;
   const minutes = Math.floor(age / 60);
   if (minutes < 60) return `${minutes}m ago`;
-  return `${Math.floor(minutes / 60)}h ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
 }
 
 function formatRomeDateTime(value) {
