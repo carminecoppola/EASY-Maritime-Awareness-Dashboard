@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import threading
 import time
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+
+
+LOGGER = logging.getLogger("easy-dashboard")
 
 import numpy as np
 from PIL import Image
@@ -130,6 +134,8 @@ class InferenceWorker:
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
         self._running = False
+        self._consecutive_loop_failures = 0
+        self._max_consecutive_loop_failures = 10
         self._mode = "replay"
         self._interval_seconds = 1.5
         self._last_image: str | None = None
@@ -547,6 +553,7 @@ class InferenceWorker:
                 session = self.detection_manager.session_manager.ensure_session(mode=self._provider_mode(), operator="auto")
                 session_id = str(session.get("session_id") or "")
             except Exception:
+                LOGGER.exception("Unable to ensure a session for the next frame; it will be recorded with no session_id")
                 session_id = None
         return self.frame_provider.next_frame(session_id=session_id)
 
@@ -648,17 +655,37 @@ class InferenceWorker:
             try:
                 result = self.run_on_next_frame()
             except Exception as exc:
+                # A single frame's transient failure (a momentary I/O hiccup,
+                # a decode error on one image) must not kill an unattended
+                # demo loop that's meant to keep running for hours. Log it,
+                # surface it in status, and try the next frame -- but give up
+                # after a run of consecutive failures instead of spinning
+                # forever against something genuinely broken.
+                LOGGER.exception("Inference loop: run_on_next_frame failed, will retry next frame")
+                self._consecutive_loop_failures += 1
                 with self._state_lock:
                     self._last_error = str(exc)
-                    self._running = False
                     self._write_current_state()
                 self._emit_event(
                     "INFERENCE_ERROR",
                     str(exc),
                     "warning",
-                    meta={"provider": provider_status},
+                    meta={"provider": provider_status, "consecutive_failures": self._consecutive_loop_failures},
                 )
-                return
+                if self._consecutive_loop_failures >= self._max_consecutive_loop_failures:
+                    LOGGER.error(
+                        "Inference loop: stopping after %d consecutive failures",
+                        self._consecutive_loop_failures,
+                    )
+                    with self._state_lock:
+                        self._running = False
+                        self._write_current_state()
+                    return
+                if self._stop_event.is_set():
+                    break
+                time.sleep(max(0.2, self._interval_seconds))
+                continue
+            self._consecutive_loop_failures = 0
             with self._state_lock:
                 if result.get("ok"):
                     self._last_frame = dict(result.get("frame") or {}) if result.get("frame") else self._last_frame
@@ -761,6 +788,7 @@ class InferenceWorker:
             "info",
             meta={"mode": normalized_mode, "interval_seconds": interval_seconds},
         )
+        self._consecutive_loop_failures = 0
         self._thread = threading.Thread(target=self._demo_loop, daemon=True, name="easy-inference-worker")
         self._thread.start()
         return {"ok": True, "message": "Inference worker started", **self.status()}
