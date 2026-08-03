@@ -72,6 +72,26 @@ class ApiContractTests(unittest.TestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertTrue(required <= set(payload))
 
+    def test_shared_token_gates_state_changing_requests_when_configured(self) -> None:
+        os.environ["EASY_DASHBOARD_TOKEN"] = "demo-secret"
+        try:
+            app = create_app(run_startup_checks=False, start_runtime_services=False)
+            app.testing = True
+            client = app.test_client()
+
+            self.assertEqual(client.post("/api/session/stop").status_code, 401)
+            self.assertNotEqual(
+                client.post("/api/session/stop", headers={"X-EASY-Token": "demo-secret"}).status_code, 401
+            )
+            # GETs stay open even with a token configured; only state changes are gated.
+            self.assertNotEqual(client.get("/api/session/status").status_code, 401)
+        finally:
+            del os.environ["EASY_DASHBOARD_TOKEN"]
+
+    def test_no_token_configured_leaves_state_changes_open(self) -> None:
+        # Default LAN-only trust model: unset token must not block anything.
+        self.assertNotEqual(self.client.post("/api/session/stop").status_code, 401)
+
 
 if __name__ == "__main__":
     unittest.main()

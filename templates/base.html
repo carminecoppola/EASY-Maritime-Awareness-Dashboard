@@ -106,6 +106,7 @@
 
       {% include "partials/footer.html" %}
     </main>
+    <script>window.EASY_DASHBOARD_TOKEN = {{ dashboard_token | tojson }};</script>
     <script src="{{ url_for('static', filename='js/dashboard_utils.js') }}?v={{ asset_version }}"></script>
     <script src="{{ url_for('static', filename='js/dashboard_shared.js') }}?v={{ asset_version }}"></script>
     <script src="{{ url_for('static', filename='js/dashboard_live.js') }}?v={{ asset_version }}"></script>

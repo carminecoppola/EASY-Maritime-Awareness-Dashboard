@@ -6,9 +6,9 @@ import logging
 import os
 import threading
 import time
-from typing import Dict
+from typing import Any, Dict
 
-from flask import Flask
+from flask import Flask, jsonify, request
 
 from easy_dashboard.config import load_config
 from easy_dashboard.constants import EVENTS_LOG, PROJECT_ROOT, SNAPSHOTS_DIR
@@ -227,6 +227,24 @@ def create_app(
     register_blueprints(app, runtime)
     app.easy_dashboard_runtime = runtime  # type: ignore[attr-defined]
 
+    # Lightweight shared-secret check for state-changing requests: unset by
+    # default (LAN-only trust model unchanged), opt-in via config.yaml's
+    # security.shared_token or the EASY_DASHBOARD_TOKEN env var for a demo on
+    # a network with untrusted peers. Not a full auth system: the token is
+    # rendered into the page itself (see inject_asset_version below), so it
+    # only stops requests that never loaded the real dashboard page/origin.
+    shared_token = os.environ.get("EASY_DASHBOARD_TOKEN") or str(
+        (load_config().get("security") or {}).get("shared_token") or ""
+    )
+
+    @app.before_request
+    def _require_shared_token() -> Any:
+        if not shared_token or request.method in ("GET", "HEAD", "OPTIONS"):
+            return None
+        if request.headers.get("X-EASY-Token") != shared_token:
+            return jsonify({"ok": False, "error": "Missing or invalid X-EASY-Token header"}), 401
+        return None
+
     if bootstrap_async and (run_startup_checks or start_runtime_services):
         threading.Thread(
             target=_bootstrap_runtime,
@@ -247,7 +265,11 @@ def create_app(
 
     @app.context_processor
     def inject_asset_version() -> Dict[str, str]:
-        return {"asset_version": runtime.asset_version(), "current_year": str(time.gmtime().tm_year)}
+        return {
+            "asset_version": runtime.asset_version(),
+            "current_year": str(time.gmtime().tm_year),
+            "dashboard_token": shared_token,
+        }
 
     @app.teardown_appcontext
     def _shutdown(_exc: BaseException | None) -> None:
