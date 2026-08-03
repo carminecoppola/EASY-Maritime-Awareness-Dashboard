@@ -100,10 +100,16 @@ echo "EASY Dashboard · remote launcher"
 echo "Raspberry: ${SSH_TARGET} via ${JUMP_HOST}"
 echo
 
-echo "1/4 Restarting the service on the Raspberry..."
-run_remote_with_retry \
-  "cd '${REMOTE_PROJECT}' && sudo install -m 644 services/easy-dashboard.service /etc/systemd/system/easy-dashboard.service && sudo systemctl daemon-reload && sudo systemctl enable easy-dashboard.service >/dev/null && sudo systemctl restart easy-dashboard.service" \
-  || fail "unable to restart easy-dashboard.service after ${SSH_RETRIES} SSH attempts"
+echo "1/4 Checking the service on the Raspberry..."
+if run_remote_with_retry \
+  "curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1:${REMOTE_APP_PORT}/health/ready >/dev/null"; then
+  echo "    Service already running and ready; leaving it untouched (no restart, no interrupted mission)."
+else
+  echo "    Service not ready; installing unit and restarting..."
+  run_remote_with_retry \
+    "cd '${REMOTE_PROJECT}' && sudo install -m 644 services/easy-dashboard.service /etc/systemd/system/easy-dashboard.service && sudo systemctl daemon-reload && sudo systemctl enable easy-dashboard.service >/dev/null && sudo systemctl restart easy-dashboard.service" \
+    || fail "unable to restart easy-dashboard.service after ${SSH_RETRIES} SSH attempts"
+fi
 
 echo "2/4 Waiting for dashboard readiness..."
 remote_ready=0
