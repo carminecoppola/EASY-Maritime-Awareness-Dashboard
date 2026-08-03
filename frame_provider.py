@@ -12,6 +12,8 @@ from typing import Any, Callable, Dict, List, Optional
 import numpy as np
 from PIL import Image
 
+from runtime_support import atomic_write_json
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 RUNTIME_ROOT = PROJECT_ROOT / "runtime"
@@ -37,15 +39,6 @@ SOURCE_TYPES = {
 
 def utc_now_iso() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-
-
-def _atomic_write_json(path: Path, payload: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
-    with temp_path.open("w", encoding="utf-8") as handle:
-        json.dump(payload, handle, indent=2, sort_keys=True)
-        handle.write("\n")
-    temp_path.replace(path)
 
 
 def _load_json(path: Path) -> dict:
@@ -491,7 +484,7 @@ class UnifiedFrameProvider:
             return self.status()
 
     def _persist_status(self) -> None:
-        _atomic_write_json(FRAME_PROVIDER_STATUS_PATH, self.status())
+        atomic_write_json(FRAME_PROVIDER_STATUS_PATH, self.status())
 
     def configure(
         self,
