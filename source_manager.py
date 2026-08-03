@@ -264,23 +264,6 @@ class SourceManager:
                 }
             return self._serialize_source(record)
 
-    def resolve_frame_source(self) -> dict[str, Any]:
-        selected = self.get_selected_source()
-        source_id = str(selected.get("id") or "")
-        record = self._sources.get(source_id)
-        frame_path = None
-        if record and record.type == "replay_folder":
-            candidate = Path(str(record.configuration.get("replay_dir") or self.replay_root))
-            if candidate.exists():
-                frame_path = str(candidate)
-        return {
-            "selected_source": selected,
-            "frame_source": frame_path,
-            "selected_source_id": source_id,
-            "status": selected.get("status", SourceStatus.UNKNOWN),
-            "last_update": selected.get("last_update", utc_now_iso()),
-        }
-
     def check_health(self, source_id: str) -> dict[str, Any]:
         with self._lock:
             record = self._sources.get(source_id)

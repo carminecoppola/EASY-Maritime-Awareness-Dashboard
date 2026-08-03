@@ -163,10 +163,6 @@ class ManagedDevice:
         with self._lock:
             return self._apply_transition(status=DeviceStatus.CONNECTED)
 
-    def disconnect(self) -> dict[str, Any]:
-        with self._lock:
-            return self._apply_transition(status=DeviceStatus.DISCONNECTED)
-
     def check_health(self) -> dict[str, Any]:
         with self._lock:
             return self.serialize()
@@ -207,10 +203,6 @@ class PlaceholderDevice(ManagedDevice):
     def connect(self) -> dict[str, Any]:
         with self._lock:
             return self._apply_transition(status=DeviceStatus.NOT_PRESENT, emit_event=True)
-
-    def disconnect(self) -> dict[str, Any]:
-        with self._lock:
-            return self._apply_transition(status=DeviceStatus.DISCONNECTED)
 
     def check_health(self) -> dict[str, Any]:
         with self._lock:

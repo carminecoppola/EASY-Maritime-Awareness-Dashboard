@@ -278,9 +278,6 @@ class SessionManager:
             self._emit("SESSION_STOP", f"Session {metadata['session_id']} stopped", "info", metadata)
             return {"ok": True, "message": "Session stopped", "session": self._session_payload(metadata)}
 
-    def is_running(self) -> bool:
-        return bool(self._current and self._current.get("status") == "RUNNING")
-
     def get_current_session(self) -> Dict[str, Any] | None:
         with self._lock:
             if not self._current:

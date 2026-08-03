@@ -247,32 +247,6 @@ class SystemOrchestrator:
         self._components[component_id] = component
         return component
 
-    def register_external_component(
-        self,
-        component_id: str,
-        label: str,
-        kind: str,
-        instance: Any,
-        *,
-        critical: bool = False,
-        status_getter: Callable[[], Any] | None = None,
-        start_hook: Callable[[], Any] | None = None,
-        stop_hook: Callable[[], Any] | None = None,
-        restart_hook: Callable[[], Any] | None = None,
-    ) -> RegisteredComponent:
-        with self._lock:
-            return self._register_component(
-                component_id,
-                label,
-                kind,
-                instance,
-                critical=critical,
-                status_getter=status_getter,
-                start_hook=start_hook,
-                stop_hook=stop_hook,
-                restart_hook=restart_hook,
-            )
-
     def _register_managed_components(self) -> None:
         self._register_component(
             "device_manager",

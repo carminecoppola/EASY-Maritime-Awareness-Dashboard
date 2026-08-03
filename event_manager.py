@@ -317,23 +317,6 @@ class EventManager:
         records = self.record_detections([detection])
         return records[0] if records else None
 
-    def resolve_event(self, event_id: str, *, notes: str | None = None) -> Dict[str, Any] | None:
-        with self._lock:
-            record = self._records.get(event_id)
-            if record is None:
-                return None
-            record.status = "RESOLVED"
-            record.resolved_at = utc_now_iso()
-            record.updated_at = record.resolved_at
-            if notes is not None:
-                record.notes = notes
-            if event_id in self._current_ids:
-                self._current_ids = [item_id for item_id in self._current_ids if item_id != event_id]
-            if record.event_key and self._active_keys.get(record.event_key) == event_id:
-                self._active_keys.pop(record.event_key, None)
-            self._persist()
-            return record.to_dict()
-
     def resolve_session_events(self, session_id: str, *, notes: str | None = None) -> Dict[str, Any]:
         resolved = []
         with self._lock:
