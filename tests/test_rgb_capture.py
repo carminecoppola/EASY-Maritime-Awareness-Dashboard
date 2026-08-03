@@ -84,6 +84,48 @@ class RgbCaptureTests(unittest.TestCase):
         self.assertGreater(left.getpixel((1, 1))[0], left.getpixel((1, 1))[2])
         self.assertGreater(right.getpixel((1, 1))[2], right.getpixel((1, 1))[0])
 
+    def test_focus_score_reports_higher_sharpness_for_a_noisy_frame(self) -> None:
+        source = RgbMasterSource(
+            {"rgb": {"camera_index": 0, "width": 1280, "height": 480, "fps": 10, "quality": 90}},
+            events=None,  # type: ignore[arg-type]
+            probe=None,  # type: ignore[arg-type]
+        )
+
+        def encode(image: Image.Image) -> bytes:
+            buffer = io.BytesIO()
+            image.save(buffer, format="JPEG", quality=100, subsampling=0)
+            return buffer.getvalue()
+
+        flat = Image.new("RGB", (64, 64), (120, 120, 120))
+        checkerboard = Image.new("RGB", (64, 64))
+        for y in range(64):
+            for x in range(64):
+                checkerboard.putpixel((x, y), (255, 255, 255) if (x // 4 + y // 4) % 2 == 0 else (0, 0, 0))
+
+        source.read_current_frame = lambda: encode(flat)  # type: ignore[method-assign]
+        flat_result = source.focus_score("left")
+
+        source.read_current_frame = lambda: encode(checkerboard)  # type: ignore[method-assign]
+        sharp_result = source.focus_score("left")
+
+        self.assertTrue(flat_result["ok"])
+        self.assertEqual(flat_result["score"], 0.0)
+        self.assertTrue(sharp_result["ok"])
+        self.assertGreater(sharp_result["score"], flat_result["score"])
+
+    def test_focus_score_reports_error_without_a_frame(self) -> None:
+        source = RgbMasterSource(
+            {"rgb": {"camera_index": 0, "width": 1280, "height": 480, "fps": 10, "quality": 90}},
+            events=None,  # type: ignore[arg-type]
+            probe=None,  # type: ignore[arg-type]
+        )
+        source.read_current_frame = lambda: None  # type: ignore[method-assign]
+
+        result = source.focus_score("left")
+
+        self.assertFalse(result["ok"])
+        self.assertIsNone(result["score"])
+
 
 if __name__ == "__main__":
     unittest.main()
