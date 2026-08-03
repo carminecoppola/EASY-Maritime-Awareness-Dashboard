@@ -141,6 +141,12 @@ function monitorDarkRgbFrames() {
 }
 
 function monitorFocusAssist() {
+  // Peak decays each tick instead of latching forever: a one-off bright
+  // frame would otherwise pin the peak and make a correctly focused lens
+  // look permanently "low" for the rest of the session. ~0.98 per 1.5s
+  // tick gives the peak a ~50s half-life, long enough to judge a slow
+  // manual turn of the lens ring, short enough to recover from a fluke.
+  const PEAK_DECAY = 0.98;
   ["rgb_left", "rgb_right"].forEach((feedKey) => {
     const scoreEl = byId(liveFeedElementId(feedKey, "focus"));
     if (!scoreEl || scoreEl.dataset.focusMonitor === "active") return;
@@ -151,11 +157,12 @@ function monitorFocusAssist() {
         const response = await DashboardApi.request(`/api/focus/${feedKey}`);
         const payload = response.data || {};
         if (!response.ok || !payload.ok || payload.score == null) {
+          peak = 0;
           scoreEl.textContent = "--";
           scoreEl.classList.remove("is-focus-good", "is-focus-low");
           return;
         }
-        peak = Math.max(peak, payload.score);
+        peak = Math.max(payload.score, peak * PEAK_DECAY);
         const ratio = peak > 0 ? payload.score / peak : 0;
         scoreEl.textContent = `${Math.round(payload.score)} · peak ${Math.round(peak)}`;
         scoreEl.classList.toggle("is-focus-good", ratio >= 0.9);
