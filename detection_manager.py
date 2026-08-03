@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import threading
 import time
@@ -10,6 +11,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from runtime_support import atomic_write_json, read_json, utc_now_iso
+
+
+LOGGER = logging.getLogger("easy-dashboard")
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -272,7 +276,7 @@ class DetectionManager:
                 self.session_id = str(session_id)
                 return self.session_id
         except Exception:
-            pass
+            LOGGER.exception("Unable to ensure a session; detections will keep using session_id=%s", self.session_id)
         return self.session_id
 
     def _event(self, record: DetectionRecord) -> None:
@@ -416,7 +420,7 @@ class DetectionManager:
             try:
                 self.event_manager.record_detection(record.to_dict())
             except Exception:
-                pass
+                LOGGER.exception("Failed to record event for detection %s", record.id)
         return record.to_dict()
 
     def record_inference_result(self, result: Dict[str, Any], *, mode: str = "replay") -> Dict[str, Any]:
@@ -467,17 +471,17 @@ class DetectionManager:
                     for detection in added:
                         self.event_manager.record_detection(detection)
             except Exception:
-                pass
+                LOGGER.exception("Failed to record events for %d detection(s)", len(added))
         if self.acquisition_manager is not None:
             try:
                 self.acquisition_manager.record_inference_result(result, added)
             except Exception:
-                pass
+                LOGGER.exception("Failed to record inference result in the acquisition manager (dataset may be missing items)")
         elif self.session_manager is not None:
             try:
                 self.session_manager.record_inference_result(result, added)
             except Exception:
-                pass
+                LOGGER.exception("Failed to record inference result in the session manager (dataset may be missing items)")
         return self.get_current_detections()
 
     def get_detection(self, detection_id: str | None) -> Optional[Dict[str, Any]]:
