@@ -83,6 +83,16 @@ def stop_rgb_right():
     return jsonify({"ok": True, "feed": "rgb_right", "enabled": False, "state": runtime.rgb.latest_state()})
 
 
+@media_bp.route("/api/focus/rgb_left")
+def focus_rgb_left():
+    return jsonify(get_runtime().rgb.focus_score("left"))
+
+
+@media_bp.route("/api/focus/rgb_right")
+def focus_rgb_right():
+    return jsonify(get_runtime().rgb.focus_score("right"))
+
+
 @media_bp.route("/api/snapshots/recent")
 def api_snapshots_recent():
     runtime = get_runtime()

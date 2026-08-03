@@ -425,8 +425,17 @@ select:focus-visible {
 .system-metric-value,
 code,
 .live-feed-fps,
-.live-feed-time {
+.live-feed-time,
+.live-feed-focus {
   font-variant-numeric: tabular-nums;
+}
+
+.live-feed-focus.is-focus-good {
+  color: var(--easy-green);
+}
+
+.live-feed-focus.is-focus-low {
+  color: var(--easy-amber);
 }
 
 code {
@@ -1429,6 +1438,7 @@ body[data-page="log"] .snapshot-library-summary > span {
   min-height: 28px;
   display: inline-flex;
   align-items: center;
+  gap: 4px;
   padding: 5px 9px;
   border: 1px solid var(--easy-line);
   border-radius: 999px;
@@ -1826,12 +1836,23 @@ body.is-presentation-preview .presentation-frame-label {
 
   body[data-page="live"] .live-statusbar-actions {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 6px;
   }
 
+  body[data-page="live"] .live-refresh-status {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
   body[data-page="live"] .live-status-pill-ai {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  body[data-page="live"] .live-sensor-check {
     grid-column: 1 / -1;
+    grid-row: 2;
   }
 
   body[data-page="live"] .live-status-pill {
@@ -1915,6 +1936,10 @@ body.is-presentation-preview .presentation-frame-label {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  body[data-page="system"] .system-metric-row:not(.system-status-grid) .system-metric:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
   body[data-page="detections"] .analysis-monitor {
     min-height: 0;
   }
@@ -1928,12 +1953,15 @@ body.is-presentation-preview .presentation-frame-label {
     grid-template-rows: 360px 420px;
   }
 
-  body[data-page="log"] .archive-tabs,
   body[data-page="log"] .snapshot-grid,
   body[data-page="log"] .log-toolbar,
   body[data-page="help"] .help-flow,
   body[data-page="help"] .help-grid {
     grid-template-columns: 1fr;
+  }
+
+  body[data-page="log"] .archive-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   body[data-page="log"] .archive-tab {

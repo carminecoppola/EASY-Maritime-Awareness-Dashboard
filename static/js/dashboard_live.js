@@ -8,6 +8,7 @@ function liveFeedElementId(feedKey, part) {
     deviceName: `${base}-device-name`,
     fps: `${base}-fps`,
     lastFrame: `${base}-last-frame`,
+    focus: `${base}-focus`,
   };
   return mapping[part] || base;
 }
@@ -139,6 +140,35 @@ function monitorDarkRgbFrames() {
   });
 }
 
+function monitorFocusAssist() {
+  ["rgb_left", "rgb_right"].forEach((feedKey) => {
+    const scoreEl = byId(liveFeedElementId(feedKey, "focus"));
+    if (!scoreEl || scoreEl.dataset.focusMonitor === "active") return;
+    scoreEl.dataset.focusMonitor = "active";
+    let peak = 0;
+    const poll = async () => {
+      try {
+        const response = await DashboardApi.request(`/api/focus/${feedKey}`);
+        const payload = response.data || {};
+        if (!response.ok || !payload.ok || payload.score == null) {
+          scoreEl.textContent = "--";
+          scoreEl.classList.remove("is-focus-good", "is-focus-low");
+          return;
+        }
+        peak = Math.max(peak, payload.score);
+        const ratio = peak > 0 ? payload.score / peak : 0;
+        scoreEl.textContent = `${Math.round(payload.score)} · peak ${Math.round(peak)}`;
+        scoreEl.classList.toggle("is-focus-good", ratio >= 0.9);
+        scoreEl.classList.toggle("is-focus-low", ratio < 0.9);
+      } catch (_error) {
+        scoreEl.textContent = "--";
+      }
+    };
+    poll();
+    window.setInterval(poll, 1500);
+  });
+}
+
 function renderAiCompactStatus(status, current) {
   const node = byId(liveActionElementId("aiLabel"));
   const dot = byId(liveActionElementId("aiDot"));
@@ -167,6 +197,7 @@ function renderLivePage(health) {
   const thermalCam = cameras.thermal_camera || {};
   const thermalVisual = thermalVisualState(thermal, thermalCam);
   monitorDarkRgbFrames();
+  monitorFocusAssist();
 
   setText(liveSummaryElementId("healthTitle"), mission.title || "Needs attention");
   setText(liveSummaryElementId("healthCopy"), mission.copy || "Check the status of live sources.");
