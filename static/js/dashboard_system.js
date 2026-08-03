@@ -109,7 +109,7 @@ function renderSystemErrors(events) {
     const row = document.createElement("div");
     row.className = "system-error-row";
     row.innerHTML = `
-      <span class="log-row-time">${escapeHtml(formatRomeTimeOnly(event.timestamp))}</span>
+      <span class="log-row-time">${escapeHtml(formatRomeDateTime(event.timestamp))}</span>
       <span class="badge ${logSourceClass(event)}">${escapeHtml(logSourceLabel(event))}</span>
       <div class="system-error-main">
         <strong class="system-error-title">${escapeHtml(cleanLogText(event.description || event.message || event.type || "Error"))}</strong>
