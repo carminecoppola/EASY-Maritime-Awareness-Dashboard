@@ -226,6 +226,9 @@ class DashboardRuntime:
         }
 
     def dashboard_state_payload(self) -> Dict[str, Any]:
+        # health_payload() already computes sources/devices/session/detections/
+        # orchestrator state once; reuse those instead of asking each manager
+        # again so a single dashboard poll doesn't do the disk/status I/O twice.
         health_payload = self.health_payload()
         snapshots_limit = int(request.args.get("snapshots_limit", 12))
         events_limit = int(request.args.get("events_limit", 9999))
@@ -244,14 +247,14 @@ class DashboardRuntime:
             "sources": health_payload.get("sources") or self.source_manager.get_status(),
             "devices": health_payload.get("devices") or self.device_manager.get_status(),
             "inference": self.inference_status_payload(),
-            "detections": self.detection_manager.get_current_detections(),
-            "session": self.session_manager.status(),
+            "detections": health_payload.get("detection_manager") or self.detection_manager.get_current_detections(),
+            "session": health_payload.get("session") or self.session_manager.status(),
             "acquisition": self.acquisition_manager.status(),
             "events_current": self.event_manager.get_current_events(),
             "events_history": self.event_manager.get_history(),
             "frame_provider": self.inference.frame_provider_status(),
-            "system_status": self.orchestrator.health(),
-            "system_components": self.orchestrator.components(),
+            "system_status": health_payload.get("system_orchestrator") or self.orchestrator.health(),
+            "system_components": health_payload.get("system_components") or self.orchestrator.components(),
         }
 
     def capture_snapshot(self, feed: str, capture_fn: Callable[[], Any], meta: Dict[str, Any]) -> tuple[Any, bool, Dict[str, Any] | None, Dict[str, Any]]:
