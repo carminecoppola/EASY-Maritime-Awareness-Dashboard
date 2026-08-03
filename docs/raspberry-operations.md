@@ -96,3 +96,36 @@ and component states without triggering thermal capture:
 
 The complete protocol, output schema and experimental limitations are in
 [`runtime-benchmark.md`](runtime-benchmark.md).
+
+## Demo hotspot (on-site, no home network available)
+
+For a demo away from the home network (e.g. a conference), the Pi can create
+its own Wi-Fi network so a laptop connects to it directly, instead of relying
+on the "Remote model" tunnel above, which needs the home network to reach the
+Pi in the first place.
+
+**This Pi has a single Wi-Fi radio and no Ethernet connected.** Enabling the
+hotspot takes `wlan0` away from the home network, which is also how it is
+normally reached over SSH. There is no remote fallback if something goes
+wrong -- only run `scripts/demo_hotspot.sh enable` with a monitor and keyboard
+plugged directly into the Pi, never over the SSH session you are trying to
+keep. `scripts/demo_hotspot.sh status` is read-only and always safe to run
+remotely.
+
+```bash
+# Always safe, read-only:
+./scripts/demo_hotspot.sh status
+
+# Physical access to the Pi only:
+./scripts/demo_hotspot.sh enable --i-am-physically-at-the-pi
+./scripts/demo_hotspot.sh disable --i-am-physically-at-the-pi   # back to home Wi-Fi
+```
+
+Before Naples:
+- Change the default passphrase in `services/demo-hotspot/hostapd.conf`.
+- Rehearse `enable` and `disable` at least once at home first, with the
+  monitor/keyboard connected, so a problem shows up before travel rather than
+  on-site.
+- Turn on `security.shared_token` (see the developer guide's security model
+  section) once the hotspot is up, since the Wi-Fi password is the only
+  access control otherwise.
