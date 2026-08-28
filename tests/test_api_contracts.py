@@ -136,6 +136,34 @@ class ApiContractTests(unittest.TestCase):
             runtime.session_manager._status_uncached = original_session_uncached
             runtime.session_manager._status_cache = None
 
+    def test_stopping_a_session_clears_stale_current_detections(self) -> None:
+        # Regression: /api/session/stop resolved the session's events but
+        # never cleared detection_manager's "current" detections, so boxes
+        # from an old (often replay) session kept being drawn over the live
+        # feed indefinitely — surviving even a service restart, since
+        # current_detections.json is reloaded from disk on startup.
+        runtime = self.app.easy_dashboard_runtime
+        original_get_current_session = runtime.session_manager.get_current_session
+        original_stop_session = runtime.session_manager.stop_session
+        original_resolve_events = runtime.event_manager.resolve_session_events
+        clear_calls = []
+        original_clear = runtime.detection_manager.clear
+        try:
+            runtime.session_manager.get_current_session = lambda: {"session_id": "session_stub"}
+            runtime.session_manager.stop_session = lambda: {"ok": True, "message": "Session stopped", "session": None}
+            runtime.event_manager.resolve_session_events = lambda *a, **k: None
+            runtime.detection_manager.clear = lambda: (clear_calls.append(1) or original_clear())
+
+            response = self.client.post("/api/session/stop")
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(len(clear_calls), 1, "stopping a session must clear stale current detections")
+        finally:
+            runtime.session_manager.get_current_session = original_get_current_session
+            runtime.session_manager.stop_session = original_stop_session
+            runtime.event_manager.resolve_session_events = original_resolve_events
+            runtime.detection_manager.clear = original_clear
+
 
 if __name__ == "__main__":
     unittest.main()
