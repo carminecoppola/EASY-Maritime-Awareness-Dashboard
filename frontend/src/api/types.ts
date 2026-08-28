@@ -314,13 +314,34 @@ export interface ThermalStatusResponse {
   [key: string]: unknown
 }
 
+/** Una riga di health.system_components.components — verificato contro un payload reale. */
+export interface SystemComponentStatus {
+  id: string
+  label: string
+  kind: string
+  active: boolean
+  critical: boolean
+  status: string
+  health: string
+  error: string
+  uptime: string
+  uptime_seconds: number
+  last_seen: string
+  details?: Record<string, unknown>
+}
+
+export interface SystemComponentsPayload {
+  active_count: number
+  components: SystemComponentStatus[]
+}
+
 export interface HealthResponse {
   ok: boolean
   service: string
   timestamp: string
   system?: unknown
   system_orchestrator?: unknown
-  system_components?: unknown
+  system_components?: SystemComponentsPayload
   cameras?: unknown
   sources?: unknown
   rgb?: unknown
