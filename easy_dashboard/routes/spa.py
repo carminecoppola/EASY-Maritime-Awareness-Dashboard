@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from flask import Blueprint, current_app, jsonify, send_from_directory
+from flask import Blueprint, abort, current_app, jsonify, send_file, send_from_directory
 
 from easy_dashboard.constants import PROJECT_ROOT
 
@@ -8,11 +8,28 @@ spa_bp = Blueprint("spa", __name__)
 
 FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
 
+# Two repository-owned SeaShips samples used by the SPA's static
+# /presentation view (no hardware, no polling) — same two files the old
+# Jinja /paper-preview route served, just without the removed Jinja layer.
+PAPER_ASSETS = {
+    "rgb-left": PROJECT_ROOT / "runtime" / "replay" / "test_inference" / "001_seaships__001253.jpg",
+    "rgb-right": PROJECT_ROOT / "runtime" / "replay" / "test_inference" / "002_seaships__002958.jpg",
+}
+
 
 @spa_bp.route("/api/config")
 def api_config():
     """Non-secret bootstrap info for the SPA (no token value exposed here)."""
     return jsonify({"auth_required": bool(current_app.config.get("EASY_AUTH_REQUIRED"))})
+
+
+@spa_bp.route("/paper-assets/<asset_name>")
+def paper_asset(asset_name: str):
+    """Serve only the two fixed, repository-owned RGB samples above."""
+    path = PAPER_ASSETS.get(asset_name)
+    if path is None or not path.is_file():
+        abort(404)
+    return send_file(path, mimetype="image/jpeg", conditional=True)
 
 
 @spa_bp.route("/", defaults={"path": ""})

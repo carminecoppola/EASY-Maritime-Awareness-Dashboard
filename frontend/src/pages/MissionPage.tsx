@@ -38,10 +38,12 @@ export function MissionPage(): ReactNode {
     }
   }, [currentSession?.session_id])
 
-  // Carica manifest quando la sessione corrente cambia
+  // Dopo uno start/stop: ricarica il manifest della sessione corrente E lo
+  // storico sessioni, che altrimenti resta fermo allo snapshot caricato al
+  // mount (useSessionList non fa polling automatico di proposito).
   const handleSessionChanged = useCallback(async () => {
-    await loadCurrentManifest()
-  }, [loadCurrentManifest])
+    await Promise.all([loadCurrentManifest(), refreshSessionList()])
+  }, [loadCurrentManifest, refreshSessionList])
 
   // Formato durata per la sessione corrente
   const formatDuration = (seconds: number | null) => {

@@ -1,16 +1,32 @@
+import { Suspense, lazy } from 'react'
 import { Navigate, Outlet, createBrowserRouter } from 'react-router-dom'
 import { AppShell } from './components/layout/AppShell'
-import { LiveOverviewPage } from './pages/LiveOverviewPage'
-import { MissionPage } from './pages/MissionPage'
-import { ThermalEventsPage } from './pages/ThermalEventsPage'
-import { SnapshotsPage } from './pages/SnapshotsPage'
-import { SystemDiagnosticsPage } from './pages/SystemDiagnosticsPage'
-import { HelpPage } from './pages/HelpPage'
+
+// Ogni pagina è caricata solo quando l'operatore la visita: il bundle
+// principale conteneva tutte e 6 le pagine (Recharts incluso) in un unico
+// chunk da 750KB — la maggior parte inutile finché non si apre davvero
+// System Diagnostics. Con lazy() ogni pagina diventa un chunk separato,
+// caricato on-demand.
+const LiveOverviewPage = lazy(() => import('./pages/LiveOverviewPage').then((m) => ({ default: m.LiveOverviewPage })))
+const MissionPage = lazy(() => import('./pages/MissionPage').then((m) => ({ default: m.MissionPage })))
+const ThermalEventsPage = lazy(() => import('./pages/ThermalEventsPage').then((m) => ({ default: m.ThermalEventsPage })))
+const SnapshotsPage = lazy(() => import('./pages/SnapshotsPage').then((m) => ({ default: m.SnapshotsPage })))
+const SystemDiagnosticsPage = lazy(() =>
+  import('./pages/SystemDiagnosticsPage').then((m) => ({ default: m.SystemDiagnosticsPage })),
+)
+const HelpPage = lazy(() => import('./pages/HelpPage').then((m) => ({ default: m.HelpPage })))
+const PresentationPage = lazy(() => import('./pages/PresentationPage').then((m) => ({ default: m.PresentationPage })))
+
+function PageFallback() {
+  return <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Caricamento…</p>
+}
 
 function AppShellLayout() {
   return (
     <AppShell>
-      <Outlet />
+      <Suspense fallback={<PageFallback />}>
+        <Outlet />
+      </Suspense>
     </AppShell>
   )
 }
@@ -31,6 +47,10 @@ export const router = createBrowserRouter([
       // diretto su quel path mostrerebbe JSON invece della SPA.
       { path: 'system-diagnostics', element: <SystemDiagnosticsPage /> },
       { path: 'help', element: <HelpPage /> },
+      // Vista statica illustrativa senza hardware, per demo/presentazioni —
+      // equivalente SPA del vecchio /paper-preview lato Jinja (rimosso in
+      // Fase 5 insieme al resto di pages_bp).
+      { path: 'presentation', element: <PresentationPage /> },
       { path: '*', element: <Navigate to="/" replace /> },
     ],
   },

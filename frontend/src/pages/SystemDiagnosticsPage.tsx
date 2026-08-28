@@ -233,18 +233,66 @@ export function SystemDiagnosticsPage() {
             System Components Status
           </h2>
           <div style={{ background: 'var(--bg-2)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-4)' }}>
-            {dashboardState.health.system_components && typeof dashboardState.health.system_components === 'object' ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--space-4)' }}>
-                {Object.entries(dashboardState.health.system_components as Record<string, unknown>).map(([key, value]) => (
-                  <div key={key}>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 'var(--space-1)' }}>
-                      {key.replace(/_/g, ' ')}
-                    </div>
-                    <div className="mono" style={{ fontSize: 13, color: 'var(--text-primary)', wordBreak: 'break-word' }}>
-                      {JSON.stringify(value, null, 0)}
-                    </div>
-                  </div>
-                ))}
+            {dashboardState.health.system_components?.components?.length ? (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                      {['Component', 'Kind', 'Status', 'Health', 'Uptime', 'Error'].map((h) => (
+                        <th
+                          key={h}
+                          style={{
+                            padding: 'var(--space-2)',
+                            textAlign: 'left',
+                            color: 'var(--text-secondary)',
+                            fontWeight: 600,
+                            textTransform: 'uppercase',
+                            fontSize: 10,
+                            letterSpacing: '0.04em',
+                          }}
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dashboardState.health.system_components.components.map((c) => (
+                      <tr key={c.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                        <td style={{ padding: 'var(--space-2)', color: 'var(--text-primary)' }}>
+                          {c.label}
+                          {c.critical && (
+                            <span className="mono" style={{ marginLeft: 6, fontSize: 9, color: 'var(--text-muted)' }}>
+                              CRITICAL
+                            </span>
+                          )}
+                        </td>
+                        <td className="mono" style={{ padding: 'var(--space-2)', color: 'var(--text-secondary)' }}>
+                          {c.kind}
+                        </td>
+                        <td style={{ padding: 'var(--space-2)' }}>
+                          <StatusBadge
+                            tone={
+                              c.status === 'READY'
+                                ? { color: 'var(--accent-ok)', dim: 'var(--accent-ok-dim)', label: '' }
+                                : c.status === 'ERROR' || c.status === 'NOT_DETECTED'
+                                  ? { color: 'var(--accent-critical)', dim: 'var(--accent-critical-dim)', label: '' }
+                                  : { color: 'var(--accent-warn)', dim: 'var(--accent-warn-dim)', label: '' }
+                            }
+                            text={c.status}
+                          />
+                        </td>
+                        <td style={{ padding: 'var(--space-2)', color: 'var(--text-secondary)' }}>{c.health}</td>
+                        <td className="mono" style={{ padding: 'var(--space-2)', color: 'var(--text-muted)' }}>
+                          {c.uptime}
+                        </td>
+                        <td style={{ padding: 'var(--space-2)', color: c.error ? 'var(--accent-critical)' : 'var(--text-muted)', maxWidth: 260 }}>
+                          {c.error || '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             ) : (
               <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>No system components data available</p>
