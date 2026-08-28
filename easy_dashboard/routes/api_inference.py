@@ -173,6 +173,14 @@ def api_session_stop():
             runtime.event_manager.resolve_session_events(session_id, notes="Session stopped")
         except Exception:
             pass
+    try:
+        # Senza questo, le detection "current" dell'ultima inferenza restano
+        # visualizzate come overlay sul feed live anche dopo che la sessione
+        # (spesso di replay) che le ha prodotte è terminata, facendo credere
+        # che il sistema stia rilevando oggetti reali che non ci sono.
+        runtime.detection_manager.clear()
+    except Exception:
+        pass
     return jsonify(result)
 
 

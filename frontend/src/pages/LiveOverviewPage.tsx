@@ -58,7 +58,7 @@ export function LiveOverviewPage() {
   const rgbRightAvailability = rgbRightDevice?.runtime_state?.availability || rgb?.availability || 'NOT_PRESENT'
 
   const devicesOnline = devices.filter((d: any) => d.health !== 'OFFLINE').length
-  const rgbStatus = rgbLeftAvailability === 'ONLINE' && rgbRightAvailability === 'ONLINE'
+  const rgbStatus = rgbLeftAvailability === 'STREAMING' && rgbRightAvailability === 'STREAMING'
     ? 'Streaming'
     : 'Degraded'
 
