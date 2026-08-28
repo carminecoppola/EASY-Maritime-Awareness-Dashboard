@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { MissionPage } from './MissionPage'
 import * as DashboardStateContext from '../hooks/DashboardStateContext'
@@ -54,7 +54,7 @@ describe('MissionPage', () => {
 
   it('renders session start form', () => {
     vi.mocked(DashboardStateContext.useSharedDashboardState).mockReturnValue({
-      data: {} as any,
+      data: { session: { running: false, current: null } } as any,
       loading: false,
       error: null,
     } as any)
@@ -89,6 +89,7 @@ describe('MissionPage', () => {
     vi.mocked(ApiClient.api.getSessionManifest).mockResolvedValue({} as any)
 
     render(<MissionPage />)
+    fireEvent.click(screen.getByText('Session History'))
     expect(screen.getByText('Session History Table')).toBeInTheDocument()
   })
 
@@ -109,6 +110,7 @@ describe('MissionPage', () => {
     vi.mocked(ApiClient.api.getSessionManifest).mockResolvedValue({} as any)
 
     render(<MissionPage />)
+    fireEvent.click(screen.getByText('Session History'))
     expect(screen.getByText(/Failed to load session history/)).toBeInTheDocument()
   })
 })
