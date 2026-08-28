@@ -5,9 +5,8 @@ import subprocess
 from typing import Any, Dict, Optional
 
 import psutil
-from flask import render_template
 
-from .constants import NAV_ITEMS, PROJECT_ROOT
+from .constants import PROJECT_ROOT
 from .hardware import RgbMasterSource, SystemProbe, ThermalState
 from .runtime_status import build_rgb_state_contract, build_thermal_state_contract
 from .stores import EventStore
@@ -203,31 +202,3 @@ def build_system_payload(probe: SystemProbe) -> Dict[str, Any]:
         "uptime_human": human_uptime(get_boot_seconds()),
         "vcgencmd_get_camera": probe.get_camera(),
     }
-
-
-def dashboard_context(
-    page_key: str,
-    page_title: str,
-    page_subtitle: str,
-    *,
-    template_name: str = "index.html",
-    hostname: str,
-    ip_address: str,
-    asset_version: str,
-    thermal_device: str,
-    thermal_mode: str,
-    **extra: Any,
-) -> str:
-    return render_template(
-        template_name,
-        page_key=page_key,
-        page_title=page_title,
-        page_subtitle=page_subtitle,
-        nav_items=NAV_ITEMS,
-        ip_address=ip_address,
-        hostname=hostname,
-        asset_version=asset_version,
-        thermal_device=thermal_device,
-        thermal_mode=thermal_mode,
-        **extra,
-    )

@@ -26,7 +26,10 @@ export const router = createBrowserRouter([
       { path: 'mission', element: <MissionPage /> },
       { path: 'thermal-events', element: <ThermalEventsPage /> },
       { path: 'snapshots', element: <SnapshotsPage /> },
-      { path: 'system', element: <SystemDiagnosticsPage /> },
+      // "system" da solo collide con l'endpoint backend GET /system
+      // (diagnostica JSON, servito prima della catch-all): un refresh
+      // diretto su quel path mostrerebbe JSON invece della SPA.
+      { path: 'system-diagnostics', element: <SystemDiagnosticsPage /> },
       { path: 'help', element: <HelpPage /> },
       { path: '*', element: <Navigate to="/" replace /> },
     ],

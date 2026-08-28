@@ -37,6 +37,14 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
 
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Typecheck and build frontend
+        working-directory: frontend
+        run: npm run build
+
       - name: Compile Python
         run: |
           python -m compileall -q \
@@ -58,12 +66,6 @@ jobs:
 
       - name: Run dashboard smoke suite
         run: python scripts/smoke_dashboard.py
-
-      - name: Check frontend syntax
-        run: |
-          for file in static/js/dashboard_*.js; do
-            node --check "$file"
-          done
 
       - name: Check shell scripts
         run: bash -n install.sh start.sh preflight_check.sh scripts/*.sh
