@@ -25,7 +25,22 @@ const PANEL_STYLE = {
   padding: 'var(--space-4)',
 }
 
-function IdentityField({ label, value, emphasis = false, first = false }: { label: string; value: string; emphasis?: boolean; first?: boolean }) {
+function IdentityField({
+  label,
+  value,
+  emphasis = false,
+  first = false,
+  wide = false,
+}: {
+  label: string
+  value: string
+  emphasis?: boolean
+  first?: boolean
+  /** Model/OS strings are long enough that a single-line ellipsis silently
+   * hides real information (only recoverable via hover, which doesn't work
+   * on touch) — those wrap to two lines instead of truncating. */
+  wide?: boolean
+}) {
   return (
     <div
       style={{
@@ -35,6 +50,7 @@ function IdentityField({ label, value, emphasis = false, first = false }: { labe
         minWidth: 0,
         padding: '0 var(--space-4)',
         borderLeft: first ? 'none' : '1px solid var(--border-subtle)',
+        gridColumn: wide ? 'span 2' : undefined,
       }}
     >
       <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
@@ -47,8 +63,9 @@ function IdentityField({ label, value, emphasis = false, first = false }: { labe
           fontWeight: emphasis ? 600 : 400,
           color: emphasis ? 'var(--text-primary)' : 'var(--text-secondary)',
           overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
+          textOverflow: wide ? 'clip' : 'ellipsis',
+          whiteSpace: wide ? 'normal' : 'nowrap',
+          lineHeight: 1.4,
         }}
         title={value}
       >
@@ -137,10 +154,10 @@ export function SystemDiagnosticsPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', rowGap: 'var(--space-3)' }}>
           <IdentityField label="Hostname" value={diag.hostname} emphasis first />
           <IdentityField label="IP Address" value={diag.ip_address} emphasis />
-          <IdentityField label="Model" value={diag.model} />
           <IdentityField label="Uptime" value={formatUptime(diag.uptime_seconds)} />
-          <IdentityField label="OS" value={diag.os_release} />
           <IdentityField label="Python" value={diag.python_version} />
+          <IdentityField label="Model" value={diag.model} wide />
+          <IdentityField label="OS" value={diag.os_release} wide />
         </div>
       </section>
 
