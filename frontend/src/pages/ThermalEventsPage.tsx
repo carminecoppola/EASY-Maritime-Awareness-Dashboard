@@ -16,22 +16,43 @@ export function ThermalEventsPage() {
   const detectionHistory = usePolling(() => api.getDetectionHistory(), { intervalMs: 5000 })
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
-      {/* Header */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+      {/* Page Header */}
       <div>
         <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-          Thermal & Events
+          Thermal Events
         </h1>
         <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '4px 0 0 0' }}>
-          Thermal camera status, live frame, and detection history
+          Monitor thermal camera activity and detection history
         </p>
       </div>
 
-      {/* Sezione Stato Termico */}
+      {/* PRIMARY: Live Thermal Frame & Capture Actions */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Thermal Camera Status
+        <h2 style={{ margin: '0 0 var(--space-3) 0', fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          Live Thermal Frame
+        </h2>
+        <div
+          style={{
+            padding: 'var(--space-4)',
+            background: 'var(--bg-2)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-md)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--space-3)',
+          }}
+        >
+          <ThermalFrameViewer enableAutoPolling={true} />
+          <ThermalSnapshotAction />
         </div>
+      </div>
+
+      {/* SECONDARY: Thermal Camera Status */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+        <h2 style={{ margin: '0 0 var(--space-3) 0', fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          Thermal Camera Status
+        </h2>
         <ThermalStatusPanel
           status={thermalStatus.data}
           loading={thermalStatus.loading}
@@ -39,24 +60,11 @@ export function ThermalEventsPage() {
         />
       </div>
 
-      {/* Sezione Frame Termico — il viewer e l'azione di salvataggio erano
-          due sezioni separate con la propria intestazione, pur essendo
-          entrambe azioni sullo stesso frame corrente; ora è un unico blocco
-          coerente, con "Save Snapshot" chiaramente secondario rispetto al
-          "Capture Now" del viewer. */}
+      {/* TERTIARY: Detection History */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Live Thermal Frame
-        </div>
-        <ThermalFrameViewer enableAutoPolling={true} />
-        <ThermalSnapshotAction />
-      </div>
-
-      {/* Sezione Detection History */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        <h2 style={{ margin: '0 0 var(--space-3) 0', fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
           Detection History
-        </div>
+        </h2>
         <div
           style={{
             background: 'var(--bg-2)',
