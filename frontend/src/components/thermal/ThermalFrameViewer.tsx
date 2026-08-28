@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { formatRelativeTime } from '../../utils/formatTime'
 import { useThermalLastFrame, useThermalManualCapture } from '../../hooks/useThermal'
 
@@ -31,11 +31,15 @@ export function ThermalFrameViewer({ enableAutoPolling = true }: ThermalFrameVie
     }
   }, [manualCapture.url])
 
-  // Gestisci cooldown dopo manual capture
+  // Gestisci cooldown dopo manual capture: start AFTER the capture completes (loading becomes false)
+  // instead of when it starts, to prevent the button from becoming enabled mid-capture.
+  const prevLoadingRef = useRef(false)
   useEffect(() => {
-    if (manualCapture.loading) {
+    if (prevLoadingRef.current && !manualCapture.loading) {
+      // Transition from loading=true to loading=false: start cooldown
       setCooldownSeconds(2)
     }
+    prevLoadingRef.current = manualCapture.loading
   }, [manualCapture.loading])
 
   useEffect(() => {
