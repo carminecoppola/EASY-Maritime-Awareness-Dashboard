@@ -173,19 +173,31 @@ export function SystemDiagnosticsPage() {
           <div>
             <h3 style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 'var(--space-2)' }}>RGB Cameras</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-              {cameras.rgb_cameras.map((cam) => (
-                <div key={cam.logical_name} style={{ background: 'var(--bg-2)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 'var(--space-2)' }}>
-                    <div>
-                      <div className="mono" style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                        {cam.logical_name}
+              {cameras.rgb_cameras.map((cam) => {
+                const camTone = toneForHardwareState(cam.state)
+                const isOffline = ['ERROR', 'OFFLINE'].includes(cam.state)
+                return (
+                  <div
+                    key={cam.logical_name}
+                    style={{
+                      background: isOffline ? camTone.dim : 'var(--bg-2)',
+                      border: isOffline ? `1px solid ${camTone.color}` : '1px solid var(--border-subtle)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: 'var(--space-3)',
+                      transition: 'all 150ms ease-out',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 'var(--space-2)' }}>
+                      <div>
+                        <div className="mono" style={{ fontSize: 13, fontWeight: 600, color: isOffline ? camTone.color : 'var(--text-primary)' }}>
+                          {cam.logical_name}
+                        </div>
+                        <div style={{ fontSize: 12, color: isOffline ? camTone.color : 'var(--text-secondary)', marginTop: 'var(--space-1)' }}>
+                          {cam.hardware_name}
+                        </div>
                       </div>
-                      <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 'var(--space-1)' }}>
-                        {cam.hardware_name}
-                      </div>
+                      <StatusBadge tone={camTone} text={cam.state} />
                     </div>
-                    <StatusBadge tone={toneForHardwareState(cam.state)} text={cam.state} />
-                  </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-2)', fontSize: 12, color: 'var(--text-muted)' }}>
                     <div>FPS: <span style={{ color: 'var(--text-primary)' }} className="mono">{cam.fps?.toFixed(1) ?? '—'}</span></div>
                     <div>Enabled: <span style={{ color: 'var(--text-primary)' }} className="mono">{cam.enabled ? 'Yes' : 'No'}</span></div>
@@ -201,7 +213,8 @@ export function SystemDiagnosticsPage() {
                     </div>
                   )}
                 </div>
-              ))}
+                )
+              })}
             </div>
           </div>
 
@@ -209,22 +222,37 @@ export function SystemDiagnosticsPage() {
           {cameras.thermal_camera && (
             <div>
               <h3 style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 'var(--space-2)' }}>Thermal Camera</h3>
-              <div style={{ background: 'var(--bg-2)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                  <div>
-                    <div className="mono" style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                      {(cameras.thermal_camera as any)?.logical_name ?? 'Thermal Sensor'}
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 'var(--space-1)' }}>
-                      {(cameras.thermal_camera as any)?.hardware_name ?? 'Unknown'}
+              {(() => {
+                const thermalState = (cameras.thermal_camera as any)?.state ?? 'NOT_PRESENT'
+                const thermalTone = toneForHardwareState(thermalState)
+                const isOffline = ['ERROR', 'OFFLINE', 'NOT_PRESENT'].includes(thermalState)
+                return (
+                  <div
+                    style={{
+                      background: isOffline ? thermalTone.dim : 'var(--bg-2)',
+                      border: isOffline ? `1px solid ${thermalTone.color}` : '1px solid var(--border-subtle)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: 'var(--space-3)',
+                      transition: 'all 150ms ease-out',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                      <div>
+                        <div className="mono" style={{ fontSize: 13, fontWeight: 600, color: isOffline ? thermalTone.color : 'var(--text-primary)' }}>
+                          {(cameras.thermal_camera as any)?.logical_name ?? 'Thermal Sensor'}
+                        </div>
+                        <div style={{ fontSize: 12, color: isOffline ? thermalTone.color : 'var(--text-secondary)', marginTop: 'var(--space-1)' }}>
+                          {(cameras.thermal_camera as any)?.hardware_name ?? 'Unknown'}
+                        </div>
+                      </div>
+                      <StatusBadge
+                        tone={thermalTone}
+                        text={thermalState}
+                      />
                     </div>
                   </div>
-                  <StatusBadge
-                    tone={toneForHardwareState((cameras.thermal_camera as any)?.state ?? 'NOT_PRESENT')}
-                    text={(cameras.thermal_camera as any)?.state ?? 'NOT_PRESENT'}
-                  />
-                </div>
-              </div>
+                )
+              })()}
             </div>
           )}
         </section>
@@ -261,31 +289,59 @@ export function SystemDiagnosticsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {dashboardState.health.system_components.components.map((c) => (
-                      <tr key={c.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                        <td style={{ padding: 'var(--space-2)', color: 'var(--text-primary)' }}>
-                          {c.label}
-                          {c.critical && (
-                            <span className="mono" style={{ marginLeft: 6, fontSize: 9, color: 'var(--text-muted)' }}>
-                              CRITICAL
-                            </span>
-                          )}
-                        </td>
-                        <td className="mono" style={{ padding: 'var(--space-2)', color: 'var(--text-secondary)' }}>
-                          {c.kind}
-                        </td>
-                        <td style={{ padding: 'var(--space-2)' }}>
-                          <StatusBadge tone={toneForHardwareState(c.status)} text={c.status} />
-                        </td>
-                        <td style={{ padding: 'var(--space-2)', color: 'var(--text-secondary)' }}>{c.health}</td>
-                        <td className="mono" style={{ padding: 'var(--space-2)', color: 'var(--text-muted)' }}>
-                          {c.uptime}
-                        </td>
-                        <td style={{ padding: 'var(--space-2)', color: c.error ? 'var(--accent-critical)' : 'var(--text-muted)', maxWidth: 260 }}>
-                          {c.error || '—'}
-                        </td>
-                      </tr>
-                    ))}
+                    {dashboardState.health.system_components.components.map((c) => {
+                      const tone = toneForHardwareState(c.status)
+                      const isAnomalous = ['ERROR', 'OFFLINE', 'DEGRADED'].includes(c.status)
+                      return (
+                        <tr
+                          key={c.id}
+                          style={{
+                            borderBottom: '1px solid var(--border-subtle)',
+                            background: isAnomalous ? tone.dim : undefined,
+                          }}
+                        >
+                          <td style={{ padding: 'var(--space-2)', color: isAnomalous ? tone.color : 'var(--text-primary)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                              {isAnomalous && (
+                                <span
+                                  style={{
+                                    width: 8,
+                                    height: 8,
+                                    borderRadius: '50%',
+                                    background: tone.color,
+                                    flexShrink: 0,
+                                  }}
+                                  aria-hidden
+                                />
+                              )}
+                              <span>
+                                {c.label}
+                                {c.critical && (
+                                  <span className="mono" style={{ marginLeft: 6, fontSize: 9, color: 'var(--text-muted)' }}>
+                                    CRITICAL
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="mono" style={{ padding: 'var(--space-2)', color: isAnomalous ? tone.color : 'var(--text-secondary)' }}>
+                            {c.kind}
+                          </td>
+                          <td style={{ padding: 'var(--space-2)' }}>
+                            <StatusBadge tone={tone} text={c.status} />
+                          </td>
+                          <td style={{ padding: 'var(--space-2)', color: isAnomalous ? tone.color : 'var(--text-secondary)' }}>
+                            {c.health}
+                          </td>
+                          <td className="mono" style={{ padding: 'var(--space-2)', color: isAnomalous ? tone.color : 'var(--text-muted)' }}>
+                            {c.uptime}
+                          </td>
+                          <td style={{ padding: 'var(--space-2)', color: c.error ? 'var(--accent-critical)' : 'var(--text-muted)', maxWidth: 260 }}>
+                            {c.error || '—'}
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
