@@ -1,5 +1,0 @@
-/* Compatibility entry point. The application loads these files directly in base.html. */
-@import url("./foundations.css");
-@import url("./runtime-layout.css");
-@import url("./page-layouts.css");
-@import url("./operator-overrides.css");

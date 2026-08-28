@@ -83,7 +83,20 @@ class SessionManager:
                 return
 
     def _session_dir(self, session_id: str) -> Path:
-        return self.sessions_root / session_id
+        # Prevent path traversal: validate session_id format and resolved path
+        # Valid format: session_YYYYMMDD_HHMMSS (or from index)
+        if ".." in session_id or "/" in session_id or "\\" in session_id:
+            raise ValueError(f"Invalid session_id format: {session_id}")
+
+        session_dir = self.sessions_root / session_id
+        resolved_session_dir = session_dir.resolve()
+        resolved_root = self.sessions_root.resolve()
+
+        # Ensure resolved path is within sessions_root
+        if not (resolved_session_dir == resolved_root or resolved_root in resolved_session_dir.parents):
+            raise ValueError(f"Session path outside allowed directory: {session_id}")
+
+        return session_dir
 
     def _paths(self, session_id: str) -> Dict[str, Path]:
         root = self._session_dir(session_id)
@@ -336,7 +349,11 @@ class SessionManager:
             resolved_session_id = session_id or self._current_id() or latest_session_id
             if not resolved_session_id:
                 return {"ok": False, "error": "Nessuna missione disponibile", "manifest": None}
-            if not self._session_dir(resolved_session_id).exists():
+            try:
+                session_dir = self._session_dir(resolved_session_id)
+            except ValueError as e:
+                return {"ok": False, "error": str(e), "manifest": None}
+            if not session_dir.exists():
                 return {"ok": False, "error": f"Session not found: {resolved_session_id}", "manifest": None}
             self._ensure_structure(resolved_session_id)
             path = self._paths(resolved_session_id)["manifest"]
