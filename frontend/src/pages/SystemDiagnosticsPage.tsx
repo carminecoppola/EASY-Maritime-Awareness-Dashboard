@@ -25,13 +25,33 @@ const PANEL_STYLE = {
   padding: 'var(--space-4)',
 }
 
-function IdentityField({ label, value }: { label: string; value: string }) {
+function IdentityField({ label, value, emphasis = false, first = false }: { label: string; value: string; emphasis?: boolean; first?: boolean }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-      <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 4,
+        minWidth: 0,
+        padding: '0 var(--space-4)',
+        borderLeft: first ? 'none' : '1px solid var(--border-subtle)',
+      }}
+    >
+      <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
         {label}
       </span>
-      <span className="mono" style={{ fontSize: 13, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={value}>
+      <span
+        className="mono"
+        style={{
+          fontSize: emphasis ? 15 : 13,
+          fontWeight: emphasis ? 600 : 400,
+          color: emphasis ? 'var(--text-primary)' : 'var(--text-secondary)',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+        title={value}
+      >
         {value}
       </span>
     </div>
@@ -106,15 +126,21 @@ export function SystemDiagnosticsPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
       <h1 style={{ fontSize: 18 }}>System Diagnostics</h1>
 
-      {/* PRIMARY: compact identity strip — one glance, not six equal-weight cards */}
+      {/* PRIMARY: compact identity strip — one glance, not six equal-weight
+          cards. Hostname/IP get more visual weight (what an operator
+          actually needs to confirm they're on the right device / reach it
+          over the network); OS/Python/uptime are secondary reference info. */}
       <section style={PANEL_STYLE}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-4)' }}>
-          <IdentityField label="Hostname" value={diag.hostname} />
-          <IdentityField label="IP Address" value={diag.ip_address} />
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 'var(--space-3)' }}>
+          Device
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', rowGap: 'var(--space-3)' }}>
+          <IdentityField label="Hostname" value={diag.hostname} emphasis first />
+          <IdentityField label="IP Address" value={diag.ip_address} emphasis />
           <IdentityField label="Model" value={diag.model} />
+          <IdentityField label="Uptime" value={formatUptime(diag.uptime_seconds)} />
           <IdentityField label="OS" value={diag.os_release} />
           <IdentityField label="Python" value={diag.python_version} />
-          <IdentityField label="Uptime" value={formatUptime(diag.uptime_seconds)} />
         </div>
       </section>
 
