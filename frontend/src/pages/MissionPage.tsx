@@ -8,6 +8,7 @@ import { ManifestStats } from '../components/mission/ManifestStats'
 import { AcquisitionStatusSection } from '../components/mission/AcquisitionStatusSection'
 import { StatusCard } from '../components/status/StatusCard'
 import { StatusBadge } from '../components/status/StatusBadge'
+import { Collapsible } from '../components/common/Collapsible'
 import { toneForRunningStatus } from '../components/status/severityColors'
 import type { SessionManifestCounts } from '../api/types'
 
@@ -81,11 +82,20 @@ export function MissionPage(): ReactNode {
           Mission
         </h1>
         <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 13 }}>
-          Start/stop sessions, view session history and acquisition status
+          Start and manage capture sessions
         </p>
       </div>
 
-      {/* Current Session Status */}
+      {/* PRIMARY: Session Start/Stop Form — the main action */}
+      {dashboardSession ? (
+        <SessionStartForm
+          currentSession={currentSession}
+          isRunning={isRunning}
+          onSessionChanged={handleSessionChanged}
+        />
+      ) : null}
+
+      {/* SECONDARY: Current Session Status & Details */}
       {dashboardSession && currentSession ? (
         <div style={{
           background: 'var(--bg-2)',
@@ -97,9 +107,9 @@ export function MissionPage(): ReactNode {
           gap: 'var(--space-3)',
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+            <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Current Session
-            </h3>
+            </h2>
             <StatusBadge tone={sessionStatusTone} text={isRunning ? 'RUNNING' : 'STOPPED'} />
           </div>
 
@@ -112,9 +122,6 @@ export function MissionPage(): ReactNode {
               <StatusCard
                 title="Session ID"
                 value={
-                  // Il vecchio troncamento a 16 caratteri tagliava via
-                  // l'orario ("session_20260717_185008" -> "session_2026071"),
-                  // rendendo indistinguibili due sessioni dello stesso giorno.
                   <span title={currentSession.session_id} style={{ fontSize: 14 }}>
                     {currentSession.session_id}
                   </span>
@@ -179,15 +186,6 @@ export function MissionPage(): ReactNode {
         </div>
       ) : null}
 
-      {/* Session Start/Stop Form */}
-      {dashboardSession ? (
-        <SessionStartForm
-          currentSession={currentSession}
-          isRunning={isRunning}
-          onSessionChanged={handleSessionChanged}
-        />
-      ) : null}
-
       {/* Current Session Manifest */}
       {manifestLoading ? (
         <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>
@@ -203,25 +201,28 @@ export function MissionPage(): ReactNode {
         <AcquisitionStatusSection acquisitionStatus={acquisitionStatus} />
       ) : null}
 
-      {/* Session History */}
-      <SessionHistoryTable
-        sessions={sessions}
-        loading={sessionListLoading}
-        onRefresh={refreshSessionList}
-      />
+      {/* TERTIARY: Session History (collapsible) */}
+      <Collapsible title="Session History" defaultOpen={false}>
+        <SessionHistoryTable
+          sessions={sessions}
+          loading={sessionListLoading}
+          onRefresh={refreshSessionList}
+        />
 
-      {sessionListError ? (
-        <div style={{
-          padding: 'var(--space-3)',
-          background: 'var(--accent-critical-dim)',
-          border: '1px solid var(--accent-critical)',
-          borderRadius: 'var(--radius-md)',
-          color: 'var(--accent-critical)',
-          fontSize: 12,
-        }}>
-          Failed to load session history
-        </div>
-      ) : null}
+        {sessionListError ? (
+          <div style={{
+            padding: 'var(--space-3)',
+            background: 'var(--accent-critical-dim)',
+            border: '1px solid var(--accent-critical)',
+            borderRadius: 'var(--radius-md)',
+            color: 'var(--accent-critical)',
+            fontSize: 12,
+            marginTop: 'var(--space-3)',
+          }}>
+            Failed to load session history
+          </div>
+        ) : null}
+      </Collapsible>
     </div>
   )
 }
