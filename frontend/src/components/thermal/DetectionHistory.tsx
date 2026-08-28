@@ -1,5 +1,6 @@
 import { StatusBadge } from '../status/StatusBadge'
 import { toneForEventStatus } from '../status/severityColors'
+import { formatTimestampWithRelative } from '../../utils/formatTime'
 import type { Detection } from '../../api/types'
 
 interface DetectionHistoryProps {
@@ -79,8 +80,10 @@ export function DetectionHistory({ detections, loading, error }: DetectionHistor
                 background: 'var(--bg-3)',
               }}
             >
-              <td style={{ padding: 'var(--space-2)', color: 'var(--text-primary)' }}>
-                {new Date(detection.timestamp).toLocaleTimeString()}
+              <td style={{ padding: 'var(--space-2)', color: 'var(--text-primary)', fontSize: 11 }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+                  {formatTimestampWithRelative(detection.timestamp)}
+                </div>
               </td>
               <td style={{ padding: 'var(--space-2)', color: 'var(--text-primary)' }}>
                 {detection.source_label || detection.source}

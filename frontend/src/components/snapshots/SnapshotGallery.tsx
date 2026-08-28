@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Snapshot, SnapshotFeedInfo } from '../../api/types'
+import { formatRelativeTime } from '../../utils/formatTime'
 import { SnapshotLightbox } from './SnapshotLightbox'
 
 interface SnapshotGalleryProps {
@@ -135,8 +136,8 @@ export function SnapshotGallery({ items, feeds, loading }: SnapshotGalleryProps)
               </div>
               <div style={{ padding: 'var(--space-2)', fontSize: 11 }}>
                 <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{snapshot.feed_label || snapshot.feed}</div>
-                <div style={{ color: 'var(--text-muted)', marginTop: 2 }}>
-                  {new Date(snapshot.created || '').toLocaleTimeString()}
+                <div style={{ color: 'var(--text-muted)', marginTop: 2, fontSize: 10 }}>
+                  {snapshot.created || snapshot.created_ts ? formatRelativeTime(snapshot.created || snapshot.created_ts || '') : '—'}
                 </div>
               </div>
             </div>
