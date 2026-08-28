@@ -128,9 +128,12 @@ export function EventsTable({
                 </td>
               </tr>
             ) : (
-              displayRows.map((row) => (
+              displayRows.map((row, index) => (
+                // The backend's raw event log can emit duplicate ids across
+                // distinct entries (observed in practice), so the id alone
+                // is not a safe React key.
                 <tr
-                  key={row.id}
+                  key={`${row.id}-${index}`}
                   style={{
                     borderBottom: '1px solid var(--border-subtle)',
                   }}

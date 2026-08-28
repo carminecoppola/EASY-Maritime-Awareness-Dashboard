@@ -25,7 +25,7 @@ export function toneForSeverity(severity: EventSeverity | string): Tone {
     case 'MEDIUM':
       return { ...TONES.warn, label: 'MEDIUM' }
     case 'HIGH':
-      return { color: '#ff8a4c', dim: '#3a2410', label: 'HIGH' }
+      return { color: 'var(--severity-high)', dim: 'var(--accent-warn-dim)', label: 'HIGH' }
     case 'CRITICAL':
       return { ...TONES.critical, label: 'CRITICAL' }
     default:
