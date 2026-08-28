@@ -41,9 +41,23 @@ export function DetectionOverlay({ detections, containerRef, nativeWidth, native
     return () => resizeObserver.disconnect()
   }, [container])
 
-  // Calculate scale factors from native to display size
-  const scaleX = displaySize.width > 0 ? displaySize.width / nativeWidth : 0
-  const scaleY = displaySize.height > 0 ? displaySize.height / nativeHeight : 0
+  // The <img> underneath is rendered with object-fit: cover (see
+  // VideoPanel), which scales the native frame UNIFORMLY to fill the
+  // container and crops the overflow — it does not stretch width/height
+  // independently. The previous version used independent scaleX/scaleY as
+  // if object-fit were "fill", which misaligns boxes whenever the
+  // container's aspect ratio differs from the native frame's (the common
+  // case: a 4:3 container over a 1280x480 stereo frame). Replicate the
+  // same "cover" transform here: one uniform scale plus a centering offset
+  // for whichever axis gets cropped.
+  const coverScale =
+    displaySize.width > 0 && displaySize.height > 0
+      ? Math.max(displaySize.width / nativeWidth, displaySize.height / nativeHeight)
+      : 0
+  const renderedWidth = nativeWidth * coverScale
+  const renderedHeight = nativeHeight * coverScale
+  const offsetX = (displaySize.width - renderedWidth) / 2
+  const offsetY = (displaySize.height - renderedHeight) / 2
 
   return (
     <svg
@@ -55,16 +69,18 @@ export function DetectionOverlay({ detections, containerRef, nativeWidth, native
         width: '100%',
         height: '100%',
         pointerEvents: 'none',
+        overflow: 'hidden',
       }}
       viewBox={`0 0 ${displaySize.width} ${displaySize.height}`}
       preserveAspectRatio="none"
     >
       {detections.map((detection, idx) => {
-        // Convert bbox from native to display coordinates
-        const x1 = detection.bbox.x1 * scaleX
-        const y1 = detection.bbox.y1 * scaleY
-        const x2 = detection.bbox.x2 * scaleX
-        const y2 = detection.bbox.y2 * scaleY
+        // Convert bbox from native to display coordinates via the same
+        // uniform-scale-plus-offset transform as object-fit: cover.
+        const x1 = offsetX + detection.bbox.x1 * coverScale
+        const y1 = offsetY + detection.bbox.y1 * coverScale
+        const x2 = offsetX + detection.bbox.x2 * coverScale
+        const y2 = offsetY + detection.bbox.y2 * coverScale
         const width = x2 - x1
         const height = y2 - y1
 

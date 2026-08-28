@@ -12,7 +12,6 @@ export function DatasetExport({}: DatasetExportProps) {
   const [validationPercent, setValidationPercent] = useState(100)
   const [exportError, setExportError] = useState<string | null>(null)
   const [exportStatusUrl, setExportStatusUrl] = useState<string | null>(null)
-  const [exportReady, setExportReady] = useState(false)
 
   const handleValidate = useCallback(async () => {
     setPhase('validating')
@@ -31,7 +30,6 @@ export function DatasetExport({}: DatasetExportProps) {
   const handleExport = useCallback(async () => {
     setPhase('exporting')
     setExportError(null)
-    setExportReady(false)
     try {
       // POST /api/dataset/export is synchronous (verified against
       // easy_dashboard/routes/api_inference.py + dataset_exporter.py: it
@@ -49,7 +47,6 @@ export function DatasetExport({}: DatasetExportProps) {
       })
       setPhase('export-done')
       setExportStatusUrl('/api/dataset/export/download')
-      setExportReady(true)
     } catch (e) {
       setExportError(`Export failed: ${e instanceof Error ? e.message : String(e)}`)
       setPhase('idle')
@@ -200,49 +197,31 @@ export function DatasetExport({}: DatasetExportProps) {
           </button>
 
           {phase === 'export-done' && exportStatusUrl && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-              {exportReady ? (
-                <a
-                  href={exportStatusUrl}
-                  download
-                  style={{
-                    padding: '8px 12px',
-                    background: 'var(--accent-ok)',
-                    color: 'var(--bg-0)',
-                    border: 'none',
-                    borderRadius: 'var(--radius-md)',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    textAlign: 'center',
-                    textDecoration: 'none',
-                    cursor: 'pointer',
-                    transition: 'background 150ms ease-out',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.filter = 'brightness(0.9)'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.filter = 'none'
-                  }}
-                >
-                  Download Exported Dataset
-                </a>
-              ) : (
-                <div
-                  style={{
-                    padding: 'var(--space-2)',
-                    background: 'var(--accent-warn-dim)',
-                    border: '1px solid var(--accent-warn)',
-                    borderRadius: 'var(--radius-md)',
-                    fontSize: 12,
-                    color: 'var(--accent-warn)',
-                    textAlign: 'center',
-                  }}
-                >
-                  Export processing... (check back shortly)
-                </div>
-              )}
-            </div>
+            <a
+              href={exportStatusUrl}
+              download
+              style={{
+                padding: '8px 12px',
+                background: 'var(--accent-ok)',
+                color: 'var(--bg-0)',
+                border: 'none',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 12,
+                fontWeight: 600,
+                textAlign: 'center',
+                textDecoration: 'none',
+                cursor: 'pointer',
+                transition: 'background 150ms ease-out',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.filter = 'brightness(0.9)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.filter = 'none'
+              }}
+            >
+              Download Exported Dataset
+            </a>
           )}
         </div>
       )}

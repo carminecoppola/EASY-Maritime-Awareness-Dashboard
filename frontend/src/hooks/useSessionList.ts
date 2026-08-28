@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { api, ApiError } from '../api/client'
 
 /**
@@ -60,22 +60,31 @@ export function useSessionList(): UseSessionListResult {
   const [sessions, setSessions] = useState<SessionListItem[]>([])
   const [error, setError] = useState<unknown>(null)
   const [loading, setLoading] = useState(true)
+  // Incrementato ad ogni refresh: se due richieste sono in volo (es. click
+  // rapido su "Refresh" più il refresh automatico dopo uno start/stop),
+  // solo la risposta della richiesta più recente viene applicata — senza
+  // questo, una risposta più vecchia arrivata più tardi poteva sovrascrivere
+  // dati più freschi già mostrati.
+  const requestIdRef = useRef(0)
 
   const refresh = useCallback(async () => {
+    const requestId = ++requestIdRef.current
     setLoading(true)
     setError(null)
     try {
       const response = await api.getSessionList()
+      if (requestId !== requestIdRef.current) return
       // Cast sicuro perché il tipo di ritorno è { sessions: unknown[] }
       const sessionsList = (response as { sessions: unknown[] }).sessions as SessionListItem[]
       setSessions(sessionsList)
     } catch (e) {
+      if (requestId !== requestIdRef.current) return
       setError(e)
       if (e instanceof ApiError) {
         console.error('Failed to load session list:', e.message, e.body)
       }
     } finally {
-      setLoading(false)
+      if (requestId === requestIdRef.current) setLoading(false)
     }
   }, [])
 
