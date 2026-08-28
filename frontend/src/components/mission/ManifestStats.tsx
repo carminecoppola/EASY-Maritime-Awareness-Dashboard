@@ -22,6 +22,7 @@ export function ManifestStats({ counts, title = 'Manifest Statistics' }: Manifes
     { label: 'Detections', value: counts.detections },
     { label: 'Inference Runs', value: counts.inference },
     { label: 'Paired Items', value: counts.paired_items },
+    { label: 'Synchronized Samples', value: counts.synchronized_samples },
   ]
 
   return (

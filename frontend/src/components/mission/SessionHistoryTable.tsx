@@ -24,10 +24,14 @@ const thStyle: CSSProperties = {
 
 export function SessionHistoryTable({ sessions, loading, onRefresh }: SessionHistoryTableProps) {
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null)
-  const [manifestLoading, setManifestLoading] = useState(false)
+  // Per-sessione, non un unico booleano condiviso: prima, espandere una
+  // seconda riga mentre la prima era ancora in caricamento mostrava
+  // "Loading manifest..." su ENTRAMBE.
+  const [loadingSessionIds, setLoadingSessionIds] = useState<Set<string>>(new Set())
   const [manifestCounts, setManifestCounts] = useState<Record<string, SessionManifestCounts>>({})
 
-  const handleExpandSession = async (sessionId: string) => {
+  const handleExpandSession = async (session: SessionListItem) => {
+    const sessionId = session.session_id
     if (expandedSessionId === sessionId) {
       setExpandedSessionId(null)
       return
@@ -37,8 +41,16 @@ export function SessionHistoryTable({ sessions, loading, onRefresh }: SessionHis
     if (manifestCounts[sessionId]) {
       return
     }
+    // /api/session/list già include manifest.counts per ogni sessione
+    // (verificato contro un payload reale): prima si rifaceva sempre un GET
+    // /api/session/manifest separato ad ogni espansione, anche quando il
+    // dato era già disponibile qui.
+    if (session.manifest?.counts) {
+      setManifestCounts((prev) => ({ ...prev, [sessionId]: session.manifest!.counts! }))
+      return
+    }
 
-    setManifestLoading(true)
+    setLoadingSessionIds((prev) => new Set(prev).add(sessionId))
     try {
       const manifest = await api.getSessionManifest(sessionId)
       setManifestCounts((prev) => ({
@@ -48,7 +60,11 @@ export function SessionHistoryTable({ sessions, loading, onRefresh }: SessionHis
     } catch (e) {
       console.error('Failed to load manifest:', e)
     } finally {
-      setManifestLoading(false)
+      setLoadingSessionIds((prev) => {
+        const next = new Set(prev)
+        next.delete(sessionId)
+        return next
+      })
     }
   }
 
@@ -137,7 +153,7 @@ export function SessionHistoryTable({ sessions, loading, onRefresh }: SessionHis
                     </td>
                     <td style={{ padding: 'var(--space-2)' }}>
                       <button
-                        onClick={() => handleExpandSession(session.session_id)}
+                        onClick={() => handleExpandSession(session)}
                         aria-expanded={isExpanded}
                         aria-controls={`manifest-${session.session_id}`}
                         style={{
@@ -159,7 +175,7 @@ export function SessionHistoryTable({ sessions, loading, onRefresh }: SessionHis
                   {isExpanded && (
                     <tr id={`manifest-${session.session_id}`} style={{ background: 'var(--bg-1)' }}>
                       <td colSpan={7} style={{ padding: 'var(--space-3)' }}>
-                        {manifestLoading && !manifestCounts[session.session_id] ? (
+                        {loadingSessionIds.has(session.session_id) && !manifestCounts[session.session_id] ? (
                           <div style={{ color: 'var(--text-muted)' }}>Loading manifest...</div>
                         ) : (
                           <ManifestStats
