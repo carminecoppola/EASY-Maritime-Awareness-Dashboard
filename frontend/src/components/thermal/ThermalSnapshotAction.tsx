@@ -27,16 +27,20 @@ export function ThermalSnapshotAction({ onSnapshotTaken }: ThermalSnapshotAction
   }, [onSnapshotTaken])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+      {/* Styled as a secondary (outline) action, not the same solid blue as
+          "Capture Now" above — the two looked like duplicate buttons doing
+          the same thing, when this one actually captures AND permanently
+          saves the frame to the archive, unlike the few-second preview. */}
       <button
         onClick={handleTakeSnapshot}
         disabled={loading}
         style={{
           padding: '10px 16px',
           borderRadius: 'var(--radius-md)',
-          background: loading ? 'var(--accent-warn)' : 'var(--accent-interactive)',
-          color: loading ? 'var(--bg-0)' : 'var(--bg-0)',
-          border: 'none',
+          background: 'transparent',
+          color: loading ? 'var(--text-muted)' : 'var(--accent-interactive)',
+          border: `1px solid ${loading ? 'var(--border-subtle)' : 'var(--accent-interactive)'}`,
           fontSize: 12,
           fontWeight: 600,
           cursor: loading ? 'not-allowed' : 'pointer',
@@ -44,17 +48,20 @@ export function ThermalSnapshotAction({ onSnapshotTaken }: ThermalSnapshotAction
         }}
         onMouseEnter={(e) => {
           if (!loading) {
-            e.currentTarget.style.background = 'var(--accent-interactive-hover)'
+            e.currentTarget.style.background = 'var(--accent-info-dim)'
           }
         }}
         onMouseLeave={(e) => {
           if (!loading) {
-            e.currentTarget.style.background = 'var(--accent-interactive)'
+            e.currentTarget.style.background = 'transparent'
           }
         }}
       >
-        {loading ? 'Capturing...' : 'Capture Thermal Snapshot'}
+        {loading ? 'Saving...' : 'Save Snapshot to Archive'}
       </button>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
+        Captures a frame and saves it permanently — visible on the Snapshots page
+      </div>
 
       {error && (
         <div

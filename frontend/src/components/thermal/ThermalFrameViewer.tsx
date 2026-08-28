@@ -11,13 +11,25 @@ export function ThermalFrameViewer({ enableAutoPolling = true }: ThermalFrameVie
   const manualCapture = useThermalManualCapture()
   const [cooldownSeconds, setCooldownSeconds] = useState(0)
   const [lastUpdatedTime, setLastUpdatedTime] = useState<Date>(new Date())
+  // /thermal/last-frame returns 204 (no body) until the first capture ever
+  // happens — the on-demand thermal sensor has nothing to serve. The <img>
+  // still had a URL to point at, so it rendered the browser's broken-image
+  // icon instead of the "no frame yet" placeholder below.
+  const [imageFailed, setImageFailed] = useState(false)
 
   // Track last updated time when frame is fetched
   useEffect(() => {
     if (lastFrame.url) {
       setLastUpdatedTime(new Date())
+      setImageFailed(false)
     }
   }, [lastFrame.url])
+
+  useEffect(() => {
+    if (manualCapture.url) {
+      setImageFailed(false)
+    }
+  }, [manualCapture.url])
 
   // Gestisci cooldown dopo manual capture
   useEffect(() => {
@@ -36,6 +48,7 @@ export function ThermalFrameViewer({ enableAutoPolling = true }: ThermalFrameVie
 
   const displayUrl = manualCapture.url || lastFrame.url
   const isLoading = manualCapture.loading
+  const showImage = !!displayUrl && !imageFailed
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
@@ -58,11 +71,12 @@ export function ThermalFrameViewer({ enableAutoPolling = true }: ThermalFrameVie
           <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
             Capturing thermal frame...
           </div>
-        ) : displayUrl ? (
+        ) : showImage ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-2)', width: '100%' }}>
             <img
               src={displayUrl}
               alt="Thermal frame"
+              onError={() => setImageFailed(true)}
               style={{
                 maxWidth: '100%',
                 maxHeight: '400px',
@@ -118,6 +132,13 @@ export function ThermalFrameViewer({ enableAutoPolling = true }: ThermalFrameVie
               ? `Capture Now (${cooldownSeconds}s)`
               : 'Capture Now'}
         </button>
+      </div>
+      {/* Distinguishes this from the "Capture Thermal Snapshot" action
+          below, which looked identical (same full-width blue button) but
+          does something different — this one only previews a frame for a
+          few seconds, it does not save anything. */}
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginTop: -8 }}>
+        Previews a live frame for a few seconds — doesn't save it
       </div>
 
       {manualCapture.error ? (
