@@ -301,8 +301,15 @@ export interface DatasetExportStatus {
   [key: string]: unknown
 }
 
+/** /thermal/status has no top-level "ok" field — verified against a real payload. */
 export interface ThermalStatusResponse {
-  ok: boolean
+  status: string
+  detected: boolean
+  device: string
+  discovery_method: string
+  error: string
+  mode: string
+  streaming: boolean
   runtime_state: RuntimeState & { capture_mode?: string }
   [key: string]: unknown
 }
