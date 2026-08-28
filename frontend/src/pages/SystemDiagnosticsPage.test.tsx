@@ -125,6 +125,9 @@ describe('SystemDiagnosticsPage', () => {
     })
 
     render(<SystemDiagnosticsPage />)
-    expect(screen.getByText('System Information')).toBeInTheDocument()
+    // The identity strip is a compact, unlabeled panel (no "System
+    // Information" heading) — assert its actual content instead.
+    expect(screen.getByText('test-host')).toBeInTheDocument()
+    expect(screen.getByText('Raspberry Pi 4')).toBeInTheDocument()
   })
 })
