@@ -17,6 +17,20 @@ vi.mock('../hooks/usePolling', () => ({
   usePolling: vi.fn(),
 }))
 
+const baseDiag = {
+  hostname: 'test',
+  ip_address: '127.0.0.1',
+  model: 'Raspberry Pi 4',
+  os_release: 'Debian GNU/Linux 11',
+  python_version: '3.11.0',
+  uptime_seconds: 3600,
+  uptime_human: '1h',
+  cpu_percent: 10,
+  cpu_temperature_c: null,
+  ram: { percent: 40, total_mb: 8000, used_mb: 3200, available_mb: 4800 },
+  disk: { total_gb: 32, used_gb: 10, free_gb: 22, percent: 31 },
+}
+
 describe('SystemDiagnosticsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -24,7 +38,7 @@ describe('SystemDiagnosticsPage', () => {
 
   it('renders system diagnostics title', () => {
     vi.mocked(SystemStatusHook.useSystemStatus).mockReturnValue({
-      data: { hostname: 'test' } as any,
+      data: baseDiag as any,
       loading: false,
       error: null,
     })
@@ -93,7 +107,7 @@ describe('SystemDiagnosticsPage', () => {
 
   it('renders system information section', () => {
     vi.mocked(SystemStatusHook.useSystemStatus).mockReturnValue({
-      data: { hostname: 'test-host', model: 'Raspberry Pi 4' } as any,
+      data: { ...baseDiag, hostname: 'test-host', model: 'Raspberry Pi 4' } as any,
       loading: false,
       error: null,
     })
