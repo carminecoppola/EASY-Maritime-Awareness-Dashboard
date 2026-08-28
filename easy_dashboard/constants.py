@@ -50,14 +50,6 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "security": {"shared_token": ""},
 }
 
-NAV_ITEMS = [
-    {"key": "live", "label": "Live", "href": "/"},
-    {"key": "mission", "label": "Mission", "href": "/mission"},
-    {"key": "detections", "label": "Analysis", "href": "/thermal-events"},
-    {"key": "log", "label": "Archive", "href": "/snapshots"},
-]
-
-
 def ensure_runtime_directories() -> None:
     """Create the local runtime folders expected by the dashboard."""
     for directory in (
