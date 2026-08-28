@@ -347,13 +347,34 @@ class InferenceWorker:
 
     def _normalize_image_path(self, image_path: str | Path) -> Path:
         path = Path(image_path)
+        allowed_roots = [
+            self.replay_dir.resolve(),
+            self.sessions_dir.resolve(),
+        ]
+
+        # Try relative paths first
         if not path.is_absolute():
             candidate = (PROJECT_ROOT / path).resolve()
-            if candidate.exists():
+            if candidate.exists() and any(
+                candidate == root or root in candidate.parents
+                for root in allowed_roots
+            ):
                 return candidate
             candidate = (self.replay_dir / path).resolve()
-            if candidate.exists():
+            if candidate.exists() and any(
+                candidate == root or root in candidate.parents
+                for root in allowed_roots
+            ):
                 return candidate
+        else:
+            # For absolute paths, validate they're within allowed directories
+            resolved = path.resolve()
+            if any(resolved == root or root in resolved.parents for root in allowed_roots):
+                if resolved.exists():
+                    return resolved
+
+        # If not found in allowed locations, return the original path
+        # (will fail later with proper error message)
         return path
 
     def _temporary_frame_path(self, frame: FrameObject) -> Path:
