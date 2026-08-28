@@ -1,6 +1,8 @@
-import { Fragment, useState } from 'react'
+import { Fragment, useState, type CSSProperties } from 'react'
 import { api } from '../../api/client'
 import { ManifestStats } from './ManifestStats'
+import { StatusBadge } from '../status/StatusBadge'
+import { toneForRunningStatus } from '../status/severityColors'
 import type { SessionListItem } from '../../hooks/useSessionList'
 import type { SessionManifestCounts } from '../../api/types'
 
@@ -8,6 +10,16 @@ interface SessionHistoryTableProps {
   sessions: SessionListItem[]
   loading: boolean
   onRefresh: () => Promise<void>
+}
+
+const thStyle: CSSProperties = {
+  padding: 'var(--space-2)',
+  textAlign: 'left',
+  color: 'var(--text-secondary)',
+  fontWeight: 600,
+  textTransform: 'uppercase',
+  fontSize: 11,
+  letterSpacing: '0.04em',
 }
 
 export function SessionHistoryTable({ sessions, loading, onRefresh }: SessionHistoryTableProps) {
@@ -29,7 +41,7 @@ export function SessionHistoryTable({ sessions, loading, onRefresh }: SessionHis
     setManifestLoading(true)
     try {
       const manifest = await api.getSessionManifest(sessionId)
-      setManifestCounts(prev => ({
+      setManifestCounts((prev) => ({
         ...prev,
         [sessionId]: manifest.counts,
       }))
@@ -55,11 +67,7 @@ export function SessionHistoryTable({ sessions, loading, onRefresh }: SessionHis
   }
 
   if (sessions.length === 0) {
-    return (
-      <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>
-        No sessions yet
-      </div>
-    )
+    return <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>No sessions yet</div>
   }
 
   return (
@@ -72,7 +80,8 @@ export function SessionHistoryTable({ sessions, loading, onRefresh }: SessionHis
           onClick={onRefresh}
           disabled={loading}
           style={{
-            padding: '4px 12px',
+            minHeight: 36,
+            padding: '8px 14px',
             background: 'var(--bg-2)',
             border: '1px solid var(--border-subtle)',
             borderRadius: 'var(--radius-sm)',
@@ -88,149 +97,82 @@ export function SessionHistoryTable({ sessions, loading, onRefresh }: SessionHis
       </div>
 
       <div style={{ overflowX: 'auto' }}>
-        <table style={{
-          width: '100%',
-          borderCollapse: 'collapse',
-          fontSize: 12,
-        }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-              <th style={{
-                padding: 'var(--space-2)',
-                textAlign: 'left',
-                color: 'var(--text-secondary)',
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                fontSize: 11,
-                letterSpacing: '0.04em',
-              }}>Session ID</th>
-              <th style={{
-                padding: 'var(--space-2)',
-                textAlign: 'left',
-                color: 'var(--text-secondary)',
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                fontSize: 11,
-                letterSpacing: '0.04em',
-              }}>Start Time</th>
-              <th style={{
-                padding: 'var(--space-2)',
-                textAlign: 'left',
-                color: 'var(--text-secondary)',
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                fontSize: 11,
-                letterSpacing: '0.04em',
-              }}>Duration</th>
-              <th style={{
-                padding: 'var(--space-2)',
-                textAlign: 'left',
-                color: 'var(--text-secondary)',
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                fontSize: 11,
-                letterSpacing: '0.04em',
-              }}>Operator</th>
-              <th style={{
-                padding: 'var(--space-2)',
-                textAlign: 'left',
-                color: 'var(--text-secondary)',
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                fontSize: 11,
-                letterSpacing: '0.04em',
-              }}>Mode</th>
-              <th style={{
-                padding: 'var(--space-2)',
-                textAlign: 'left',
-                color: 'var(--text-secondary)',
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                fontSize: 11,
-                letterSpacing: '0.04em',
-              }}>Status</th>
-              <th style={{
-                padding: 'var(--space-2)',
-                textAlign: 'left',
-                color: 'var(--text-secondary)',
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                fontSize: 11,
-                letterSpacing: '0.04em',
-              }}>Actions</th>
+              <th style={thStyle}>Session ID</th>
+              <th style={thStyle}>Start Time</th>
+              <th style={thStyle}>Duration</th>
+              <th style={thStyle}>Operator</th>
+              <th style={thStyle}>Mode</th>
+              <th style={thStyle}>Status</th>
+              <th style={thStyle}>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {sessions.map((session, idx) => (
-              // A single <tbody> must wrap every row: nested <tbody> per
-              // session is invalid HTML and triggers a hydration warning.
-              <Fragment key={session.session_id}>
-                <tr style={{
-                  borderBottom: '1px solid var(--border-subtle)',
-                  background: idx % 2 === 0 ? 'transparent' : 'var(--bg-2)',
-                }}>
-                  <td style={{ padding: 'var(--space-2)', color: 'var(--text-primary)', fontFamily: 'monospace', fontSize: 11 }}>
-                    {session.session_id.substring(0, 12)}...
-                  </td>
-                  <td style={{ padding: 'var(--space-2)', color: 'var(--text-primary)' }}>
-                    {formatDate(session.start_time)}
-                  </td>
-                  <td style={{ padding: 'var(--space-2)', color: 'var(--text-primary)' }}>
-                    {formatDuration(session.duration)}
-                  </td>
-                  <td style={{ padding: 'var(--space-2)', color: 'var(--text-secondary)' }}>
-                    {session.operator || '—'}
-                  </td>
-                  <td style={{ padding: 'var(--space-2)', color: 'var(--text-secondary)' }}>
-                    {session.mode || '—'}
-                  </td>
-                  <td style={{ padding: 'var(--space-2)' }}>
-                    <span style={{
-                      display: 'inline-block',
-                      padding: '2px 8px',
-                      borderRadius: 999,
-                      fontSize: 10,
-                      fontWeight: 600,
-                      background: session.status === 'STOPPED' ? 'var(--accent-ok-dim)' : 'var(--accent-warn-dim)',
-                      color: session.status === 'STOPPED' ? 'var(--accent-ok)' : 'var(--accent-warn)',
-                    }}>
-                      {session.status}
-                    </span>
-                  </td>
-                  <td style={{ padding: 'var(--space-2)' }}>
-                    <button
-                      onClick={() => handleExpandSession(session.session_id)}
-                      style={{
-                        padding: '2px 8px',
-                        background: 'transparent',
-                        border: '1px solid var(--border-subtle)',
-                        borderRadius: 'var(--radius-sm)',
-                        color: 'var(--text-primary)',
-                        fontSize: 11,
-                        cursor: 'pointer',
-                      }}
+            {sessions.map((session, idx) => {
+              const isExpanded = expandedSessionId === session.session_id
+              return (
+                // Un singolo <tbody> deve avvolgere tutte le righe: un
+                // <tbody> annidato per sessione è HTML non valido.
+                <Fragment key={session.session_id}>
+                  <tr
+                    style={{
+                      borderBottom: '1px solid var(--border-subtle)',
+                      background: idx % 2 === 0 ? 'transparent' : 'var(--bg-2)',
+                    }}
+                  >
+                    <td
+                      title={session.session_id}
+                      style={{ padding: 'var(--space-2)', color: 'var(--text-primary)', fontFamily: 'monospace', fontSize: 11 }}
                     >
-                      {expandedSessionId === session.session_id ? '▼ Collapse' : '▶ Manifest'}
-                    </button>
-                  </td>
-                </tr>
-
-                {expandedSessionId === session.session_id && (
-                  <tr style={{ background: 'var(--bg-1)' }}>
-                    <td colSpan={7} style={{ padding: 'var(--space-3)' }}>
-                      {manifestLoading ? (
-                        <div style={{ color: 'var(--text-muted)' }}>Loading manifest...</div>
-                      ) : (
-                        <ManifestStats
-                          counts={manifestCounts[session.session_id] ?? null}
-                          title={`Manifest for ${session.session_id}`}
-                        />
-                      )}
+                      {session.session_id.substring(0, 24)}
+                    </td>
+                    <td style={{ padding: 'var(--space-2)', color: 'var(--text-primary)' }}>{formatDate(session.start_time)}</td>
+                    <td style={{ padding: 'var(--space-2)', color: 'var(--text-primary)' }}>{formatDuration(session.duration)}</td>
+                    <td style={{ padding: 'var(--space-2)', color: 'var(--text-secondary)' }}>{session.operator || '—'}</td>
+                    <td style={{ padding: 'var(--space-2)', color: 'var(--text-secondary)' }}>{session.mode || '—'}</td>
+                    <td style={{ padding: 'var(--space-2)' }}>
+                      <StatusBadge tone={toneForRunningStatus(session.status)} text={session.status} />
+                    </td>
+                    <td style={{ padding: 'var(--space-2)' }}>
+                      <button
+                        onClick={() => handleExpandSession(session.session_id)}
+                        aria-expanded={isExpanded}
+                        aria-controls={`manifest-${session.session_id}`}
+                        style={{
+                          minHeight: 36,
+                          padding: '6px 12px',
+                          background: 'transparent',
+                          border: '1px solid var(--border-subtle)',
+                          borderRadius: 'var(--radius-sm)',
+                          color: 'var(--text-primary)',
+                          fontSize: 11,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {isExpanded ? '▼ Collapse' : '▶ Manifest'}
+                      </button>
                     </td>
                   </tr>
-                )}
-              </Fragment>
-            ))}
+
+                  {isExpanded && (
+                    <tr id={`manifest-${session.session_id}`} style={{ background: 'var(--bg-1)' }}>
+                      <td colSpan={7} style={{ padding: 'var(--space-3)' }}>
+                        {manifestLoading && !manifestCounts[session.session_id] ? (
+                          <div style={{ color: 'var(--text-muted)' }}>Loading manifest...</div>
+                        ) : (
+                          <ManifestStats
+                            counts={manifestCounts[session.session_id] ?? null}
+                            title={`Manifest for ${session.session_id}`}
+                          />
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              )
+            })}
           </tbody>
         </table>
       </div>

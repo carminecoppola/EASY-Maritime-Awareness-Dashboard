@@ -1,10 +1,11 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { useSystemStatus } from '../hooks/useSystemStatus'
 import { useSharedDashboardState } from '../hooks/DashboardStateContext'
 import { api } from '../api/client'
 import { usePolling } from '../hooks/usePolling'
 import { StatusCard } from '../components/status/StatusCard'
 import { StatusBadge } from '../components/status/StatusBadge'
+import { toneForHardwareState } from '../components/status/severityColors'
 import { Sparkline, type SparklineData } from '../components/charts/Sparkline'
 import { CpuRamGauge } from '../components/charts/CpuRamGauge'
 import type { CameraInventory } from '../api/types'
@@ -44,34 +45,30 @@ export function SystemDiagnosticsPage() {
   const { data: dashboardState } = useSharedDashboardState()
   const camerasData = usePolling(() => api.getCameras(), { intervalMs: 30000 })
 
-  // Ring buffer for history
-  const historyRef = useRef<HistoryItem[]>([])
+  // Ring buffer for history — kept in state (not a plain ref) so a new
+  // sample triggers a re-render immediately; a ref-only buffer left the
+  // sparkline permanently one sample behind the numbers shown elsewhere.
+  const [history, setHistory] = useState<HistoryItem[]>([])
 
-  // Update history when system data changes
   useEffect(() => {
-    if (systemData.data) {
-      const newItem: HistoryItem = {
-        timestamp: Date.now(),
-        cpu_percent: systemData.data.cpu_percent,
-        ram_percent: systemData.data.ram.percent,
-      }
-
-      historyRef.current.push(newItem)
-      if (historyRef.current.length > HISTORY_MAX_SAMPLES) {
-        historyRef.current.shift()
-      }
+    if (!systemData.data) return
+    const newItem: HistoryItem = {
+      timestamp: Date.now(),
+      cpu_percent: systemData.data.cpu_percent,
+      ram_percent: systemData.data.ram.percent,
     }
+    setHistory((prev) => [...prev, newItem].slice(-HISTORY_MAX_SAMPLES))
   }, [systemData.data])
 
   if (systemData.loading && !systemData.data) {
-    return <p style={{ color: 'var(--text-muted)' }}>Caricamento diagnostica di sistema…</p>
+    return <p style={{ color: 'var(--text-muted)' }}>Loading system diagnostics…</p>
   }
   if (systemData.error && !systemData.data) {
-    return <p style={{ color: 'var(--accent-critical)' }}>Errore nel recupero diagnostica: {String(systemData.error)}</p>
+    return <p style={{ color: 'var(--accent-critical)' }}>Failed to load diagnostics: {String(systemData.error)}</p>
   }
 
   const diag = systemData.data!
-  const history = historyRef.current as SparklineData[]
+  const historyData = history as SparklineData[]
   const cameras = camerasData.data as CameraInventory | null
 
   return (
@@ -108,7 +105,11 @@ export function SystemDiagnosticsPage() {
             )}
           </div>
           <div style={{ background: 'var(--bg-2)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-4)' }}>
-            <CpuRamGauge value={diag.ram.used_mb} max={diag.ram.total_mb} label="Memory" color="var(--accent-warn)" />
+            {/* diag.ram.percent (accounting for cache/buffers) can differ
+                substantially from a naive used_mb/total_mb ratio — using
+                used/total here showed 41% while the sparkline below (which
+                already used ram.percent) showed 87% for the same instant. */}
+            <CpuRamGauge value={diag.ram.percent} max={100} label="Memory" color="var(--accent-warn)" />
           </div>
         </div>
       </section>
@@ -138,25 +139,25 @@ export function SystemDiagnosticsPage() {
       </section>
 
       {/* CPU History */}
-      {history.length > 1 && (
+      {historyData.length > 1 && (
         <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
           <h2 style={{ fontSize: 14, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 'var(--space-1)' }}>
             CPU Usage History (10 minutes)
           </h2>
           <div style={{ background: 'var(--bg-2)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-4)' }}>
-            <Sparkline data={history} dataKey="cpu_percent" label="%" color="var(--accent-info)" yMax={100} height={250} />
+            <Sparkline data={historyData} dataKey="cpu_percent" label="%" color="var(--accent-info)" yMax={100} height={250} />
           </div>
         </section>
       )}
 
       {/* RAM History */}
-      {history.length > 1 && (
+      {historyData.length > 1 && (
         <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
           <h2 style={{ fontSize: 14, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 'var(--space-1)' }}>
             Memory Usage History (10 minutes)
           </h2>
           <div style={{ background: 'var(--bg-2)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-4)' }}>
-            <Sparkline data={history} dataKey="ram_percent" label="%" color="var(--accent-warn)" yMax={100} height={250} />
+            <Sparkline data={historyData} dataKey="ram_percent" label="%" color="var(--accent-warn)" yMax={100} height={250} />
           </div>
         </section>
       )}
@@ -183,7 +184,7 @@ export function SystemDiagnosticsPage() {
                         {cam.hardware_name}
                       </div>
                     </div>
-                    <StatusBadge tone={{ color: cam.state === 'STREAMING' ? 'var(--accent-ok)' : 'var(--accent-warn)', dim: cam.state === 'STREAMING' ? 'var(--accent-ok-dim)' : 'var(--accent-warn-dim)', label: cam.state }} text={cam.state} />
+                    <StatusBadge tone={toneForHardwareState(cam.state)} text={cam.state} />
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-2)', fontSize: 12, color: 'var(--text-muted)' }}>
                     <div>FPS: <span style={{ color: 'var(--text-primary)' }} className="mono">{cam.fps?.toFixed(1) ?? '—'}</span></div>
@@ -218,7 +219,10 @@ export function SystemDiagnosticsPage() {
                       {(cameras.thermal_camera as any)?.hardware_name ?? 'Unknown'}
                     </div>
                   </div>
-                  <StatusBadge tone={{ color: (cameras.thermal_camera as any)?.state === 'STREAMING' ? 'var(--accent-ok)' : 'var(--accent-warn)', dim: (cameras.thermal_camera as any)?.state === 'STREAMING' ? 'var(--accent-ok-dim)' : 'var(--accent-warn-dim)', label: (cameras.thermal_camera as any)?.state ?? 'NOT_PRESENT' }} text={(cameras.thermal_camera as any)?.state ?? 'NOT_PRESENT'} />
+                  <StatusBadge
+                    tone={toneForHardwareState((cameras.thermal_camera as any)?.state ?? 'NOT_PRESENT')}
+                    text={(cameras.thermal_camera as any)?.state ?? 'NOT_PRESENT'}
+                  />
                 </div>
               </div>
             </div>
@@ -271,16 +275,7 @@ export function SystemDiagnosticsPage() {
                           {c.kind}
                         </td>
                         <td style={{ padding: 'var(--space-2)' }}>
-                          <StatusBadge
-                            tone={
-                              c.status === 'READY'
-                                ? { color: 'var(--accent-ok)', dim: 'var(--accent-ok-dim)', label: '' }
-                                : c.status === 'ERROR' || c.status === 'NOT_DETECTED'
-                                  ? { color: 'var(--accent-critical)', dim: 'var(--accent-critical-dim)', label: '' }
-                                  : { color: 'var(--accent-warn)', dim: 'var(--accent-warn-dim)', label: '' }
-                            }
-                            text={c.status}
-                          />
+                          <StatusBadge tone={toneForHardwareState(c.status)} text={c.status} />
                         </td>
                         <td style={{ padding: 'var(--space-2)', color: 'var(--text-secondary)' }}>{c.health}</td>
                         <td className="mono" style={{ padding: 'var(--space-2)', color: 'var(--text-muted)' }}>

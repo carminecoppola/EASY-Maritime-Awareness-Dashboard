@@ -11,8 +11,8 @@ export function PresentationPage() {
       <div>
         <h1 style={{ fontSize: 18 }}>Presentation Preview</h1>
         <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>
-          Vista statica illustrativa — non rappresenta un'acquisizione hardware simultanea. Pensata per demo e
-          materiale di presentazione quando le camere fisiche non sono disponibili.
+          A static illustrative view — does not represent simultaneous hardware acquisition. Intended for demos and
+          presentation material when the physical cameras are unavailable.
         </p>
       </div>
 
@@ -49,8 +49,8 @@ export function PresentationPage() {
       </div>
 
       <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-        Campioni RGB dal dataset SeaShips (Shao et al., 2018). Il riferimento termico è illustrativo, non una misura
-        FLIR live.
+        RGB samples from the SeaShips dataset (Shao et al., 2018). The thermal reference is illustrative, not a live
+        FLIR measurement.
       </p>
     </div>
   )

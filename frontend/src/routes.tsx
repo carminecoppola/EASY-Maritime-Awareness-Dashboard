@@ -16,9 +16,10 @@ const SystemDiagnosticsPage = lazy(() =>
 )
 const HelpPage = lazy(() => import('./pages/HelpPage').then((m) => ({ default: m.HelpPage })))
 const PresentationPage = lazy(() => import('./pages/PresentationPage').then((m) => ({ default: m.PresentationPage })))
+const SettingsPage = lazy(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 
 function PageFallback() {
-  return <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Caricamento…</p>
+  return <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading…</p>
 }
 
 function AppShellLayout() {
@@ -51,6 +52,7 @@ export const router = createBrowserRouter([
       // equivalente SPA del vecchio /paper-preview lato Jinja (rimosso in
       // Fase 5 insieme al resto di pages_bp).
       { path: 'presentation', element: <PresentationPage /> },
+      { path: 'settings', element: <SettingsPage /> },
       { path: '*', element: <Navigate to="/" replace /> },
     ],
   },

@@ -12,7 +12,7 @@ export function ThermalStatusPanel({ status, loading, error }: ThermalStatusPane
   if (loading && !status) {
     return (
       <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-        Caricamento stato termico...
+        Loading thermal status...
       </div>
     )
   }
@@ -29,7 +29,7 @@ export function ThermalStatusPanel({ status, loading, error }: ThermalStatusPane
           color: 'var(--accent-critical)',
         }}
       >
-        Errore caricamento stato termico: {error instanceof Error ? error.message : String(error)}
+        Failed to load thermal status: {error instanceof Error ? error.message : String(error)}
       </div>
     )
   }
@@ -46,7 +46,7 @@ export function ThermalStatusPanel({ status, loading, error }: ThermalStatusPane
           color: 'var(--accent-warn)',
         }}
       >
-        Stato termico non disponibile
+        Thermal status unavailable
       </div>
     )
   }
@@ -57,24 +57,24 @@ export function ThermalStatusPanel({ status, loading, error }: ThermalStatusPane
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--space-3)' }}>
       <StatusCard
-        title="Disponibilità"
+        title="Availability"
         value={rt.availability}
         tone={tone}
       />
       <StatusCard
-        title="Rilevamento"
-        value={rt.detected ? 'Rilevato' : 'Non rilevato'}
+        title="Detection"
+        value={rt.detected ? 'Detected' : 'Not detected'}
         tone={rt.detected ? { color: 'var(--accent-warn)', dim: 'var(--accent-warn-dim)', label: 'DETECTED' } : { color: 'var(--text-muted)', dim: 'var(--bg-3)', label: '—' }}
       />
       <StatusCard
         title="Device"
         value={(status.device as string) || 'N/A'}
-        hint={`Metodo: ${(status.discovery_method as string) || 'sconosciuto'}`}
+        hint={`Method: ${(status.discovery_method as string) || 'unknown'}`}
       />
       {status.error ? (
         <StatusCard
-          title="Errore"
-          value="Presente"
+          title="Error"
+          value="Present"
           tone={{ color: 'var(--accent-critical)', dim: 'var(--accent-critical-dim)', label: 'ERROR' }}
           hint={String(status.error as unknown)}
         />

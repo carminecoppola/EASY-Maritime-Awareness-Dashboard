@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { api } from '../api/client'
 import { useSharedDashboardState } from '../hooks/DashboardStateContext'
 import { useSessionList } from '../hooks/useSessionList'
@@ -8,6 +8,7 @@ import { ManifestStats } from '../components/mission/ManifestStats'
 import { AcquisitionStatusSection } from '../components/mission/AcquisitionStatusSection'
 import { StatusCard } from '../components/status/StatusCard'
 import { StatusBadge } from '../components/status/StatusBadge'
+import { toneForRunningStatus } from '../components/status/severityColors'
 import type { SessionManifestCounts } from '../api/types'
 
 export function MissionPage(): ReactNode {
@@ -38,6 +39,14 @@ export function MissionPage(): ReactNode {
     }
   }, [currentSession?.session_id])
 
+  // Carica il manifest anche all'apertura della pagina se una sessione è
+  // già attiva — prima veniva richiesto SOLO dopo un'azione start/stop,
+  // quindi restava vuoto per l'intera durata di una sessione avviata prima
+  // di navigare su questa pagina.
+  useEffect(() => {
+    loadCurrentManifest()
+  }, [loadCurrentManifest])
+
   // Dopo uno start/stop: ricarica il manifest della sessione corrente E lo
   // storico sessioni, che altrimenti resta fermo allo snapshot caricato al
   // mount (useSessionList non fa polling automatico di proposito).
@@ -63,10 +72,7 @@ export function MissionPage(): ReactNode {
     }
   }
 
-  // Tono per lo stato della sessione
-  const sessionStatusTone = isRunning
-    ? { color: 'var(--accent-ok)', dim: 'var(--accent-ok-dim)', label: 'RUNNING' }
-    : { color: 'var(--text-muted)', dim: 'var(--bg-3)', label: 'STOPPED' }
+  const sessionStatusTone = toneForRunningStatus(isRunning ? 'RUNNING' : 'STOPPED')
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
@@ -103,7 +109,17 @@ export function MissionPage(): ReactNode {
               gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
               gap: 'var(--space-2)',
             }}>
-              <StatusCard title="Session ID" value={currentSession.session_id.substring(0, 16)} />
+              <StatusCard
+                title="Session ID"
+                value={
+                  // Il vecchio troncamento a 16 caratteri tagliava via
+                  // l'orario ("session_20260717_185008" -> "session_2026071"),
+                  // rendendo indistinguibili due sessioni dello stesso giorno.
+                  <span title={currentSession.session_id} style={{ fontSize: 14 }}>
+                    {currentSession.session_id}
+                  </span>
+                }
+              />
               <StatusCard title="Start Time" value={formatDate(currentSession.start_time)} />
               <StatusCard title="Duration" value={formatDuration(currentSession.duration)} />
               {currentSession.operator && <StatusCard title="Operator" value={currentSession.operator} />}

@@ -73,3 +73,20 @@ Live page remains focused on the current camera feeds and their availability.
 New field data must not be added directly to the frozen EASY-v1 baseline. Any
 future training dataset should have its own version, documented provenance,
 label policy, and leakage-safe train/validation/test split.
+
+## Nota: tentativo di hardening systemd (2026-08-28)
+
+Tentato un drop-in di hardening sicuro (`NoNewPrivileges`, `ProtectKernelTunables`,
+`ProtectKernelModules`, `ProtectKernelLogs`, `ProtectControlGroups`,
+`RestrictSUIDSGID`, `RestrictRealtime`, `ProtectClock`, `ProtectHostname`,
+`LockPersonality`) sul servizio `easy-dashboard.service` per migliorare il
+punteggio `systemd-analyze security` (9.2/10 UNSAFE, nessun hardening
+presente). Il tentativo ha rotto l'accesso alla camera RGB reale
+(`libcamera-vid`: "Operation not permitted" su `/dev/media*`), pur non
+toccando esplicitamente device/filesystem/rete. Causa probabile: una delle
+direttive `Protect*`/`NoNewPrivileges` interferisce col modello di permessi
+gestito da udev per i device multimediali (verosimilmente richiede
+appartenenza a gruppi supplementari applicata a runtime). Ripristinato
+immediatamente e verificato che RGB torni STREAMING. Non ritentare senza un
+ciclo di test isolato (bisect delle singole direttive) fuori da un momento
+di utilizzo attivo dell'hardware — non è più stato ritentato in questa sessione.

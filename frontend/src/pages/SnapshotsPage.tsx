@@ -1,17 +1,15 @@
-import { useCallback, useState } from 'react'
 import { SnapshotGallery } from '../components/snapshots/SnapshotGallery'
 import { SnapshotActions } from '../components/snapshots/SnapshotActions'
 import { DatasetExport } from '../components/snapshots/DatasetExport'
 import { useSnapshotsRecent } from '../hooks/useSnapshotsRecent'
 
 export function SnapshotsPage() {
+  // La galleria si aggiorna già da sola ogni 5s: non serve forzarne il
+  // remount dopo uno snapshot manuale. Prima invece SnapshotActions veniva
+  // rimontato via `key` subito dopo aver chiamato la sua stessa callback di
+  // successo, distruggendo il proprio messaggio di conferma a metà del
+  // proprio handler — e la galleria perdeva filtro/scroll ad ogni scatto.
   const { data, loading, error } = useSnapshotsRecent(24, 5000)
-  const [refreshKey, setRefreshKey] = useState(0)
-
-  const handleSnapshotTaken = useCallback(() => {
-    // Trigger refresh della galleria
-    setRefreshKey((k) => k + 1)
-  }, [])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
@@ -21,22 +19,22 @@ export function SnapshotsPage() {
           Snapshots
         </h1>
         <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '4px 0 0 0' }}>
-          Galleria snapshot acquisiti e gestione dataset di esportazione
+          Captured snapshot gallery and dataset export management
         </p>
       </div>
 
       {/* Sezione Azioni Snapshot Manuale */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Acquisizione Manuale
+          Manual Capture
         </div>
-        <SnapshotActions onSnapshotTaken={handleSnapshotTaken} key={refreshKey} />
+        <SnapshotActions />
       </div>
 
       {/* Sezione Galleria */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Galleria Snapshot
+          Snapshot Gallery
         </div>
         {error ? (
           <div
@@ -49,16 +47,11 @@ export function SnapshotsPage() {
               color: 'var(--accent-critical)',
             }}
           >
-            Errore caricamento snapshot: {error instanceof Error ? error.message : String(error as unknown)}
+            Failed to load snapshots: {error instanceof Error ? error.message : String(error as unknown)}
           </div>
         ) : null}
         {data && (
-          <SnapshotGallery
-            items={data.items}
-            feeds={data.feeds}
-            loading={loading}
-            key={refreshKey}
-          />
+          <SnapshotGallery items={data.items} feeds={data.feeds} loading={loading} />
         )}
       </div>
 

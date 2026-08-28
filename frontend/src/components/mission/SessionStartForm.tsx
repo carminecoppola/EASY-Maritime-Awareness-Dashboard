@@ -174,18 +174,18 @@ export function SessionStartForm({ currentSession, isRunning, onSessionChanged }
               opacity: loading ? 0.6 : 1,
             }}
           >
-            {loading ? 'Starting...' : 'Avvia Sessione'}
+            {loading ? 'Starting...' : 'Start Session'}
           </button>
         </>
       ) : (
         <>
           <div style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
             <p>
-              Sessione in corso dal{' '}
+              Session running since{' '}
               <span className="mono">{currentSession?.start_time}</span>
             </p>
             {currentSession?.operator && (
-              <p>Operatore: <span className="mono">{currentSession.operator}</span></p>
+              <p>Operator: <span className="mono">{currentSession.operator}</span></p>
             )}
           </div>
 
@@ -217,7 +217,7 @@ export function SessionStartForm({ currentSession, isRunning, onSessionChanged }
               opacity: loading ? 0.6 : 1,
             }}
           >
-            {loading ? 'Stopping...' : 'Termina Sessione'}
+            {loading ? 'Stopping...' : 'Stop Session'}
           </button>
         </>
       )}

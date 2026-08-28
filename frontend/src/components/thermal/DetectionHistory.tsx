@@ -12,7 +12,7 @@ export function DetectionHistory({ detections, loading, error }: DetectionHistor
   if (loading && detections.length === 0) {
     return (
       <div style={{ color: 'var(--text-muted)', fontSize: 12, padding: 'var(--space-3)' }}>
-        Caricamento storico detection...
+        Loading detection history...
       </div>
     )
   }
@@ -29,7 +29,7 @@ export function DetectionHistory({ detections, loading, error }: DetectionHistor
           color: 'var(--accent-critical)',
         }}
       >
-        Errore caricamento storico: {error instanceof Error ? error.message : String(error)}
+        Failed to load history: {error instanceof Error ? error.message : String(error)}
       </div>
     )
   }
@@ -37,7 +37,7 @@ export function DetectionHistory({ detections, loading, error }: DetectionHistor
   if (detections.length === 0) {
     return (
       <div style={{ color: 'var(--text-muted)', fontSize: 12, padding: 'var(--space-3)', textAlign: 'center' }}>
-        Nessuna detection nel storico
+        No detections in history
       </div>
     )
   }
@@ -57,16 +57,16 @@ export function DetectionHistory({ detections, loading, error }: DetectionHistor
               Timestamp
             </th>
             <th style={{ textAlign: 'left', padding: 'var(--space-2)', color: 'var(--text-secondary)', fontWeight: 600 }}>
-              Sorgente
+              Source
             </th>
             <th style={{ textAlign: 'left', padding: 'var(--space-2)', color: 'var(--text-secondary)', fontWeight: 600 }}>
-              Classe
+              Class
             </th>
             <th style={{ textAlign: 'left', padding: 'var(--space-2)', color: 'var(--text-secondary)', fontWeight: 600 }}>
-              Confidenza
+              Confidence
             </th>
             <th style={{ textAlign: 'left', padding: 'var(--space-2)', color: 'var(--text-secondary)', fontWeight: 600 }}>
-              Stato
+              Status
             </th>
           </tr>
         </thead>

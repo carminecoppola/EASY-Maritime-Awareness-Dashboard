@@ -23,7 +23,7 @@ export function DatasetExport({}: DatasetExportProps) {
       setValidationResult(result)
       setPhase('validation-done')
     } catch (e) {
-      setExportError(`Errore validazione: ${e instanceof Error ? e.message : String(e)}`)
+      setExportError(`Validation failed: ${e instanceof Error ? e.message : String(e)}`)
       setPhase('idle')
     }
   }, [sessionId])
@@ -33,32 +33,25 @@ export function DatasetExport({}: DatasetExportProps) {
     setExportError(null)
     setExportReady(false)
     try {
+      // POST /api/dataset/export is synchronous (verified against
+      // easy_dashboard/routes/api_inference.py + dataset_exporter.py: it
+      // copies every file and builds the archive before responding) — by
+      // the time this resolves the export already exists on disk. The
+      // previous code polled /api/dataset/export/status afterwards to
+      // "wait" for completion, but that endpoint always returns 200
+      // regardless of state, so it looked like it worked while actually
+      // just declaring success on the very first tick; it also never
+      // cleared its interval on unmount, leaking a timer + a post-unmount
+      // setState whenever the operator navigated away mid-export.
       await api.exportDataset({
-        session_id: sessionId,
+        session_id: sessionId || undefined,
         validation_percent: validationPercent,
       })
-
-      // Polling dello stato export
       setPhase('export-done')
       setExportStatusUrl('/api/dataset/export/download')
-
-      // Polling asincrono per controllare quando è pronto
-      let pollCount = 0
-      const pollInterval = setInterval(async () => {
-        pollCount++
-        try {
-          await api.getDatasetExportStatus()
-          setExportReady(true)
-          clearInterval(pollInterval)
-        } catch {
-          if (pollCount > 60) {
-            // 60 * 500ms = 30s
-            clearInterval(pollInterval)
-          }
-        }
-      }, 500)
+      setExportReady(true)
     } catch (e) {
-      setExportError(`Errore export: ${e instanceof Error ? e.message : String(e)}`)
+      setExportError(`Export failed: ${e instanceof Error ? e.message : String(e)}`)
       setPhase('idle')
     }
   }, [sessionId, validationPercent])
@@ -79,7 +72,7 @@ export function DatasetExport({}: DatasetExportProps) {
 
       {/* Sezione Validazione */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>1. Valida Dataset</div>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>1. Validate Dataset</div>
         <button
           onClick={handleValidate}
           disabled={phase === 'validating'}
@@ -105,7 +98,7 @@ export function DatasetExport({}: DatasetExportProps) {
             }
           }}
         >
-          {phase === 'validating' ? 'Validazione in corso...' : 'Valida Dataset'}
+          {phase === 'validating' ? 'Validating...' : 'Validate Dataset'}
         </button>
 
         {validationResult ? (
@@ -129,19 +122,19 @@ export function DatasetExport({}: DatasetExportProps) {
       {/* Sezione Export */}
       {phase !== 'idle' && phase !== 'validating' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>2. Esporta Dataset</div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>2. Export Dataset</div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
             <div>
               <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
-                Session ID (opzionale)
+                Session ID (optional)
               </label>
               <input
                 type="text"
                 value={sessionId}
                 onChange={(e) => setSessionId(e.target.value)}
                 disabled={phase === 'exporting' || phase === 'export-done'}
-                placeholder="es. session-20260828-000300"
+                placeholder="e.g. session-20260828-000300"
                 style={{
                   width: '100%',
                   padding: '6px 8px',
@@ -200,10 +193,10 @@ export function DatasetExport({}: DatasetExportProps) {
             }}
           >
             {phase === 'exporting'
-              ? 'Export in corso...'
+              ? 'Exporting...'
               : phase === 'export-done'
-                ? 'Export completato'
-                : 'Esporta Dataset'}
+                ? 'Export complete'
+                : 'Export Dataset'}
           </button>
 
           {phase === 'export-done' && exportStatusUrl && (
@@ -232,7 +225,7 @@ export function DatasetExport({}: DatasetExportProps) {
                     e.currentTarget.style.filter = 'none'
                   }}
                 >
-                  Scarica Dataset Esportato
+                  Download Exported Dataset
                 </a>
               ) : (
                 <div
@@ -246,7 +239,7 @@ export function DatasetExport({}: DatasetExportProps) {
                     textAlign: 'center',
                   }}
                 >
-                  Export in elaborazione... (aggiorna tra poco)
+                  Export processing... (check back shortly)
                 </div>
               )}
             </div>

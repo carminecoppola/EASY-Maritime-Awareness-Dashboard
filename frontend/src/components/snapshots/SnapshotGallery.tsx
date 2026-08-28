@@ -48,7 +48,7 @@ export function SnapshotGallery({ items, feeds, loading }: SnapshotGalleryProps)
             }
           }}
         >
-          Tutti ({items.length})
+          All ({items.length})
         </button>
         {feedKeys.map((feedKey) => (
           <button
@@ -86,11 +86,11 @@ export function SnapshotGallery({ items, feeds, loading }: SnapshotGalleryProps)
       {/* Griglia snapshot */}
       {loading && filteredItems.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 'var(--space-5)', color: 'var(--text-muted)' }}>
-          Caricamento snapshot...
+          Loading snapshots...
         </div>
       ) : filteredItems.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 'var(--space-5)', color: 'var(--text-muted)' }}>
-          Nessuno snapshot disponibile
+          No snapshots available
         </div>
       ) : (
         <div

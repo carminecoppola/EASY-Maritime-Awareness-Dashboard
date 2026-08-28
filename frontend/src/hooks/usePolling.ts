@@ -38,7 +38,13 @@ export function usePolling<T>(fn: () => Promise<T>, opts: UsePollingOptions): Us
   fnRef.current = fn
 
   useEffect(() => {
-    if (!enabled) return
+    if (!enabled) {
+      // Senza questo, un consumer che monta l'hook con enabled=false (es.
+      // per attivarlo più tardi su interazione dell'utente) resta bloccato
+      // su loading=true per sempre, perché nessun tick lo aggiorna mai.
+      setLoading(false)
+      return
+    }
     let cancelled = false
     let timer: ReturnType<typeof setTimeout>
     let inFlight = false
