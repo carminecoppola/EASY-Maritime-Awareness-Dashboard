@@ -42,7 +42,7 @@ describe('SettingsPage', () => {
     vi.mocked(apiClient.api.getConfig).mockResolvedValue({ auth_required: false } as any)
 
     render(<SettingsPage />)
-    expect(await screen.findByText('NOT REQUIRED')).toBeInTheDocument()
+    expect(await screen.findByText('OPEN ACCESS')).toBeInTheDocument()
   })
 
   it('shows REQUIRED BY BACKEND badge when auth is required', async () => {
@@ -50,7 +50,7 @@ describe('SettingsPage', () => {
     vi.mocked(apiClient.api.getConfig).mockResolvedValue({ auth_required: true } as any)
 
     render(<SettingsPage />)
-    expect(await screen.findByText('REQUIRED BY BACKEND')).toBeInTheDocument()
+    expect(await screen.findByText('TOKEN REQUIRED')).toBeInTheDocument()
   })
 
   it('disables save button when input is empty', async () => {
