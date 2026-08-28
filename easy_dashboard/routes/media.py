@@ -96,7 +96,11 @@ def focus_rgb_right():
 @media_bp.route("/api/snapshots/recent")
 def api_snapshots_recent():
     runtime = get_runtime()
-    limit = int(request.args.get("limit", 24))
+    try:
+        limit = int(request.args.get("limit", 24))
+        limit = max(1, min(limit, 999))  # Clamp between 1 and 999
+    except (TypeError, ValueError):
+        limit = 24
     summary = runtime.snapshot_store.summary()
     return jsonify(
         {
