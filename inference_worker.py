@@ -352,30 +352,30 @@ class InferenceWorker:
             self.sessions_dir.resolve(),
         ]
 
+        def is_within_allowed(candidate: Path) -> bool:
+            """Check if path is within allowed directories."""
+            resolved = candidate.resolve()
+            return any(resolved == root or root in resolved.parents for root in allowed_roots)
+
         # Try relative paths first
         if not path.is_absolute():
             candidate = (PROJECT_ROOT / path).resolve()
-            if candidate.exists() and any(
-                candidate == root or root in candidate.parents
-                for root in allowed_roots
-            ):
+            if is_within_allowed(candidate) and candidate.exists():
                 return candidate
             candidate = (self.replay_dir / path).resolve()
-            if candidate.exists() and any(
-                candidate == root or root in candidate.parents
-                for root in allowed_roots
-            ):
+            if is_within_allowed(candidate) and candidate.exists():
+                return candidate
+            # Prefer replay_dir for relative paths that don't exist yet
+            candidate = (self.replay_dir / path).resolve()
+            if is_within_allowed(candidate):
                 return candidate
         else:
             # For absolute paths, validate they're within allowed directories
-            resolved = path.resolve()
-            if any(resolved == root or root in resolved.parents for root in allowed_roots):
-                if resolved.exists():
-                    return resolved
+            if is_within_allowed(path) and path.resolve().exists():
+                return path.resolve()
 
-        # If not found in allowed locations, return the original path
-        # (will fail later with proper error message)
-        return path
+        # Invalid path - will be caught with error in _execute_inference
+        raise ValueError(f"Image path not in allowed directories: {image_path}")
 
     def _temporary_frame_path(self, frame: FrameObject) -> Path:
         if frame.image_path:
@@ -515,7 +515,13 @@ class InferenceWorker:
                 self._last_error = str(exc)
                 self._write_current_state()
                 return result
-        normalized = self._normalize_image_path(image_path)
+        try:
+            normalized = self._normalize_image_path(image_path)
+        except ValueError as exc:
+            result = {"ok": False, "error": str(exc), "detections": [], "image_path": str(image_path)}
+            self._last_error = str(exc)
+            self._write_current_state()
+            return result
         result = self._execute_inference(normalized, save_artifacts=True)
         with self._state_lock:
             if result.get("ok"):
