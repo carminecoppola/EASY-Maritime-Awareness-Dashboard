@@ -85,8 +85,14 @@ export function toneForHardwareState(state: string): Tone {
     case 'STREAMING':
     case 'GOOD':
     case 'READY':
-      return { ...TONES.ok, label: state }
+    // Per RgbMasterSource.camera_state() (easy_dashboard/rgb_hardware.py),
+    // DETECTED è l'unico stato raggiungibile da una camera RGB sana e in
+    // streaming — non un "quasi pronto" — quindi va con gli stati OK, non
+    // con i warning, altrimenti una camera perfettamente funzionante appare
+    // sempre in avviso.
     case 'DETECTED':
+    case 'ONLINE':
+      return { ...TONES.ok, label: state }
     case 'INITIALIZING':
     case 'DEGRADED':
       return { ...TONES.warn, label: state }
