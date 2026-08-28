@@ -5,7 +5,7 @@ const NAV_ITEMS = [
   { to: '/mission', label: 'Mission', icon: '▤' },
   { to: '/thermal-events', label: 'Thermal & Events', icon: '△' },
   { to: '/snapshots', label: 'Snapshots', icon: '▦' },
-  { to: '/system-diagnostics', label: 'System', icon: '⚙' },
+  { to: '/system-diagnostics', label: 'System Diagnostics', icon: '⚙' },
   { to: '/help', label: 'Help', icon: '?' },
   { to: '/settings', label: 'Settings', icon: '⚿' },
 ]
