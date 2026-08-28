@@ -425,7 +425,12 @@ class RgbMasterSource:
                     yield multipart_frame(make_placeholder_jpeg(f"RGB_CAM_{side.upper()} {state}", subtitle, "#ffbc56" if state == "BUSY" else "#ff7a7a"))
                     time.sleep(1.0)
                     continue
-                yield multipart_frame(frame)
+                # Il sensore stereo produce un unico frame affiancato left+right;
+                # senza questo crop lo stream live serviva il frame intero non
+                # tagliato su entrambi i lati (a differenza dello snapshot, che
+                # già usava _crop_snapshot), mostrando la stessa immagine
+                # duplicata su RGB LEFT e RGB RIGHT.
+                yield multipart_frame(self._crop_snapshot(frame, side))
 
         return Response(generator(), mimetype="multipart/x-mixed-replace; boundary=frame")
 
