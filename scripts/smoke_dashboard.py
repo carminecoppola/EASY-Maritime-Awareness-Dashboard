@@ -75,7 +75,7 @@ def main() -> int:
     # than crashing, which is itself a meaningful signal to check for.
     frontend_dist = PROJECT_ROOT / "frontend" / "dist"
     if (frontend_dist / "index.html").is_file():
-        for route in ("/", "/mission", "/thermal-events", "/snapshots", "/system", "/help", "/some/unknown/spa/route"):
+        for route in ("/", "/mission", "/thermal-events", "/snapshots", "/system-diagnostics", "/help", "/some/unknown/spa/route"):
             response = client.get(route)
             assert_ok(response.status_code == 200, f"{route} returned {response.status_code}")
             assert_ok("text/html" in (response.content_type or ""), f"{route} did not serve the SPA shell")
