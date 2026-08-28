@@ -1,4 +1,3 @@
-import { useCallback, useState } from 'react'
 import { ThermalStatusPanel } from '../components/thermal/ThermalStatusPanel'
 import { ThermalFrameViewer } from '../components/thermal/ThermalFrameViewer'
 import { DetectionHistory } from '../components/thermal/DetectionHistory'
@@ -9,13 +8,12 @@ import { usePolling } from '../hooks/usePolling'
 
 export function ThermalEventsPage() {
   const thermalStatus = useThermalStatus(3000)
+  // Il proprio storico si aggiorna già da solo via polling (5s): non serve
+  // forzare un remount dopo uno snapshot manuale. Prima invece
+  // ThermalSnapshotAction veniva rimontato via `key` subito dopo aver
+  // chiamato la sua stessa callback di successo, distruggendo il proprio
+  // messaggio "Thermal snapshot captured" a metà del proprio handler.
   const detectionHistory = usePolling(() => api.getDetectionHistory(), { intervalMs: 5000 })
-  const [refreshKey, setRefreshKey] = useState(0)
-
-  const handleSnapshotTaken = useCallback(() => {
-    // Trigger refresh
-    setRefreshKey((k) => k + 1)
-  }, [])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
@@ -25,14 +23,14 @@ export function ThermalEventsPage() {
           Thermal & Events
         </h1>
         <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '4px 0 0 0' }}>
-          Stato fotocamera termica, frame live e storico detection
+          Thermal camera status, live frame, and detection history
         </p>
       </div>
 
       {/* Sezione Stato Termico */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Stato Fotocamera Termica
+          Thermal Camera Status
         </div>
         <ThermalStatusPanel
           status={thermalStatus.data}
@@ -44,23 +42,23 @@ export function ThermalEventsPage() {
       {/* Sezione Frame Termico */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Frame Termico Live
+          Live Thermal Frame
         </div>
-        <ThermalFrameViewer enableAutoPolling={true} key={refreshKey} />
+        <ThermalFrameViewer enableAutoPolling={true} />
       </div>
 
       {/* Sezione Snapshot Termico Manuale */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Acquisizione Snapshot
+          Snapshot Capture
         </div>
-        <ThermalSnapshotAction onSnapshotTaken={handleSnapshotTaken} key={refreshKey} />
+        <ThermalSnapshotAction />
       </div>
 
-      {/* Sezione Storico Detection */}
+      {/* Sezione Detection History */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Storico Detection
+          Detection History
         </div>
         <div
           style={{

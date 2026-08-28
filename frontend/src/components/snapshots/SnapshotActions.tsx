@@ -17,11 +17,11 @@ export function SnapshotActions({ onSnapshotTaken }: SnapshotActionsProps) {
       setSuccess(null)
       try {
         await api.takeSnapshot(feed)
-        setSuccess(`Snapshot ${feed === 'rgb_left' ? 'RGB Left' : 'RGB Right'} acquisito`)
+        setSuccess(`${feed === 'rgb_left' ? 'RGB Left' : 'RGB Right'} snapshot captured`)
         onSnapshotTaken?.()
         setTimeout(() => setSuccess(null), 3000)
       } catch (e) {
-        setError(`Errore durante l'acquisizione: ${e instanceof Error ? e.message : String(e)}`)
+        setError(`Capture failed: ${e instanceof Error ? e.message : String(e)}`)
       } finally {
         setLoading(null)
       }
@@ -59,7 +59,7 @@ export function SnapshotActions({ onSnapshotTaken }: SnapshotActionsProps) {
             }
           }}
         >
-          {loading === 'rgb_left' ? 'Acquisizione...' : 'Scatta RGB Left'}
+          {loading === 'rgb_left' ? 'Capturing...' : 'Capture RGB Left'}
         </button>
         <button
           onClick={() => handleTakeSnapshot('rgb_right')}
@@ -88,7 +88,7 @@ export function SnapshotActions({ onSnapshotTaken }: SnapshotActionsProps) {
             }
           }}
         >
-          {loading === 'rgb_right' ? 'Acquisizione...' : 'Scatta RGB Right'}
+          {loading === 'rgb_right' ? 'Capturing...' : 'Capture RGB Right'}
         </button>
       </div>
 

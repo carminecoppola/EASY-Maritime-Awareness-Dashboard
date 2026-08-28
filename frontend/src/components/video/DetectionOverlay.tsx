@@ -3,28 +3,19 @@ import type { Detection } from '../../api/types'
 
 interface DetectionOverlayProps {
   detections: Detection[]
-  /** Optional: parent container ref to measure display size. If not provided, will be auto-measured. */
+  /** Ref del contenitore su cui l'overlay viene sovrapposto (per la misura del ResizeObserver). */
   containerRef?: React.RefObject<HTMLDivElement | null>
   /**
-   * Native resolution of the feed.
-   * Defaults to 640x480 if not provided (reasonable fallback for maritime feeds).
+   * Risoluzione nativa del frame a cui si riferiscono le coordinate bbox.
+   * Va misurata dal frame reale (es. naturalWidth/naturalHeight dell'<img>
+   * che mostra lo stesso stream) — un valore hardcoded ha già causato in
+   * passato una scala 2x errata quando differiva dalla risoluzione reale.
    */
-  nativeWidth?: number
-  nativeHeight?: number
-  /**
-   * Optional: filter detections by source_label to show only relevant ones.
-   * If not provided, all detections are shown.
-   */
-  sourceLabel?: string
+  nativeWidth: number
+  nativeHeight: number
 }
 
-export function DetectionOverlay({
-  detections,
-  containerRef,
-  nativeWidth = 640,
-  nativeHeight = 480,
-  sourceLabel,
-}: DetectionOverlayProps) {
+export function DetectionOverlay({ detections, containerRef, nativeWidth, nativeHeight }: DetectionOverlayProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const internalContainerRef = useRef<HTMLDivElement>(null)
   const [displaySize, setDisplaySize] = useState({ width: 0, height: 0 })
@@ -50,11 +41,6 @@ export function DetectionOverlay({
     return () => resizeObserver.disconnect()
   }, [container])
 
-  // Filter detections by sourceLabel if provided
-  const filteredDetections = sourceLabel
-    ? detections.filter((d) => d.source_label === sourceLabel)
-    : detections
-
   // Calculate scale factors from native to display size
   const scaleX = displaySize.width > 0 ? displaySize.width / nativeWidth : 0
   const scaleY = displaySize.height > 0 ? displaySize.height / nativeHeight : 0
@@ -73,7 +59,7 @@ export function DetectionOverlay({
       viewBox={`0 0 ${displaySize.width} ${displaySize.height}`}
       preserveAspectRatio="none"
     >
-      {filteredDetections.map((detection, idx) => {
+      {detections.map((detection, idx) => {
         // Convert bbox from native to display coordinates
         const x1 = detection.bbox.x1 * scaleX
         const y1 = detection.bbox.y1 * scaleY
