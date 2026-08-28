@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { api } from '../../api/client'
 import { ManifestStats } from './ManifestStats'
 import type { SessionListItem } from '../../hooks/useSessionList'
@@ -162,7 +162,9 @@ export function SessionHistoryTable({ sessions, loading, onRefresh }: SessionHis
           </thead>
           <tbody>
             {sessions.map((session, idx) => (
-              <tbody key={session.session_id}>
+              // A single <tbody> must wrap every row: nested <tbody> per
+              // session is invalid HTML and triggers a hydration warning.
+              <Fragment key={session.session_id}>
                 <tr style={{
                   borderBottom: '1px solid var(--border-subtle)',
                   background: idx % 2 === 0 ? 'transparent' : 'var(--bg-2)',
@@ -227,7 +229,7 @@ export function SessionHistoryTable({ sessions, loading, onRefresh }: SessionHis
                     </td>
                   </tr>
                 )}
-              </tbody>
+              </Fragment>
             ))}
           </tbody>
         </table>

@@ -34,7 +34,7 @@ export function ThermalStatusPanel({ status, loading, error }: ThermalStatusPane
     )
   }
 
-  if (!status || !status.ok) {
+  if (!status) {
     return (
       <div
         style={{
