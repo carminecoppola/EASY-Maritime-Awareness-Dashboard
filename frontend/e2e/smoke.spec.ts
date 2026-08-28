@@ -7,7 +7,7 @@ const PAGES: { path: string; heading: string }[] = [
   { path: '/snapshots', heading: 'Snapshots' },
   { path: '/system-diagnostics', heading: 'System Diagnostics' },
   { path: '/settings', heading: 'Settings' },
-  { path: '/help', heading: 'Help & Documentation' },
+  { path: '/help', heading: 'Help' },
   { path: '/presentation', heading: 'Presentation Preview' },
 ]
 
