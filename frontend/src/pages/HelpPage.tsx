@@ -66,6 +66,12 @@ export function HelpPage() {
               desc: 'Photos are stored locally on the Raspberry Pi and shown in the archive. The activity log helps distinguish hardware errors from normal waiting states.',
               href: '/snapshots',
             },
+            {
+              title: 'Demoing without hardware?',
+              kicker: 'Presentation Preview',
+              desc: 'A static view with recorded samples and no live polling, for demos or presentation material when the physical cameras are unavailable.',
+              href: '/presentation',
+            },
           ].map((card) => (
             <div key={card.kicker} style={{ background: 'var(--bg-2)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
               <div style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>

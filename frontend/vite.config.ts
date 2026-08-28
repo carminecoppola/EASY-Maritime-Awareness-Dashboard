@@ -22,6 +22,7 @@ const PROXY_PATTERNS: string[] = [
   '^/health(/|$)',
   '^/system$', // exact: the diagnostics API, not /system-diagnostics
   '^/cameras$',
+  '^/paper-assets/',
 ]
 
 export default defineConfig({
