@@ -62,14 +62,14 @@ export function ThermalStatusPanel({ status, loading, error }: ThermalStatusPane
         tone={tone}
       />
       <StatusCard
-        title="Detection"
-        value={rt.detected ? 'Detected' : 'Not detected'}
-        tone={rt.detected ? { color: 'var(--accent-warn)', dim: 'var(--accent-warn-dim)', label: 'DETECTED' } : { color: 'var(--text-muted)', dim: 'var(--bg-3)', label: '—' }}
+        title="Current Activity"
+        value={rt.detected ? 'Active' : 'Idle'}
+        tone={rt.detected ? { color: 'var(--accent-info)', dim: 'var(--accent-info-dim)', label: 'ACTIVE' } : { color: 'var(--text-muted)', dim: 'var(--bg-3)', label: '—' }}
       />
       <StatusCard
         title="Device"
         value={(status.device as string) || 'N/A'}
-        hint={`Method: ${(status.discovery_method as string) || 'unknown'}`}
+        hint={`Discovery: ${(status.discovery_method as string) || 'unknown'}`}
       />
       {status.error ? (
         <StatusCard
