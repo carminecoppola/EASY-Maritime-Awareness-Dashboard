@@ -39,19 +39,16 @@ export function ThermalEventsPage() {
         />
       </div>
 
-      {/* Sezione Frame Termico */}
+      {/* Sezione Frame Termico — il viewer e l'azione di salvataggio erano
+          due sezioni separate con la propria intestazione, pur essendo
+          entrambe azioni sullo stesso frame corrente; ora è un unico blocco
+          coerente, con "Save Snapshot" chiaramente secondario rispetto al
+          "Capture Now" del viewer. */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
           Live Thermal Frame
         </div>
         <ThermalFrameViewer enableAutoPolling={true} />
-      </div>
-
-      {/* Sezione Snapshot Termico Manuale */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Snapshot Capture
-        </div>
         <ThermalSnapshotAction />
       </div>
 

@@ -66,7 +66,7 @@ describe('ThermalEventsPage', () => {
     render(<ThermalEventsPage />)
     expect(screen.getByText(/Thermal Camera Status/)).toBeInTheDocument()
     expect(screen.getByText(/Live Thermal Frame/)).toBeInTheDocument()
-    expect(screen.getByText(/Snapshot Capture/)).toBeInTheDocument()
+    expect(screen.getByText('Thermal Snapshot Action')).toBeInTheDocument()
     expect(screen.getAllByText(/Detection History/).length).toBeGreaterThan(0)
   })
 
