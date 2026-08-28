@@ -512,18 +512,15 @@ class UnifiedFrameProvider:
             try:
                 frame = self.provider.next_frame(session_id=session_id)
                 self._last_error = ""
-                self._persist_status()
                 return frame
             except Exception as exc:
                 self._last_error = str(exc)
-                self._persist_status()
                 raise
 
     def reset(self) -> Dict[str, Any]:
         with self._lock:
             payload = self.provider.reset()
             self._last_error = ""
-            self._persist_status()
             return payload
 
     def status(self) -> Dict[str, Any]:
