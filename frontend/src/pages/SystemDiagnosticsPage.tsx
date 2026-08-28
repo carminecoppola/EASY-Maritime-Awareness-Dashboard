@@ -272,22 +272,45 @@ export function SystemDiagnosticsPage() {
       <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
         <h2 style={SECTION_TITLE_STYLE}>Disk Storage</h2>
         <div style={PANEL_STYLE}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 'var(--space-2)', fontSize: 13 }}>
-            <span className="mono" style={{ color: 'var(--text-primary)' }}>
-              {diag.disk.used_gb.toFixed(1)} GB used of {diag.disk.total_gb.toFixed(1)} GB
-            </span>
-            <span className="mono" style={{ color: 'var(--text-muted)' }}>{diag.disk.free_gb.toFixed(1)} GB free</span>
-          </div>
-          <div style={{ height: 8, borderRadius: 4, background: 'var(--bg-3)', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
+            {/* Same visual language as the CPU/Memory gauges above — a big
+                colored percentage — instead of a bare thin bar with no
+                number, which read as an afterthought next to them. */}
             <div
-              style={{
-                height: '100%',
-                width: `${Math.min(100, diskUsedPercent)}%`,
-                background: diskTone,
-                borderRadius: 4,
-                transition: 'width 300ms ease-out',
-              }}
-            />
+              className="mono"
+              style={{ fontSize: 28, fontWeight: 600, color: diskTone, flexShrink: 0, minWidth: 64, textAlign: 'right' }}
+            >
+              {diskUsedPercent.toFixed(0)}%
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 'var(--space-2)', fontSize: 13 }}>
+                <span className="mono" style={{ color: 'var(--text-primary)' }}>
+                  {diag.disk.used_gb.toFixed(1)} GB used of {diag.disk.total_gb.toFixed(1)} GB
+                </span>
+                <span className="mono" style={{ color: 'var(--text-muted)' }}>{diag.disk.free_gb.toFixed(1)} GB free</span>
+              </div>
+              <div style={{ position: 'relative', height: 10, borderRadius: 5, background: 'var(--bg-3)', overflow: 'hidden' }}>
+                <div
+                  style={{
+                    height: '100%',
+                    width: `${Math.min(100, diskUsedPercent)}%`,
+                    background: diskTone,
+                    borderRadius: 5,
+                    transition: 'width 300ms ease-out',
+                  }}
+                />
+                {/* Threshold markers so the color change (green→amber→red)
+                    has a visible reference instead of just changing
+                    unexplained. */}
+                <div style={{ position: 'absolute', top: 0, bottom: 0, left: '75%', width: 1, background: 'var(--bg-0)', opacity: 0.6 }} />
+                <div style={{ position: 'absolute', top: 0, bottom: 0, left: '90%', width: 1, background: 'var(--bg-0)', opacity: 0.6 }} />
+              </div>
+              <div style={{ position: 'relative', height: 14, marginTop: 4, fontSize: 10, color: 'var(--text-muted)' }}>
+                <span style={{ position: 'absolute', left: 0 }}>0%</span>
+                <span style={{ position: 'absolute', left: '75%', transform: 'translateX(-50%)' }}>75% warn</span>
+                <span style={{ position: 'absolute', right: 0 }}>90% critical</span>
+              </div>
+            </div>
           </div>
         </div>
       </section>
