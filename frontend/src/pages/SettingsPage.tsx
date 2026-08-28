@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { getAuthToken, setAuthToken } from '../api/config'
 import { StatusBadge } from '../components/status/StatusBadge'
+import { Collapsible } from '../components/common/Collapsible'
 
 // Gap trovato dalla review di sicurezza: setAuthToken() esisteva già in
 // api/config.ts ma non era mai invocata da nessuna UI — se un deployment
@@ -43,17 +44,22 @@ export function SettingsPage() {
         </p>
       </div>
 
-      <section
-        style={{
-          background: 'var(--bg-2)',
-          border: '1px solid var(--border-subtle)',
-          borderRadius: 'var(--radius-md)',
-          padding: 'var(--space-4)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 'var(--space-3)',
-        }}
-      >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          Security
+        </div>
+
+        <section
+          style={{
+            background: 'var(--bg-2)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-md)',
+            padding: 'var(--space-4)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--space-3)',
+          }}
+        >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
             Shared access token
@@ -65,19 +71,31 @@ export function SettingsPage() {
                   ? { color: 'var(--accent-warn)', dim: 'var(--accent-warn-dim)', label: '' }
                   : { color: 'var(--text-muted)', dim: 'var(--bg-3)', label: '' }
               }
-              text={authRequired ? 'REQUIRED BY BACKEND' : 'NOT REQUIRED'}
+              text={authRequired ? 'TOKEN REQUIRED' : 'OPEN ACCESS'}
             />
           )}
         </div>
 
+        {/* Trimmed from a 5-sentence security-model explainer always on
+            screen to one line + an opt-in "Learn more" — the full detail
+            (config.yaml, header name, "not a login system") is documentation,
+            not something every visitor needs read before finding the field. */}
         <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-          This dashboard's default trust model is an open LAN: anyone who can reach it can use it. An operator can
-          optionally require a shared token for any action that changes state (starting/stopping a session, taking a
-          snapshot, etc.) by setting <code>security.shared_token</code> in <code>config.yaml</code> on the
-          Raspberry Pi. If that's configured, paste the same token here — it's attached as the{' '}
-          <code>X-EASY-Token</code> header on every non-GET request from this browser, and stored only in this
-          browser's local storage. It is not a login system: anyone with the token has the same access.
+          {authRequired
+            ? 'This device requires a token for actions that change state. Paste it below.'
+            : 'This device is open on the LAN by default. Only set this if an operator has configured a shared token.'}
         </p>
+
+        <Collapsible title="How does this work?" defaultOpen={false}>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+            This dashboard's default trust model is an open LAN: anyone who can reach it can use it. An operator can
+            optionally require a shared token for any action that changes state (starting/stopping a session, taking
+            a snapshot, etc.) by setting <code>security.shared_token</code> in <code>config.yaml</code> on the
+            Raspberry Pi. If that's configured, paste the same token here — it's attached as the{' '}
+            <code>X-EASY-Token</code> header on every non-GET request from this browser, and stored only in this
+            browser's local storage. It is not a login system: anyone with the token has the same access.
+          </p>
+        </Collapsible>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
           <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
@@ -140,7 +158,8 @@ export function SettingsPage() {
           </div>
           {saved && <span style={{ fontSize: 11, color: 'var(--accent-ok)' }}>Saved.</span>}
         </div>
-      </section>
+        </section>
+      </div>
     </div>
   )
 }
