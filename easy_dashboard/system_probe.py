@@ -54,6 +54,17 @@ class SystemProbe:
         return read_text_file(model_file) or "unknown"
 
     def os_release(self) -> str:
+        # /etc/os-release ha anche HOME_URL/SUPPORT_URL/BUG_REPORT_URL oltre
+        # a una decina di altre chiavi: mostrare il file intero in una card
+        # della dashboard è illeggibile. PRETTY_NAME è la label pensata
+        # apposta per la UI da tool come neofetch/screenfetch.
+        raw = read_text_file(Path("/etc/os-release"))
+        for line in raw.splitlines():
+            if line.startswith("PRETTY_NAME="):
+                return line.split("=", 1)[1].strip().strip('"')
+        return raw
+
+    def os_release_full(self) -> str:
         return read_text_file(Path("/etc/os-release"))
 
     def python_version(self) -> str:
