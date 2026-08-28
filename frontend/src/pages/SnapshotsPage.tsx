@@ -1,7 +1,17 @@
 import { SnapshotGallery } from '../components/snapshots/SnapshotGallery'
 import { SnapshotActions } from '../components/snapshots/SnapshotActions'
 import { DatasetExport } from '../components/snapshots/DatasetExport'
+import { Collapsible } from '../components/common/Collapsible'
 import { useSnapshotsRecent } from '../hooks/useSnapshotsRecent'
+
+const SECTION_TITLE_STYLE = {
+  fontSize: 14,
+  fontWeight: 600,
+  color: 'var(--text-primary)',
+  textTransform: 'uppercase' as const,
+  letterSpacing: '0.05em',
+  margin: '0 0 var(--space-3) 0',
+}
 
 export function SnapshotsPage() {
   // La galleria si aggiorna già da sola ogni 5s: non serve forzarne il
@@ -12,30 +22,30 @@ export function SnapshotsPage() {
   const { data, loading, error } = useSnapshotsRecent(24, 5000)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
-      {/* Header */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+      {/* Page Header */}
       <div>
         <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
           Snapshots
         </h1>
         <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '4px 0 0 0' }}>
-          Captured snapshot gallery and dataset export management
+          Capture snapshots and manage dataset exports
         </p>
       </div>
 
-      {/* Sezione Azioni Snapshot Manuale */}
+      {/* PRIMARY: Manual Capture — the key action */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        <h2 style={SECTION_TITLE_STYLE}>
           Manual Capture
-        </div>
+        </h2>
         <SnapshotActions />
       </div>
 
-      {/* Sezione Galleria */}
+      {/* SECONDARY: Snapshot Gallery */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        <h2 style={SECTION_TITLE_STYLE}>
           Snapshot Gallery
-        </div>
+        </h2>
         {error ? (
           <div
             style={{
@@ -55,13 +65,10 @@ export function SnapshotsPage() {
         )}
       </div>
 
-      {/* Sezione Dataset Export */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Dataset Export
-        </div>
+      {/* TERTIARY: Dataset Export (collapsible) */}
+      <Collapsible title="Dataset Export" defaultOpen={false}>
         <DatasetExport />
-      </div>
+      </Collapsible>
     </div>
   )
 }
