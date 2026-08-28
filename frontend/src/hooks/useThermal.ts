@@ -12,7 +12,7 @@ export function useThermalStatus(intervalMs = 3000) {
  * assente) ed è pollabile. `/thermal/frame` cattura un NUOVO frame ad ogni
  * chiamata (costoso): va invocato solo a trigger manuale, mai in polling.
  */
-export function useThermalLastFrame(intervalMs = 2500) {
+export function useThermalLastFrame(intervalMs = 2500, enabled = true) {
   const [nonce, setNonce] = useState(0)
   const url = withCacheBuster(`/thermal/last-frame?frame=${nonce}`)
 
@@ -21,7 +21,7 @@ export function useThermalLastFrame(intervalMs = 2500) {
       setNonce((n) => n + 1)
       return null
     }, []),
-    { intervalMs },
+    { intervalMs, enabled },
   )
 
   return { url }
