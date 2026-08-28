@@ -1,6 +1,15 @@
 import { Link } from 'react-router-dom'
 import { Collapsible } from '../components/common/Collapsible'
 
+const SECTION_TITLE_STYLE = {
+  fontSize: 14,
+  fontWeight: 600,
+  color: 'var(--text-primary)',
+  textTransform: 'uppercase' as const,
+  letterSpacing: '0.05em',
+  margin: '0 0 var(--space-3) 0',
+}
+
 const STEPS = [
   { step: '1', title: 'Live', desc: 'Check all three feeds are updating.' },
   { step: '2', title: 'Mission', desc: 'Start a mission before saving data.' },
@@ -121,7 +130,7 @@ export function HelpPage() {
           per card and using client-side <Link> instead of plain <a> (the
           old cards did a full page reload on every click). */}
       <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <h2 style={{ fontSize: 14, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        <h2 style={SECTION_TITLE_STYLE}>
           Page Guide
         </h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 'var(--space-3)' }}>
