@@ -129,7 +129,7 @@ export const api = {
   getAcquisitionStatus: () => request<AcquisitionStatus>('/api/acquisition/status'),
   validateDataset: (sessionId?: string) =>
     request(`/api/dataset/validate${qs({ session_id: sessionId })}`),
-  exportDataset: (payload: { session_id: string; validation_percent?: number }) =>
+  exportDataset: (payload: { session_id?: string; validation_percent?: number }) =>
     request<DatasetExportStatus>('/api/dataset/export', { method: 'POST', body: JSON.stringify(payload) }),
   getDatasetExportStatus: () => request<DatasetExportStatus>('/api/dataset/export/status'),
 

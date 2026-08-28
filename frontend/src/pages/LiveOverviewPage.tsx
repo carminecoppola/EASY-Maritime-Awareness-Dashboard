@@ -1,21 +1,41 @@
-import { useRef } from 'react'
 import { useSharedDashboardState } from '../hooks/DashboardStateContext'
 import { StatusCard } from '../components/status/StatusCard'
+import { StatusBadge } from '../components/status/StatusBadge'
+import { toneForHardwareState } from '../components/status/severityColors'
 import { VideoPanel } from '../components/video/VideoPanel'
-import { DetectionOverlay } from '../components/video/DetectionOverlay'
 import { EventsTable, type EventTableRow } from '../components/events/EventsTable'
 import type { DeviceInfo } from '../api/types'
 
+/**
+ * Righe più recenti prima, indipendentemente dall'ordine restituito dal
+ * backend. Non tronca: EventsTable applica il proprio `maxRows` e calcola
+ * "N more" sul totale reale — troncare qui a monte falsava quel conteggio
+ * (es. "15 more" su un totale di 200 invece di "195 more").
+ *
+ * A parità di timestamp (il backend logga più eventi nello stesso secondo)
+ * l'ordine originale — che è per inserimento crescente — va invertito
+ * esplicitamente: Array.sort è stabile, quindi senza il tie-break sull'indice
+ * originale i pari-merito resterebbero nell'ordine di inserimento, mostrando
+ * il più vecchio del gruppo invece del più recente.
+ */
+function mostRecentFirst<T extends { timestamp: string }>(rows: T[]): T[] {
+  return rows
+    .map((row, index) => ({ row, index }))
+    .sort((a, b) => {
+      const byTime = new Date(b.row.timestamp).getTime() - new Date(a.row.timestamp).getTime()
+      return byTime !== 0 ? byTime : b.index - a.index
+    })
+    .map(({ row }) => row)
+}
+
 export function LiveOverviewPage() {
   const { data, loading, error } = useSharedDashboardState()
-  const rgbLeftContainerRef = useRef<HTMLDivElement>(null)
-  const rgbRightContainerRef = useRef<HTMLDivElement>(null)
 
   if (loading && !data) {
-    return <p style={{ color: 'var(--text-muted)' }}>Connessione al backend in corso…</p>
+    return <p style={{ color: 'var(--text-muted)' }}>Connecting to backend…</p>
   }
   if (error && !data) {
-    return <p style={{ color: 'var(--accent-critical)' }}>Impossibile raggiungere il backend: {String(error)}</p>
+    return <p style={{ color: 'var(--accent-critical)' }}>Unable to reach the backend: {String(error)}</p>
   }
 
   const rgb = data?.health?.runtime_state?.rgb
@@ -25,23 +45,30 @@ export function LiveOverviewPage() {
   const rawEvents = data?.events?.events || []
   const missionEvents = data?.events_current?.events || []
 
-  // Convert raw events to EventTableRow format
-  const activityLogRows: EventTableRow[] = rawEvents.map((event) => ({
-    id: event.id,
-    timestamp: event.timestamp,
-    label: event.description,
-    severity_or_status: event.severity,
-    description: event.action || event.type,
-  }))
+  // Convert raw events to EventTableRow format. /events is returned oldest
+  // first (verified against a real payload: index 0 was 25 days older than
+  // the last entry) — without re-sorting, "recent activity" showed events
+  // from weeks ago instead of what just happened.
+  const activityLogRows: EventTableRow[] = mostRecentFirst(
+    rawEvents.map((event) => ({
+      id: event.id,
+      timestamp: event.timestamp,
+      label: event.description,
+      severity_or_status: event.severity,
+      description: event.action || event.type,
+    })),
+  )
 
   // Convert mission events to EventTableRow format
-  const missionEventRows: EventTableRow[] = missionEvents.map((event) => ({
-    id: event.event_id,
-    timestamp: event.created_at,
-    label: event.type,
-    severity_or_status: event.severity,
-    description: event.track_id ? `Track ${event.track_id}` : undefined,
-  }))
+  const missionEventRows: EventTableRow[] = mostRecentFirst(
+    missionEvents.map((event) => ({
+      id: event.event_id,
+      timestamp: event.created_at,
+      label: event.type,
+      severity_or_status: event.severity,
+      description: event.track_id ? `Track ${event.track_id}` : undefined,
+    })),
+  )
 
   // Extract RGB devices for status
   const rgbLeftDevice = devices.find((d: DeviceInfo) => 'feed' in d && (d as any).feed === 'rgb_left') as any
@@ -62,43 +89,18 @@ export function LiveOverviewPage() {
           gap: 'var(--space-4)',
         }}
       >
-        {/* RGB Left Feed */}
-        <div style={{ position: 'relative' }}>
-          <div ref={rgbLeftContainerRef} style={{ position: 'relative' }}>
-            <VideoPanel
-              feed="rgb_left"
-              label="RGB LEFT"
-              availability={rgbLeftAvailability as any}
-            />
-            {/* Detection overlay only if streaming */}
-            {rgbLeftAvailability !== 'ERROR' && rgbLeftAvailability !== 'NOT_PRESENT' && (
-              <DetectionOverlay
-                detections={detections?.detections || []}
-                containerRef={rgbLeftContainerRef}
-                sourceLabel="rgb_left"
-              />
-            )}
-          </div>
-        </div>
-
-        {/* RGB Right Feed */}
-        <div style={{ position: 'relative' }}>
-          <div ref={rgbRightContainerRef} style={{ position: 'relative' }}>
-            <VideoPanel
-              feed="rgb_right"
-              label="RGB RIGHT"
-              availability={rgbRightAvailability as any}
-            />
-            {/* Detection overlay only if streaming */}
-            {rgbRightAvailability !== 'ERROR' && rgbRightAvailability !== 'NOT_PRESENT' && (
-              <DetectionOverlay
-                detections={detections?.detections || []}
-                containerRef={rgbRightContainerRef}
-                sourceLabel="rgb_right"
-              />
-            )}
-          </div>
-        </div>
+        <VideoPanel
+          feed="rgb_left"
+          label="RGB LEFT"
+          availability={rgbLeftAvailability as any}
+          detections={detections?.detections}
+        />
+        <VideoPanel
+          feed="rgb_right"
+          label="RGB RIGHT"
+          availability={rgbRightAvailability as any}
+          detections={detections?.detections}
+        />
       </div>
 
       {/* Summary status cards */}
@@ -112,7 +114,7 @@ export function LiveOverviewPage() {
         <StatusCard
           title="Detections (Current)"
           value={detections?.count ?? 0}
-          hint={detections?.last_run_ts ? `Last: ${new Date(detections.last_run_ts).toLocaleTimeString('it-IT')}` : undefined}
+          hint={detections?.last_run_ts ? `Last: ${new Date(detections.last_run_ts).toLocaleTimeString()}` : undefined}
         />
         <StatusCard
           title="Inference"
@@ -148,7 +150,7 @@ export function LiveOverviewPage() {
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
             {devices.length === 0 ? (
-              <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>Nessun device</p>
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>No devices</p>
             ) : (
               devices.map((device: any) => (
                 <div
@@ -164,27 +166,7 @@ export function LiveOverviewPage() {
                   }}
                 >
                   <span style={{ color: 'var(--text-primary)' }}>{device.device_name}</span>
-                  <span
-                    style={{
-                      fontSize: 10,
-                      padding: '2px 6px',
-                      borderRadius: 3,
-                      background:
-                        device.health === 'GOOD'
-                          ? 'var(--accent-ok-dim)'
-                          : device.health === 'OFFLINE'
-                            ? 'var(--accent-critical-dim)'
-                            : 'var(--accent-warn-dim)',
-                      color:
-                        device.health === 'GOOD'
-                          ? 'var(--accent-ok)'
-                          : device.health === 'OFFLINE'
-                            ? 'var(--accent-critical)'
-                            : 'var(--accent-warn)',
-                    }}
-                  >
-                    {device.health}
-                  </span>
+                  <StatusBadge tone={toneForHardwareState(device.health)} text={device.health} />
                 </div>
               ))
             )}
@@ -205,7 +187,7 @@ export function LiveOverviewPage() {
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
             {sources.length === 0 ? (
-              <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>Nessuna source</p>
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>No sources</p>
             ) : (
               sources.map((source: any) => (
                 <div

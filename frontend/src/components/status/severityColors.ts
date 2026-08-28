@@ -62,3 +62,42 @@ export function toneForAvailability(availability: Availability | string): Tone {
       return { ...TONES.neutral, label: String(availability) }
   }
 }
+
+/** RUNNING/STOPPED per sessioni — usa questa ovunque invece di ricostruire il tono a mano. */
+export function toneForRunningStatus(status: 'RUNNING' | 'STOPPED' | string): Tone {
+  switch (status) {
+    case 'RUNNING':
+      return { ...TONES.ok, label: 'RUNNING' }
+    case 'STOPPED':
+      return { ...TONES.neutral, label: 'STOPPED' }
+    default:
+      return { ...TONES.neutral, label: String(status) }
+  }
+}
+
+/**
+ * Stato hardware/componente generico (camere, manager di sistema): STREAMING
+ * e READY sono "buoni" (verde/blu), ERROR è sempre critico (rosso) — non un
+ * semplice warning, per non sottostimare visivamente un guasto reale.
+ */
+export function toneForHardwareState(state: string): Tone {
+  switch (state) {
+    case 'STREAMING':
+    case 'GOOD':
+    case 'READY':
+      return { ...TONES.ok, label: state }
+    case 'DETECTED':
+    case 'INITIALIZING':
+    case 'DEGRADED':
+      return { ...TONES.warn, label: state }
+    case 'ERROR':
+    case 'OFFLINE':
+    case 'NOT_DETECTED':
+      return { ...TONES.critical, label: state }
+    case 'NOT_PRESENT':
+    case 'UNKNOWN':
+      return { ...TONES.neutral, label: state }
+    default:
+      return { ...TONES.neutral, label: state }
+  }
+}

@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { to: '/snapshots', label: 'Snapshots', icon: '▦' },
   { to: '/system-diagnostics', label: 'System', icon: '⚙' },
   { to: '/help', label: 'Help', icon: '?' },
+  { to: '/settings', label: 'Settings', icon: '⚿' },
 ]
 
 export function Sidebar() {

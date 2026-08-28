@@ -1,5 +1,16 @@
+import type { CSSProperties } from 'react'
 import { StatusBadge } from '../status/StatusBadge'
 import { toneForSeverity, toneForEventStatus } from '../status/severityColors'
+
+const thStyle: CSSProperties = {
+  padding: 'var(--space-2) var(--space-3)',
+  textAlign: 'left',
+  fontWeight: 600,
+  color: 'var(--text-secondary)',
+  fontSize: 11,
+  letterSpacing: '0.05em',
+  textTransform: 'uppercase',
+}
 
 export interface EventTableRow {
   id: string
@@ -52,6 +63,9 @@ export function EventsTable({
       )}
 
       <div
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions"
         style={{
           overflowX: 'auto',
         }}
@@ -66,65 +80,17 @@ export function EventsTable({
         >
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-              <th
-                style={{
-                  padding: 'var(--space-2) var(--space-3)',
-                  textAlign: 'left',
-                  fontWeight: 600,
-                  color: 'var(--text-secondary)',
-                  fontSize: 11,
-                  letterSpacing: '0.05em',
-                  textTransform: 'uppercase',
-                }}
-              >
-                Timestamp
-              </th>
-              <th
-                style={{
-                  padding: 'var(--space-2) var(--space-3)',
-                  textAlign: 'left',
-                  fontWeight: 600,
-                  color: 'var(--text-secondary)',
-                  fontSize: 11,
-                  letterSpacing: '0.05em',
-                  textTransform: 'uppercase',
-                }}
-              >
-                Label
-              </th>
-              <th
-                style={{
-                  padding: 'var(--space-2) var(--space-3)',
-                  textAlign: 'left',
-                  fontWeight: 600,
-                  color: 'var(--text-secondary)',
-                  fontSize: 11,
-                  letterSpacing: '0.05em',
-                  textTransform: 'uppercase',
-                }}
-              >
-                Status
-              </th>
-              <th
-                style={{
-                  padding: 'var(--space-2) var(--space-3)',
-                  textAlign: 'left',
-                  fontWeight: 600,
-                  color: 'var(--text-secondary)',
-                  fontSize: 11,
-                  letterSpacing: '0.05em',
-                  textTransform: 'uppercase',
-                }}
-              >
-                Description
-              </th>
+              <th style={thStyle}>Timestamp</th>
+              <th style={thStyle}>Label</th>
+              <th style={thStyle}>Status</th>
+              <th style={thStyle}>Description</th>
             </tr>
           </thead>
           <tbody>
             {displayRows.length === 0 ? (
               <tr>
                 <td colSpan={4} style={{ padding: 'var(--space-4)', textAlign: 'center', color: 'var(--text-muted)' }}>
-                  Nessun evento
+                  No events
                 </td>
               </tr>
             ) : (
@@ -139,8 +105,8 @@ export function EventsTable({
                   }}
                 >
                   <td style={{ padding: 'var(--space-2) var(--space-3)', whiteSpace: 'nowrap' }}>
-                    <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>
-                      {new Date(row.timestamp).toLocaleTimeString('it-IT', {
+                    <span title={new Date(row.timestamp).toLocaleString()} style={{ color: 'var(--text-secondary)', fontSize: 11 }}>
+                      {new Date(row.timestamp).toLocaleTimeString(undefined, {
                         hour: '2-digit',
                         minute: '2-digit',
                         second: '2-digit',
@@ -176,7 +142,7 @@ export function EventsTable({
 
       {rows.length > maxRows && (
         <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)' }}>
-          {rows.length - maxRows} evento/i aggiuntivi (mostrando {maxRows} più recenti)
+          {rows.length - maxRows} more (showing {maxRows} most recent)
         </p>
       )}
     </div>

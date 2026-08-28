@@ -179,6 +179,7 @@ export interface SessionManifestCounts {
   detections: number
   samples: number
   paired_items: number
+  synchronized_samples: number
   by_feed: Record<string, number>
 }
 
@@ -277,11 +278,15 @@ export interface SourceInfo {
 
 export interface SourcesResponse {
   sources: SourceInfo[]
-  selected_source: string | null
+  /** Oggetto sorgente completo, non una stringa — verificato contro un payload reale. */
+  selected_source: SourceInfo | null
+  selected_source_id: string | null
 }
 
 export interface DeviceInfo {
-  id: string
+  device_id: string
+  device_name: string
+  device_type: string
   [key: string]: unknown
 }
 

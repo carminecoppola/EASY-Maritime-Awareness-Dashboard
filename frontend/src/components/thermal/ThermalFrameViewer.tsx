@@ -47,7 +47,7 @@ export function ThermalFrameViewer({ enableAutoPolling = true }: ThermalFrameVie
       >
         {isLoading ? (
           <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-            Acquisizione frame termico...
+            Capturing thermal frame...
           </div>
         ) : displayUrl ? (
           <img
@@ -61,10 +61,10 @@ export function ThermalFrameViewer({ enableAutoPolling = true }: ThermalFrameVie
           />
         ) : (
           <div style={{ color: 'var(--text-muted)', fontSize: 12, textAlign: 'center' }}>
-            Nessun frame termico disponibile
+            No thermal frame available
             <br />
             <span style={{ fontSize: 11, marginTop: 4, display: 'block' }}>
-              Clicca "Aggiorna Ora" per catturare il primo frame
+              Click "Capture Now" to acquire the first frame
             </span>
           </div>
         )}
@@ -99,10 +99,10 @@ export function ThermalFrameViewer({ enableAutoPolling = true }: ThermalFrameVie
           }}
         >
           {isLoading
-            ? 'Acquisizione...'
+            ? 'Capturing...'
             : cooldownSeconds > 0
-              ? `Aggiorna Ora (${cooldownSeconds}s)`
-              : 'Aggiorna Ora'}
+              ? `Capture Now (${cooldownSeconds}s)`
+              : 'Capture Now'}
         </button>
       </div>
 
@@ -117,7 +117,7 @@ export function ThermalFrameViewer({ enableAutoPolling = true }: ThermalFrameVie
             color: 'var(--accent-critical)',
           }}
         >
-          Errore: {manualCapture.error instanceof Error ? manualCapture.error.message : String(manualCapture.error as unknown)}
+          Error: {manualCapture.error instanceof Error ? manualCapture.error.message : String(manualCapture.error as unknown)}
         </div>
       ) : null}
     </div>

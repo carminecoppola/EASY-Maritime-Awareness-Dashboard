@@ -16,11 +16,11 @@ export function ThermalSnapshotAction({ onSnapshotTaken }: ThermalSnapshotAction
     setSuccess(null)
     try {
       await api.takeThermalSnapshot()
-      setSuccess('Snapshot termico acquisito')
+      setSuccess('Thermal snapshot captured')
       onSnapshotTaken?.()
       setTimeout(() => setSuccess(null), 3000)
     } catch (e) {
-      setError(`Errore durante l'acquisizione: ${e instanceof Error ? e.message : String(e)}`)
+      setError(`Capture failed: ${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setLoading(false)
     }
@@ -53,7 +53,7 @@ export function ThermalSnapshotAction({ onSnapshotTaken }: ThermalSnapshotAction
           }
         }}
       >
-        {loading ? 'Acquisizione...' : 'Scatta Snapshot Termico'}
+        {loading ? 'Capturing...' : 'Capture Thermal Snapshot'}
       </button>
 
       {error && (
