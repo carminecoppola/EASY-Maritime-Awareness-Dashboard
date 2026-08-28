@@ -38,6 +38,19 @@ button {
   font-family: inherit;
 }
 
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent-interactive);
+  box-shadow: 0 0 0 2px var(--accent-interactive-dim), 0 0 0 4px var(--accent-interactive);
+}
+
+button:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--bg-0), 0 0 0 4px var(--accent-interactive);
+}
+
 :focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
