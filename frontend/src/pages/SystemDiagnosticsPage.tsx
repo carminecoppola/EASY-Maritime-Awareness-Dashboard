@@ -3,12 +3,40 @@ import { useSystemStatus } from '../hooks/useSystemStatus'
 import { useSharedDashboardState } from '../hooks/DashboardStateContext'
 import { api } from '../api/client'
 import { usePolling } from '../hooks/usePolling'
-import { StatusCard } from '../components/status/StatusCard'
 import { StatusBadge } from '../components/status/StatusBadge'
 import { toneForHardwareState } from '../components/status/severityColors'
 import { Sparkline, type SparklineData } from '../components/charts/Sparkline'
 import { CpuRamGauge } from '../components/charts/CpuRamGauge'
+import { Collapsible } from '../components/common/Collapsible'
 import type { CameraInventory } from '../api/types'
+
+const SECTION_TITLE_STYLE = {
+  fontSize: 14,
+  color: 'var(--text-secondary)',
+  textTransform: 'uppercase' as const,
+  letterSpacing: '0.05em',
+  marginBottom: 'var(--space-1)',
+}
+
+const PANEL_STYLE = {
+  background: 'var(--bg-2)',
+  border: '1px solid var(--border-subtle)',
+  borderRadius: 'var(--radius-md)',
+  padding: 'var(--space-4)',
+}
+
+function IdentityField({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+      <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        {label}
+      </span>
+      <span className="mono" style={{ fontSize: 13, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={value}>
+        {value}
+      </span>
+    </div>
+  )
+}
 
 interface HistoryItem {
   timestamp: number
@@ -71,96 +99,95 @@ export function SystemDiagnosticsPage() {
   const historyData = history as SparklineData[]
   const cameras = camerasData.data as CameraInventory | null
 
+  const diskUsedPercent = diag.disk.percent
+  const diskTone = diskUsedPercent >= 90 ? 'var(--accent-critical)' : diskUsedPercent >= 75 ? 'var(--accent-warn)' : 'var(--accent-ok)'
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
       <h1 style={{ fontSize: 18 }}>System Diagnostics</h1>
 
-      {/* System Info */}
-      <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <h2 style={{ fontSize: 14, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 'var(--space-1)' }}>
-          System Information
-        </h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--space-4)' }}>
-          <StatusCard title="Hostname" value={diag.hostname} />
-          <StatusCard title="IP Address" value={diag.ip_address} />
-          <StatusCard title="Model" value={diag.model} />
-          <StatusCard title="OS Release" value={diag.os_release} />
-          <StatusCard title="Python Version" value={diag.python_version} />
-          <StatusCard title="Uptime" value={formatUptime(diag.uptime_seconds)} hint={diag.uptime_human} />
+      {/* PRIMARY: compact identity strip — one glance, not six equal-weight cards */}
+      <section style={PANEL_STYLE}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-4)' }}>
+          <IdentityField label="Hostname" value={diag.hostname} />
+          <IdentityField label="IP Address" value={diag.ip_address} />
+          <IdentityField label="Model" value={diag.model} />
+          <IdentityField label="OS" value={diag.os_release} />
+          <IdentityField label="Python" value={diag.python_version} />
+          <IdentityField label="Uptime" value={formatUptime(diag.uptime_seconds)} />
         </div>
       </section>
 
-      {/* CPU & RAM Gauges */}
+      {/* PRIMARY: CPU and Memory each fully self-contained — gauge, key
+          numbers, and trend live together instead of being scattered
+          across three separate sections a scroll apart. */}
       <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <h2 style={{ fontSize: 14, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 'var(--space-1)' }}>
-          Resource Usage
-        </h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 'var(--space-4)' }}>
-          <div style={{ background: 'var(--bg-2)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-4)' }}>
-            <CpuRamGauge value={diag.cpu_percent} label="CPU" color="var(--accent-info)" />
-            {diag.cpu_temperature_c !== null && (
-              <div style={{ marginTop: 'var(--space-3)', textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>
-                Temp: <span style={{ color: 'var(--text-primary)' }} className="mono">{diag.cpu_temperature_c.toFixed(1)}°C</span>
+        <h2 style={SECTION_TITLE_STYLE}>Resource Usage</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 'var(--space-4)' }}>
+          <div style={PANEL_STYLE}>
+            <div style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'center' }}>
+              <div style={{ flexShrink: 0, width: 120 }}>
+                <CpuRamGauge value={diag.cpu_percent} label="CPU" color="var(--accent-info)" height={110} />
               </div>
-            )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {diag.cpu_temperature_c !== null && (
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 'var(--space-2)' }}>
+                    Temp: <span style={{ color: 'var(--text-primary)' }} className="mono">{diag.cpu_temperature_c.toFixed(1)}°C</span>
+                  </div>
+                )}
+                {historyData.length > 1 && (
+                  <Sparkline data={historyData} dataKey="cpu_percent" label="%" color="var(--accent-info)" yMax={100} height={90} showGrid={false} />
+                )}
+              </div>
+            </div>
           </div>
-          <div style={{ background: 'var(--bg-2)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-4)' }}>
-            {/* diag.ram.percent (accounting for cache/buffers) can differ
-                substantially from a naive used_mb/total_mb ratio — using
-                used/total here showed 41% while the sparkline below (which
-                already used ram.percent) showed 87% for the same instant. */}
-            <CpuRamGauge value={diag.ram.percent} max={100} label="Memory" color="var(--accent-warn)" />
+          <div style={PANEL_STYLE}>
+            <div style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'center' }}>
+              <div style={{ flexShrink: 0, width: 120 }}>
+                {/* diag.ram.percent (accounting for cache/buffers) can differ
+                    substantially from a naive used_mb/total_mb ratio — using
+                    used/total here showed 41% while ram.percent showed 87%
+                    for the same instant, so both gauge and history use
+                    ram.percent consistently. */}
+                <CpuRamGauge value={diag.ram.percent} max={100} label="Memory" color="var(--accent-warn)" height={110} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 'var(--space-2)' }}>
+                  <span style={{ color: 'var(--text-primary)' }} className="mono">{formatBytes(diag.ram.used_mb)}</span> used of{' '}
+                  <span style={{ color: 'var(--text-primary)' }} className="mono">{formatBytes(diag.ram.total_mb)}</span>
+                </div>
+                {historyData.length > 1 && (
+                  <Sparkline data={historyData} dataKey="ram_percent" label="%" color="var(--accent-warn)" yMax={100} height={90} showGrid={false} />
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* RAM Details */}
+      {/* PRIMARY: Disk — one compact bar instead of three equal-weight cards */}
       <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <h2 style={{ fontSize: 14, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 'var(--space-1)' }}>
-          Memory Details
-        </h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--space-4)' }}>
-          <StatusCard title="Total" value={formatBytes(diag.ram.total_mb)} />
-          <StatusCard title="Used" value={formatBytes(diag.ram.used_mb)} />
-          <StatusCard title="Available" value={formatBytes(diag.ram.available_mb)} />
+        <h2 style={SECTION_TITLE_STYLE}>Disk Storage</h2>
+        <div style={PANEL_STYLE}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 'var(--space-2)', fontSize: 13 }}>
+            <span className="mono" style={{ color: 'var(--text-primary)' }}>
+              {diag.disk.used_gb.toFixed(1)} GB used of {diag.disk.total_gb.toFixed(1)} GB
+            </span>
+            <span className="mono" style={{ color: 'var(--text-muted)' }}>{diag.disk.free_gb.toFixed(1)} GB free</span>
+          </div>
+          <div style={{ height: 8, borderRadius: 4, background: 'var(--bg-3)', overflow: 'hidden' }}>
+            <div
+              style={{
+                height: '100%',
+                width: `${Math.min(100, diskUsedPercent)}%`,
+                background: diskTone,
+                borderRadius: 4,
+                transition: 'width 300ms ease-out',
+              }}
+            />
+          </div>
         </div>
       </section>
-
-      {/* Disk */}
-      <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <h2 style={{ fontSize: 14, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 'var(--space-1)' }}>
-          Disk Storage
-        </h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--space-4)' }}>
-          <StatusCard title="Total" value={`${diag.disk.total_gb.toFixed(1)} GB`} />
-          <StatusCard title="Used" value={`${diag.disk.used_gb.toFixed(1)} GB`} hint={`${diag.disk.percent.toFixed(0)}% full`} />
-          <StatusCard title="Free" value={`${diag.disk.free_gb.toFixed(1)} GB`} />
-        </div>
-      </section>
-
-      {/* CPU History */}
-      {historyData.length > 1 && (
-        <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-          <h2 style={{ fontSize: 14, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 'var(--space-1)' }}>
-            CPU Usage History (10 minutes)
-          </h2>
-          <div style={{ background: 'var(--bg-2)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-4)' }}>
-            <Sparkline data={historyData} dataKey="cpu_percent" label="%" color="var(--accent-info)" yMax={100} height={250} />
-          </div>
-        </section>
-      )}
-
-      {/* RAM History */}
-      {historyData.length > 1 && (
-        <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-          <h2 style={{ fontSize: 14, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 'var(--space-1)' }}>
-            Memory Usage History (10 minutes)
-          </h2>
-          <div style={{ background: 'var(--bg-2)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-4)' }}>
-            <Sparkline data={historyData} dataKey="ram_percent" label="%" color="var(--accent-warn)" yMax={100} height={250} />
-          </div>
-        </section>
-      )}
 
       {/* Camera Inventory */}
       {cameras && (
@@ -258,13 +285,11 @@ export function SystemDiagnosticsPage() {
         </section>
       )}
 
-      {/* Health & System Components */}
+      {/* SECONDARY (collapsed by default): per-manager technical detail —
+          useful when actually debugging, noise the rest of the time. */}
       {dashboardState && dashboardState.health && (
-        <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-          <h2 style={{ fontSize: 14, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 'var(--space-1)' }}>
-            System Components Status
-          </h2>
-          <div style={{ background: 'var(--bg-2)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-4)' }}>
+        <Collapsible title="System Components (technical detail)" defaultOpen={false}>
+          <div style={PANEL_STYLE}>
             {dashboardState.health.system_components?.components?.length ? (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
@@ -349,7 +374,7 @@ export function SystemDiagnosticsPage() {
               <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>No system components data available</p>
             )}
           </div>
-        </section>
+        </Collapsible>
       )}
     </div>
   )
