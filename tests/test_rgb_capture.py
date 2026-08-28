@@ -84,6 +84,50 @@ class RgbCaptureTests(unittest.TestCase):
         self.assertGreater(left.getpixel((1, 1))[0], left.getpixel((1, 1))[2])
         self.assertGreater(right.getpixel((1, 1))[2], right.getpixel((1, 1))[0])
 
+    def test_stream_response_crops_left_and_right_independently(self) -> None:
+        # Regression: stream_response una volta serviva il frame stereo intero
+        # non tagliato su entrambi i lati (a differenza di capture_snapshot,
+        # che già applicava _crop_snapshot), mostrando la stessa immagine
+        # duplicata sia su RGB LEFT che su RGB RIGHT nella dashboard live.
+        source = RgbMasterSource(
+            {
+                "rgb": {
+                    "camera_index": 0,
+                    "width": 1280,
+                    "height": 480,
+                    "fps": 10,
+                    "quality": 90,
+                    "crop_ratio": 0.5,
+                }
+            },
+            events=None,  # type: ignore[arg-type]
+            probe=None,  # type: ignore[arg-type]
+        )
+        stereo = Image.new("RGB", (8, 4), "red")
+        stereo.paste(Image.new("RGB", (4, 4), "blue"), (4, 0))
+        encoded = io.BytesIO()
+        stereo.save(encoded, format="JPEG", quality=100, subsampling=0)
+        stereo_bytes = encoded.getvalue()
+
+        source.wait_for_frame = lambda last_seq=0, timeout=5.0: (stereo_bytes, last_seq + 1)  # type: ignore[method-assign]
+
+        def first_frame_body(side: str) -> bytes:
+            response = source.stream_response(f"rgb_{side}", side)
+            generator = response.response
+            chunk = next(iter(generator))
+            # multipart_frame wraps the JPEG bytes between the MIME boundary
+            # headers and a trailing CRLF; strip them to get the raw image.
+            body_start = chunk.index(b"\r\n\r\n") + 4
+            return chunk[body_start:-2]
+
+        left = Image.open(io.BytesIO(first_frame_body("left"))).convert("RGB")
+        right = Image.open(io.BytesIO(first_frame_body("right"))).convert("RGB")
+
+        self.assertEqual(left.size, (4, 4))
+        self.assertEqual(right.size, (4, 4))
+        self.assertGreater(left.getpixel((1, 1))[0], left.getpixel((1, 1))[2])
+        self.assertGreater(right.getpixel((1, 1))[2], right.getpixel((1, 1))[0])
+
     def test_focus_score_reports_higher_sharpness_for_a_noisy_frame(self) -> None:
         source = RgbMasterSource(
             {"rgb": {"camera_index": 0, "width": 1280, "height": 480, "fps": 10, "quality": 90}},
