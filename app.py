@@ -6,7 +6,7 @@ import logging
 import os
 import threading
 import time
-from typing import Any, Dict
+from typing import Any
 
 from flask import Flask, jsonify, request
 
@@ -230,12 +230,14 @@ def create_app(
     # Lightweight shared-secret check for state-changing requests: unset by
     # default (LAN-only trust model unchanged), opt-in via config.yaml's
     # security.shared_token or the EASY_DASHBOARD_TOKEN env var for a demo on
-    # a network with untrusted peers. Not a full auth system: the token is
-    # rendered into the page itself (see inject_asset_version below), so it
-    # only stops requests that never loaded the real dashboard page/origin.
+    # a network with untrusted peers. Not a full auth system: the operator
+    # pastes the token once into the SPA's Settings panel (stored in
+    # localStorage), so it only stops requests that never went through that
+    # step.
     shared_token = os.environ.get("EASY_DASHBOARD_TOKEN") or str(
         (load_config().get("security") or {}).get("shared_token") or ""
     )
+    app.config["EASY_AUTH_REQUIRED"] = bool(shared_token)
 
     @app.before_request
     def _require_shared_token() -> Any:
@@ -262,14 +264,6 @@ def create_app(
             run_startup_checks=run_startup_checks,
             start_runtime_services=start_runtime_services,
         )
-
-    @app.context_processor
-    def inject_asset_version() -> Dict[str, str]:
-        return {
-            "asset_version": runtime.asset_version(),
-            "current_year": str(time.gmtime().tm_year),
-            "dashboard_token": shared_token,
-        }
 
     @app.teardown_appcontext
     def _shutdown(_exc: BaseException | None) -> None:

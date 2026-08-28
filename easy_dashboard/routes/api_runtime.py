@@ -45,7 +45,11 @@ def cameras():
 
 @api_runtime_bp.route("/events")
 def events_endpoint():
-    limit = int(request.args.get("limit", 50))
+    try:
+        limit = int(request.args.get("limit", 50))
+        limit = max(1, min(limit, 200))  # Clamp between 1 and 200
+    except (TypeError, ValueError):
+        limit = 50
     return jsonify(get_runtime().events_payload(limit))
 
 
