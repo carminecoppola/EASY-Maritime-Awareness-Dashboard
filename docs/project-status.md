@@ -90,3 +90,29 @@ appartenenza a gruppi supplementari applicata a runtime). Ripristinato
 immediatamente e verificato che RGB torni STREAMING. Non ritentare senza un
 ciclo di test isolato (bisect delle singole direttive) fuori da un momento
 di utilizzo attivo dell'hardware — non è più stato ritentato in questa sessione.
+
+## Bisection hardening systemd (2026-08-28, seguito)
+
+Bisect completo delle 10 direttive del tentativo precedente, testate una alla
+volta contro il servizio live reale (systemd restart + verifica STREAMING
+della camera RGB dopo ogni singola direttiva):
+
+PASS (sicure singolarmente): `NoNewPrivileges`, `ProtectKernelTunables`,
+`ProtectKernelModules`, `ProtectKernelLogs`, `ProtectControlGroups`,
+`RestrictSUIDSGID`, `RestrictRealtime`, `ProtectHostname`, `LockPersonality`.
+
+FAIL: `ProtectClock=true` — rompe l'acquisizione camera RGB da sola
+("Operation not permitted" su `/dev/media*`, stesso sintomo del tentativo
+combinato). Causa probabile: `ProtectClock` nega l'accesso a
+`CAP_SYS_TIME`/`CAP_WAKE_ALARM` e ad alcune interfacce clock del kernel;
+libcamera/il pipeline handler RPi potrebbe richiedere accesso a interfacce
+correlate all'orologio di sistema per la sincronizzazione dei frame o la
+gestione dei device V4L2/media, sebbene la causa esatta non sia stata
+isolata a livello di syscall.
+
+Le altre 9 direttive sono state confermate sicure singolarmente. Non sono
+state testate in combinazione tra loro in questa sessione: se si vuole
+applicare l'hardening in futuro, applicarle insieme (escludendo
+`ProtectClock`) e verificare comunque l'accesso camera con un ciclo di
+restart dedicato, dato che un'interazione tra più direttive non è esclusa
+a priori.
