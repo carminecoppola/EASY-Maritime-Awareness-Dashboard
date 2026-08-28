@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { formatRelativeTime } from '../../utils/formatTime'
 import { useThermalLastFrame, useThermalManualCapture } from '../../hooks/useThermal'
 
 interface ThermalFrameViewerProps {
@@ -9,6 +10,14 @@ export function ThermalFrameViewer({ enableAutoPolling = true }: ThermalFrameVie
   const lastFrame = useThermalLastFrame(2500, enableAutoPolling)
   const manualCapture = useThermalManualCapture()
   const [cooldownSeconds, setCooldownSeconds] = useState(0)
+  const [lastUpdatedTime, setLastUpdatedTime] = useState<Date>(new Date())
+
+  // Track last updated time when frame is fetched
+  useEffect(() => {
+    if (lastFrame.url) {
+      setLastUpdatedTime(new Date())
+    }
+  }, [lastFrame.url])
 
   // Gestisci cooldown dopo manual capture
   useEffect(() => {
@@ -50,15 +59,20 @@ export function ThermalFrameViewer({ enableAutoPolling = true }: ThermalFrameVie
             Capturing thermal frame...
           </div>
         ) : displayUrl ? (
-          <img
-            src={displayUrl}
-            alt="Thermal frame"
-            style={{
-              maxWidth: '100%',
-              maxHeight: '400px',
-              objectFit: 'contain',
-            }}
-          />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-2)', width: '100%' }}>
+            <img
+              src={displayUrl}
+              alt="Thermal frame"
+              style={{
+                maxWidth: '100%',
+                maxHeight: '400px',
+                objectFit: 'contain',
+              }}
+            />
+            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+              Updated {formatRelativeTime(lastUpdatedTime)}
+            </div>
+          </div>
         ) : (
           <div style={{ color: 'var(--text-muted)', fontSize: 12, textAlign: 'center' }}>
             No thermal frame available
