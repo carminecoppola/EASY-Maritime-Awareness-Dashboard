@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Detection } from '../../api/types'
+import { computeCoverTransform, toDisplayPoint } from './coverTransform'
 
 interface DetectionOverlayProps {
   detections: Detection[]
@@ -42,22 +43,9 @@ export function DetectionOverlay({ detections, containerRef, nativeWidth, native
   }, [container])
 
   // The <img> underneath is rendered with object-fit: cover (see
-  // VideoPanel), which scales the native frame UNIFORMLY to fill the
-  // container and crops the overflow — it does not stretch width/height
-  // independently. The previous version used independent scaleX/scaleY as
-  // if object-fit were "fill", which misaligns boxes whenever the
-  // container's aspect ratio differs from the native frame's (the common
-  // case: a 4:3 container over a 1280x480 stereo frame). Replicate the
-  // same "cover" transform here: one uniform scale plus a centering offset
-  // for whichever axis gets cropped.
-  const coverScale =
-    displaySize.width > 0 && displaySize.height > 0
-      ? Math.max(displaySize.width / nativeWidth, displaySize.height / nativeHeight)
-      : 0
-  const renderedWidth = nativeWidth * coverScale
-  const renderedHeight = nativeHeight * coverScale
-  const offsetX = (displaySize.width - renderedWidth) / 2
-  const offsetY = (displaySize.height - renderedHeight) / 2
+  // VideoPanel) — see coverTransform.ts for why this can't use independent
+  // scaleX/scaleY.
+  const transform = computeCoverTransform(displaySize, { width: nativeWidth, height: nativeHeight })
 
   return (
     <svg
@@ -77,10 +65,8 @@ export function DetectionOverlay({ detections, containerRef, nativeWidth, native
       {detections.map((detection, idx) => {
         // Convert bbox from native to display coordinates via the same
         // uniform-scale-plus-offset transform as object-fit: cover.
-        const x1 = offsetX + detection.bbox.x1 * coverScale
-        const y1 = offsetY + detection.bbox.y1 * coverScale
-        const x2 = offsetX + detection.bbox.x2 * coverScale
-        const y2 = offsetY + detection.bbox.y2 * coverScale
+        const { x: x1, y: y1 } = toDisplayPoint(transform, detection.bbox.x1, detection.bbox.y1)
+        const { x: x2, y: y2 } = toDisplayPoint(transform, detection.bbox.x2, detection.bbox.y2)
         const width = x2 - x1
         const height = y2 - y1
 
