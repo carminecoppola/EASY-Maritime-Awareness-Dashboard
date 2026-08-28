@@ -417,8 +417,18 @@ export function SystemDiagnosticsPage() {
                               <span>
                                 {c.label}
                                 {c.critical && (
-                                  <span className="mono" style={{ marginLeft: 6, fontSize: 9, color: 'var(--text-muted)' }}>
-                                    CRITICAL
+                                  // c.critical classifies this component as
+                                  // core to system health (its failure counts
+                                  // as a system-wide error) — it is not a
+                                  // live alert, so the label reads "CORE" and
+                                  // not "CRITICAL" to avoid looking like a
+                                  // problem on an otherwise healthy row.
+                                  <span
+                                    className="mono"
+                                    style={{ marginLeft: 6, fontSize: 9, color: 'var(--text-muted)' }}
+                                    title="Core component: its failure is treated as a system-wide error, not just its own row"
+                                  >
+                                    CORE
                                   </span>
                                 )}
                               </span>
