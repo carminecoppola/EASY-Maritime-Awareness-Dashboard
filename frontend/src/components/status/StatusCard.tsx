@@ -30,7 +30,7 @@ export function StatusCard({ title, value, tone, toneText, hint }: StatusCardPro
         </span>
         {tone && <StatusBadge tone={tone} text={toneText} />}
       </div>
-      <div className="mono" style={{ fontSize: 22, fontWeight: 600, color: 'var(--text-primary)' }}>
+      <div className="mono" style={{ fontSize: 22, fontWeight: 600, color: 'var(--text-primary)', wordBreak: 'break-word', overflowWrap: 'break-word', whiteSpace: 'normal' }}>
         {value}
       </div>
       {hint && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{hint}</div>}
