@@ -75,6 +75,66 @@ function IdentityField({
   )
 }
 
+function CameraCard({
+  primaryName,
+  secondaryName,
+  state,
+  meta,
+  error,
+  message,
+}: {
+  primaryName: string
+  secondaryName: string
+  state: string
+  meta: [string, string][]
+  error: string | null
+  message: string | null
+}) {
+  const tone = toneForHardwareState(state)
+  const isOffline = ['ERROR', 'OFFLINE', 'NOT_PRESENT'].includes(state)
+  return (
+    <div
+      style={{
+        background: isOffline ? tone.dim : 'var(--bg-2)',
+        border: isOffline ? `1px solid ${tone.color}` : '1px solid var(--border-subtle)',
+        borderRadius: 'var(--radius-md)',
+        padding: 'var(--space-3)',
+        transition: 'all 150ms ease-out',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--space-2)',
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 'var(--space-2)' }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: isOffline ? tone.color : 'var(--text-primary)' }}>
+            {primaryName}
+          </div>
+          <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+            {secondaryName}
+          </div>
+        </div>
+        <StatusBadge tone={tone} text={state} />
+      </div>
+      <div style={{ display: 'flex', gap: 'var(--space-4)', fontSize: 12, color: 'var(--text-muted)' }}>
+        {meta.map(([label, value]) => (
+          <div key={label}>
+            {label}: <span style={{ color: 'var(--text-primary)' }} className="mono">{value}</span>
+          </div>
+        ))}
+      </div>
+      {error && (
+        <div style={{ padding: 'var(--space-2)', background: 'var(--accent-critical-dim)', borderRadius: 'var(--radius-sm)', fontSize: 11, color: 'var(--accent-critical)' }}>
+          Error: {error}
+        </div>
+      )}
+      {message && !error && (
+        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{message}</div>
+      )}
+    </div>
+  )
+}
+
 interface HistoryItem {
   timestamp: number
   cpu_percent: number
@@ -232,99 +292,48 @@ export function SystemDiagnosticsPage() {
         </div>
       </section>
 
-      {/* Camera Inventory */}
+      {/* Camera Inventory — RGB and thermal in one consistent grid instead
+          of two differently-laid-out sub-sections; hardware_name (the
+          human-readable "Arducam UC-517 LEFT") leads, the internal
+          logical_name ("RGB_CAM_LEFT") is now the small secondary tag
+          instead of the other way around. */}
       {cameras && (
         <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-          <h2 style={{ fontSize: 14, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 'var(--space-1)' }}>
-            Camera Inventory
-          </h2>
-
-          {/* RGB Cameras */}
-          <div>
-            <h3 style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 'var(--space-2)' }}>RGB Cameras</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-              {cameras.rgb_cameras.map((cam) => {
-                const camTone = toneForHardwareState(cam.state)
-                const isOffline = ['ERROR', 'OFFLINE'].includes(cam.state)
-                return (
-                  <div
-                    key={cam.logical_name}
-                    style={{
-                      background: isOffline ? camTone.dim : 'var(--bg-2)',
-                      border: isOffline ? `1px solid ${camTone.color}` : '1px solid var(--border-subtle)',
-                      borderRadius: 'var(--radius-md)',
-                      padding: 'var(--space-3)',
-                      transition: 'all 150ms ease-out',
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 'var(--space-2)' }}>
-                      <div>
-                        <div className="mono" style={{ fontSize: 13, fontWeight: 600, color: isOffline ? camTone.color : 'var(--text-primary)' }}>
-                          {cam.logical_name}
-                        </div>
-                        <div style={{ fontSize: 12, color: isOffline ? camTone.color : 'var(--text-secondary)', marginTop: 'var(--space-1)' }}>
-                          {cam.hardware_name}
-                        </div>
-                      </div>
-                      <StatusBadge tone={camTone} text={cam.state} />
-                    </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-2)', fontSize: 12, color: 'var(--text-muted)' }}>
-                    <div>FPS: <span style={{ color: 'var(--text-primary)' }} className="mono">{cam.fps?.toFixed(1) ?? '—'}</span></div>
-                    <div>Enabled: <span style={{ color: 'var(--text-primary)' }} className="mono">{cam.enabled ? 'Yes' : 'No'}</span></div>
-                  </div>
-                  {cam.error && (
-                    <div style={{ marginTop: 'var(--space-2)', padding: 'var(--space-2)', background: 'var(--accent-critical-dim)', borderRadius: 'var(--radius-sm)', fontSize: 11, color: 'var(--accent-critical)' }}>
-                      Error: {cam.error}
-                    </div>
-                  )}
-                  {cam.message && !cam.error && (
-                    <div style={{ marginTop: 'var(--space-2)', fontSize: 11, color: 'var(--text-muted)' }}>
-                      {cam.message}
-                    </div>
-                  )}
-                </div>
-                )
-              })}
-            </div>
+          <h2 style={SECTION_TITLE_STYLE}>Camera Inventory</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 'var(--space-3)' }}>
+            {cameras.rgb_cameras.map((cam) => (
+              <CameraCard
+                key={cam.logical_name}
+                primaryName={cam.hardware_name}
+                secondaryName={cam.logical_name}
+                state={cam.state}
+                meta={[
+                  ['FPS', cam.fps?.toFixed(1) ?? '—'],
+                  ['Enabled', cam.enabled ? 'Yes' : 'No'],
+                ]}
+                error={cam.error}
+                message={cam.message}
+              />
+            ))}
+            {cameras.thermal_camera && (() => {
+              const thermal = cameras.thermal_camera as any
+              const status = thermal?.status ?? {}
+              const runtimeState = thermal?.runtime_state ?? {}
+              return (
+                <CameraCard
+                  primaryName={thermal?.hardware_name ?? 'Thermal Sensor'}
+                  secondaryName={thermal?.logical_name ?? 'THERMAL_FLIR'}
+                  state={thermal?.state ?? 'NOT_PRESENT'}
+                  meta={[
+                    ['Device', status.device ?? '—'],
+                    ['Capture', runtimeState.capture_mode === 'on_demand' ? 'On demand' : (runtimeState.capture_mode ?? '—')],
+                  ]}
+                  error={null}
+                  message={null}
+                />
+              )
+            })()}
           </div>
-
-          {/* Thermal Camera */}
-          {cameras.thermal_camera && (
-            <div>
-              <h3 style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 'var(--space-2)' }}>Thermal Camera</h3>
-              {(() => {
-                const thermalState = (cameras.thermal_camera as any)?.state ?? 'NOT_PRESENT'
-                const thermalTone = toneForHardwareState(thermalState)
-                const isOffline = ['ERROR', 'OFFLINE', 'NOT_PRESENT'].includes(thermalState)
-                return (
-                  <div
-                    style={{
-                      background: isOffline ? thermalTone.dim : 'var(--bg-2)',
-                      border: isOffline ? `1px solid ${thermalTone.color}` : '1px solid var(--border-subtle)',
-                      borderRadius: 'var(--radius-md)',
-                      padding: 'var(--space-3)',
-                      transition: 'all 150ms ease-out',
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                      <div>
-                        <div className="mono" style={{ fontSize: 13, fontWeight: 600, color: isOffline ? thermalTone.color : 'var(--text-primary)' }}>
-                          {(cameras.thermal_camera as any)?.logical_name ?? 'Thermal Sensor'}
-                        </div>
-                        <div style={{ fontSize: 12, color: isOffline ? thermalTone.color : 'var(--text-secondary)', marginTop: 'var(--space-1)' }}>
-                          {(cameras.thermal_camera as any)?.hardware_name ?? 'Unknown'}
-                        </div>
-                      </div>
-                      <StatusBadge
-                        tone={thermalTone}
-                        text={thermalState}
-                      />
-                    </div>
-                  </div>
-                )
-              })()}
-            </div>
-          )}
         </section>
       )}
 
