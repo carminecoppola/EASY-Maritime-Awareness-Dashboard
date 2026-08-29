@@ -81,8 +81,10 @@ export function MissionPage(): ReactNode {
         <h1 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 var(--space-1) 0', color: 'var(--text-primary)' }}>
           Mission
         </h1>
-        <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 13 }}>
-          Start and manage capture sessions
+        <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 13, maxWidth: 640, lineHeight: 1.5 }}>
+          A Mission is a recording session: while it's running, everything you capture — photos, AI detections — is
+          saved together and organized so you can review or export it afterward. Start one before capturing anything
+          you want to keep.
         </p>
       </div>
 
