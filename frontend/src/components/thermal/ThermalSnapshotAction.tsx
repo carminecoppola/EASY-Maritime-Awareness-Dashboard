@@ -36,12 +36,16 @@ export function ThermalSnapshotAction({ onSnapshotTaken }: ThermalSnapshotAction
         onClick={handleTakeSnapshot}
         disabled={loading}
         style={{
-          padding: '10px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+          padding: '11px 16px',
           borderRadius: 'var(--radius-md)',
           background: 'transparent',
           color: loading ? 'var(--text-muted)' : 'var(--accent-interactive)',
           border: `1px solid ${loading ? 'var(--border-subtle)' : 'var(--accent-interactive)'}`,
-          fontSize: 12,
+          fontSize: 13,
           fontWeight: 600,
           cursor: loading ? 'not-allowed' : 'pointer',
           transition: 'all 150ms ease-out',
@@ -57,6 +61,7 @@ export function ThermalSnapshotAction({ onSnapshotTaken }: ThermalSnapshotAction
           }
         }}
       >
+        <span aria-hidden>⬇</span>
         {loading ? 'Saving...' : 'Save Snapshot to Archive'}
       </button>
       <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>

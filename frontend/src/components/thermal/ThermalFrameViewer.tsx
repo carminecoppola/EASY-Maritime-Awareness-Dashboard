@@ -92,29 +92,39 @@ export function ThermalFrameViewer({ enableAutoPolling = true }: ThermalFrameVie
             </div>
           </div>
         ) : (
-          <div style={{ color: 'var(--text-muted)', fontSize: 12, textAlign: 'center' }}>
-            No thermal frame available
-            <br />
-            <span style={{ fontSize: 11, marginTop: 4, display: 'block' }}>
-              Click "Capture Now" to acquire the first frame
-            </span>
+          <div style={{ color: 'var(--text-muted)', fontSize: 12, textAlign: 'center', maxWidth: 340 }}>
+            <div style={{ fontSize: 28, marginBottom: 'var(--space-2)', opacity: 0.5 }} aria-hidden>
+              △
+            </div>
+            <div style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>No thermal frame yet</div>
+            <div style={{ fontSize: 11, marginTop: 4 }}>
+              This sensor captures on demand, by design — it has no continuous live feed. Click "Capture Now" below
+              to take a reading. The RGB cameras keep streaming normally regardless.
+            </div>
           </div>
         )}
       </div>
 
-      {/* Bottone Aggiorna Ora */}
+      {/* I due pulsanti erano identici (stesso blu pieno, full-width, uno
+          sopra l'altro) pur facendo cose diverse — ora hanno icone e pesi
+          visivi diversi (pieno vs contorno) oltre alla didascalia, invece di
+          essere distinguibili solo dal testo del bottone stesso. */}
       <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
         <button
           onClick={() => manualCapture.capture()}
           disabled={isLoading || cooldownSeconds > 0}
           style={{
             flex: 1,
-            padding: '10px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            padding: '11px 16px',
             borderRadius: 'var(--radius-md)',
             background: isLoading || cooldownSeconds > 0 ? 'var(--accent-warn)' : 'var(--accent-interactive)',
             color: 'var(--bg-0)',
             border: 'none',
-            fontSize: 12,
+            fontSize: 13,
             fontWeight: 600,
             cursor: isLoading || cooldownSeconds > 0 ? 'not-allowed' : 'pointer',
             transition: 'background 150ms ease-out',
@@ -130,6 +140,7 @@ export function ThermalFrameViewer({ enableAutoPolling = true }: ThermalFrameVie
             }
           }}
         >
+          <span aria-hidden>⏺</span>
           {isLoading
             ? 'Capturing...'
             : cooldownSeconds > 0
@@ -137,12 +148,8 @@ export function ThermalFrameViewer({ enableAutoPolling = true }: ThermalFrameVie
               : 'Capture Now'}
         </button>
       </div>
-      {/* Distinguishes this from the "Capture Thermal Snapshot" action
-          below, which looked identical (same full-width blue button) but
-          does something different — this one only previews a frame for a
-          few seconds, it does not save anything. */}
       <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginTop: -8 }}>
-        Previews a live frame for a few seconds — doesn't save it
+        Previews a live reading for a few seconds — doesn't save it
       </div>
 
       {manualCapture.error ? (
