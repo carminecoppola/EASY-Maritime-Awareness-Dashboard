@@ -54,22 +54,28 @@ export function ThermalStatusPanel({ status, loading, error }: ThermalStatusPane
   const rt = status.runtime_state
   const tone = toneForAvailability(rt.availability)
 
+  // A plain "READY" / "Active" / "/dev/video0" grid reads as raw debug
+  // output to anyone who isn't the developer who wrote it — each card gets
+  // a one-line hint explaining what the value actually means for someone
+  // operating the sensor, not just its current state.
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--space-3)' }}>
       <StatusCard
         title="Availability"
         value={rt.availability}
         tone={tone}
+        hint="Whether the sensor is connected and ready to capture"
       />
       <StatusCard
         title="Current Activity"
         value={rt.detected ? 'Active' : 'Idle'}
         tone={rt.detected ? { color: 'var(--accent-info)', dim: 'var(--accent-info-dim)', label: 'ACTIVE' } : { color: 'var(--text-muted)', dim: 'var(--bg-3)', label: '—' }}
+        hint="Whether the last capture found a heat signal above threshold"
       />
       <StatusCard
         title="Device"
         value={(status.device as string) || 'N/A'}
-        hint={`Discovery: ${(status.discovery_method as string) || 'unknown'}`}
+        hint={`Hardware path (usually not needed) · found via ${(status.discovery_method as string) || 'unknown'}`}
       />
       {status.error ? (
         <StatusCard
