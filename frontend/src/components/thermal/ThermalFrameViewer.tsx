@@ -1,12 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { formatRelativeTime } from '../../utils/formatTime'
 import { useThermalLastFrame, useThermalManualCapture } from '../../hooks/useThermal'
 
 interface ThermalFrameViewerProps {
   enableAutoPolling?: boolean
+  /** Rendered in the same row as the Capture Now button, so both actions
+   * sit side by side instead of stacked full-width — e.g. <ThermalSnapshotAction />. */
+  children?: ReactNode
 }
 
-export function ThermalFrameViewer({ enableAutoPolling = true }: ThermalFrameViewerProps) {
+export function ThermalFrameViewer({ enableAutoPolling = true, children }: ThermalFrameViewerProps) {
   const lastFrame = useThermalLastFrame(2500, enableAutoPolling)
   const manualCapture = useThermalManualCapture()
   const [cooldownSeconds, setCooldownSeconds] = useState(0)
@@ -105,26 +108,25 @@ export function ThermalFrameViewer({ enableAutoPolling = true }: ThermalFrameVie
         )}
       </div>
 
-      {/* I due pulsanti erano identici (stesso blu pieno, full-width, uno
-          sopra l'altro) pur facendo cose diverse — ora hanno icone e pesi
-          visivi diversi (pieno vs contorno) oltre alla didascalia, invece di
-          essere distinguibili solo dal testo del bottone stesso. */}
-      <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+      {/* Erano due pulsanti pieni identici, uno sopra l'altro, a piena
+          larghezza — ora affiancati, di dimensione contenuta (larghezza in
+          base al contenuto, non piena riga), con la spiegazione come
+          tooltip invece di testo sempre visibile sotto ciascuno. */}
+      <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
         <button
           onClick={() => manualCapture.capture()}
           disabled={isLoading || cooldownSeconds > 0}
+          title="Previews a live reading for a few seconds — doesn't save it"
           style={{
-            flex: 1,
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            padding: '11px 16px',
+            gap: 6,
+            padding: '7px 14px',
             borderRadius: 'var(--radius-md)',
             background: isLoading || cooldownSeconds > 0 ? 'var(--accent-warn)' : 'var(--accent-interactive)',
             color: 'var(--bg-0)',
             border: 'none',
-            fontSize: 13,
+            fontSize: 12,
             fontWeight: 600,
             cursor: isLoading || cooldownSeconds > 0 ? 'not-allowed' : 'pointer',
             transition: 'background 150ms ease-out',
@@ -147,9 +149,7 @@ export function ThermalFrameViewer({ enableAutoPolling = true }: ThermalFrameVie
               ? `Capture Now (${cooldownSeconds}s)`
               : 'Capture Now'}
         </button>
-      </div>
-      <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginTop: -8 }}>
-        Previews a live reading for a few seconds — doesn't save it
+        {children}
       </div>
 
       {manualCapture.error ? (

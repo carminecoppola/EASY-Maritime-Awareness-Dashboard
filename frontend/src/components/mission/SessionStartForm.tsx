@@ -8,6 +8,12 @@ interface SessionStartFormProps {
   onSessionChanged: () => void
 }
 
+const MODE_HINTS: Record<string, string> = {
+  live: 'Captures from the real RGB cameras right now.',
+  replay: 'Replays one previously recorded image — for testing without live hardware.',
+  replay_folder: 'Replays a folder of recorded images in sequence — for testing or demos.',
+}
+
 export function SessionStartForm({ currentSession, isRunning, onSessionChanged }: SessionStartFormProps) {
   const [mode, setMode] = useState('live')
   const [operator, setOperator] = useState('')
@@ -95,6 +101,9 @@ export function SessionStartForm({ currentSession, isRunning, onSessionChanged }
               <option value="replay">Replay</option>
               <option value="replay_folder">Replay Folder</option>
             </select>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+              {MODE_HINTS[mode]}
+            </div>
           </div>
 
           <div>
