@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { ThermalEventsPage } from './ThermalEventsPage'
 import * as ThermalHook from '../hooks/useThermal'
@@ -17,7 +18,12 @@ vi.mock('../components/thermal/ThermalStatusPanel', () => ({
 }))
 
 vi.mock('../components/thermal/ThermalFrameViewer', () => ({
-  ThermalFrameViewer: () => <div>Thermal Frame Viewer</div>,
+  ThermalFrameViewer: ({ children }: { children?: ReactNode }) => (
+    <div>
+      Thermal Frame Viewer
+      {children}
+    </div>
+  ),
 }))
 
 vi.mock('../components/thermal/ThermalSnapshotAction', () => ({

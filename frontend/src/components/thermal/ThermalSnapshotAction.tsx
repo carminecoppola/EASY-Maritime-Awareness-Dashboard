@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { Fragment, useCallback, useState } from 'react'
 import { api } from '../../api/client'
 
 interface ThermalSnapshotActionProps {
@@ -26,26 +26,27 @@ export function ThermalSnapshotAction({ onSnapshotTaken }: ThermalSnapshotAction
     }
   }, [onSnapshotTaken])
 
+  // Rendered as a child inside ThermalFrameViewer's button row, so the
+  // button itself is small/inline (matching "Capture Now" beside it); the
+  // explanation moved to a tooltip, and error/success messages force a new
+  // line in that row via flexBasis: '100%' instead of being squeezed next
+  // to the buttons.
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-      {/* Styled as a secondary (outline) action, not the same solid blue as
-          "Capture Now" above — the two looked like duplicate buttons doing
-          the same thing, when this one actually captures AND permanently
-          saves the frame to the archive, unlike the few-second preview. */}
+    <Fragment>
       <button
         onClick={handleTakeSnapshot}
         disabled={loading}
+        title="Captures a frame and saves it permanently — visible on the Snapshots page"
         style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
-          gap: 8,
-          padding: '11px 16px',
+          gap: 6,
+          padding: '7px 14px',
           borderRadius: 'var(--radius-md)',
           background: 'transparent',
           color: loading ? 'var(--text-muted)' : 'var(--accent-interactive)',
           border: `1px solid ${loading ? 'var(--border-subtle)' : 'var(--accent-interactive)'}`,
-          fontSize: 13,
+          fontSize: 12,
           fontWeight: 600,
           cursor: loading ? 'not-allowed' : 'pointer',
           transition: 'all 150ms ease-out',
@@ -64,13 +65,11 @@ export function ThermalSnapshotAction({ onSnapshotTaken }: ThermalSnapshotAction
         <span aria-hidden>⬇</span>
         {loading ? 'Saving...' : 'Save Snapshot to Archive'}
       </button>
-      <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
-        Captures a frame and saves it permanently — visible on the Snapshots page
-      </div>
 
       {error && (
         <div
           style={{
+            flexBasis: '100%',
             padding: 'var(--space-2)',
             background: 'var(--accent-critical-dim)',
             border: `1px solid var(--accent-critical)`,
@@ -86,6 +85,7 @@ export function ThermalSnapshotAction({ onSnapshotTaken }: ThermalSnapshotAction
       {success && (
         <div
           style={{
+            flexBasis: '100%',
             padding: 'var(--space-2)',
             background: 'var(--accent-ok-dim)',
             border: `1px solid var(--accent-ok)`,
@@ -97,6 +97,6 @@ export function ThermalSnapshotAction({ onSnapshotTaken }: ThermalSnapshotAction
           {success}
         </div>
       )}
-    </div>
+    </Fragment>
   )
 }
