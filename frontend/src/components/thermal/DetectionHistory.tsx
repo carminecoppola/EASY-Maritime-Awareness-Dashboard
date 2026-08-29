@@ -38,7 +38,7 @@ export function DetectionHistory({ detections, loading, error }: DetectionHistor
   if (detections.length === 0) {
     return (
       <div style={{ color: 'var(--text-muted)', fontSize: 12, padding: 'var(--space-3)', textAlign: 'center' }}>
-        No detections in history
+        No AI detections yet
       </div>
     )
   }
