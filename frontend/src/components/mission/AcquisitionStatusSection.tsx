@@ -19,8 +19,21 @@ export function AcquisitionStatusSection({ acquisitionStatus }: AcquisitionStatu
     ? { color: 'var(--accent-ok)', dim: 'var(--accent-ok-dim)', label: 'RUNNING' }
     : { color: 'var(--text-muted)', dim: 'var(--bg-3)', label: 'STOPPED' }
 
-  const counts = acquisitionStatus.manifest_counts
-  const datasetSummary = acquisitionStatus.dataset_summary as any
+  const datasetSummary = acquisitionStatus.dataset_summary as Record<string, unknown> | undefined
+
+  // Readable labels for the dataset_summary fields, instead of dumping the
+  // raw JSON.stringify() output in a <pre> block — literal developer debug
+  // output shown directly to the operator.
+  const DATASET_SUMMARY_LABELS: Record<string, string> = {
+    paired_items: 'RGB/thermal pairs',
+    samples: 'Samples',
+    synchronized_samples: 'Synchronized samples',
+    pair_window_seconds: 'Pairing window',
+  }
+
+  const summaryEntries = datasetSummary
+    ? Object.entries(datasetSummary).filter(([key, value]) => key in DATASET_SUMMARY_LABELS && typeof value !== 'object')
+    : []
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
@@ -28,46 +41,35 @@ export function AcquisitionStatusSection({ acquisitionStatus }: AcquisitionStatu
         <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 var(--space-2) 0' }}>
           Acquisition Status
         </h3>
+        <p style={{ margin: '0 0 var(--space-2) 0', fontSize: 11, color: 'var(--text-muted)' }}>
+          Whether the background process that saves and organizes captures is currently running
+        </p>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
           <StatusBadge tone={runningTone} text={acquisitionStatus.running ? 'RUNNING' : 'STOPPED'} />
         </div>
       </div>
 
-      {counts && (
+      {/* Manifest Counts removed here — it duplicated the "Current Session
+          Manifest" counters already shown above on the Mission page (same
+          numbers, two different-looking grids back to back). */}
+
+      {summaryEntries.length > 0 && (
         <div>
           <h4 style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', margin: '0 0 var(--space-2) 0' }}>
-            Manifest Counts
+            Pairing (RGB + thermal)
           </h4>
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
             gap: 'var(--space-2)',
           }}>
-            <StatusCard title="Items" value={counts.items || 0} />
-            <StatusCard title="Samples" value={counts.samples || 0} />
-            <StatusCard title="Snapshots" value={counts.snapshots || 0} />
-            <StatusCard title="Detections" value={counts.detections || 0} />
-            <StatusCard title="Inference" value={counts.inference || 0} />
-            <StatusCard title="Paired Items" value={counts.paired_items || 0} />
-          </div>
-        </div>
-      )}
-
-      {datasetSummary && typeof datasetSummary === 'object' && Object.keys(datasetSummary as Record<string, unknown>).length > 0 && (
-        <div>
-          <h4 style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', margin: '0 0 var(--space-2) 0' }}>
-            Dataset Summary
-          </h4>
-          <div style={{
-            padding: 'var(--space-2)',
-            background: 'var(--bg-2)',
-            borderRadius: 'var(--radius-sm)',
-            fontSize: 12,
-            color: 'var(--text-secondary)',
-          }}>
-            <pre style={{ margin: 0, overflow: 'auto', whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}>
-              {JSON.stringify(datasetSummary as Record<string, unknown>, null, 2)}
-            </pre>
+            {summaryEntries.map(([key, value]) => (
+              <StatusCard
+                key={key}
+                title={DATASET_SUMMARY_LABELS[key]}
+                value={key === 'pair_window_seconds' ? `${value}s` : String(value)}
+              />
+            ))}
           </div>
         </div>
       )}
