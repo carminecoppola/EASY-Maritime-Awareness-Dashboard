@@ -267,6 +267,14 @@ class DashboardRuntime:
             frame, ok = capture_fn()
             meta = dict(meta)
             meta["capture_ok"] = ok
+            if not ok:
+                # capture_fn() returned a placeholder frame (e.g. "RGB_CAM_LEFT
+                # DETECTED — camera detected and ready"), not a real photo —
+                # saving it here left it permanently visible in the snapshot
+                # gallery/archive as if it were a genuine capture, even though
+                # the route already correctly reports this as a 503 error to
+                # the caller once snapshot_info is None.
+                return frame, ok, None, meta
             snapshot_info = self.snapshot_store.save(feed, frame, meta=meta)
             try:
                 self.acquisition_manager.record_snapshot(feed=feed, snapshot=snapshot_info, meta=meta)

@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { api } from '../../api/client'
+import type { DatasetValidationResult } from '../../api/types'
 
 interface DatasetExportProps {}
 
@@ -7,7 +8,7 @@ type ExportPhase = 'idle' | 'validating' | 'validation-done' | 'exporting' | 'ex
 
 export function DatasetExport({}: DatasetExportProps) {
   const [phase, setPhase] = useState<ExportPhase>('idle')
-  const [validationResult, setValidationResult] = useState<unknown>(null)
+  const [validationResult, setValidationResult] = useState<DatasetValidationResult | null>(null)
   const [sessionId, setSessionId] = useState('')
   const [validationPercent, setValidationPercent] = useState(100)
   const [exportError, setExportError] = useState<string | null>(null)
@@ -98,20 +99,49 @@ export function DatasetExport({}: DatasetExportProps) {
           {phase === 'validating' ? 'Validating...' : 'Validate Dataset'}
         </button>
 
-        {validationResult ? (
+        {/* Was a raw JSON.stringify() dump of the full validation payload
+            (including every sample's file list) — unreadable, and the same
+            developer-debug-output pattern already fixed on the Mission page's
+            Acquisition Status. The three counts below are what actually
+            answers "can I export this?". */}
+        {validationResult && !validationResult.ok ? (
           <div
             style={{
               padding: 'var(--space-2)',
-              background: 'var(--bg-3)',
-              border: '1px solid var(--border-subtle)',
+              background: 'var(--accent-critical-dim)',
+              border: '1px solid var(--accent-critical)',
               borderRadius: 'var(--radius-md)',
-              fontSize: 11,
-              color: 'var(--text-muted)',
+              fontSize: 12,
+              color: 'var(--accent-critical)',
             }}
           >
-            <pre style={{ margin: 0, overflowX: 'auto', fontFamily: 'var(--font-mono)' }}>
-              {JSON.stringify(validationResult as unknown, null, 2)}
-            </pre>
+            {validationResult.error || 'Validation failed'}
+          </div>
+        ) : validationResult ? (
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'var(--space-2)',
+              padding: 'var(--space-3)',
+              background: validationResult.valid ? 'var(--accent-ok-dim)' : 'var(--accent-warn-dim)',
+              border: `1px solid ${validationResult.valid ? 'var(--accent-ok)' : 'var(--accent-warn)'}`,
+              borderRadius: 'var(--radius-md)',
+              fontSize: 12,
+            }}
+          >
+            <div style={{ fontWeight: 600, color: validationResult.valid ? 'var(--accent-ok)' : 'var(--accent-warn)' }}>
+              {validationResult.valid ? 'Ready to export' : 'Nothing ready to export yet'}
+            </div>
+            <div style={{ color: 'var(--text-secondary)' }}>
+              <strong style={{ color: 'var(--text-primary)' }}>{validationResult.valid_samples ?? 0}</strong> complete samples (RGB + thermal paired)
+              {(validationResult.incomplete_samples ?? 0) > 0 && (
+                <> · <strong style={{ color: 'var(--text-primary)' }}>{validationResult.incomplete_samples}</strong> incomplete (missing a modality)</>
+              )}
+              {(validationResult.excluded_items ?? 0) > 0 && (
+                <> · <strong style={{ color: 'var(--text-primary)' }}>{validationResult.excluded_items}</strong> excluded (missing or unusable files)</>
+              )}
+            </div>
           </div>
         ) : null}
       </div>

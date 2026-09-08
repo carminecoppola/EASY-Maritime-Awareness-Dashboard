@@ -213,6 +213,18 @@ def thermal_snapshot():
     frame, stats = runtime.thermal.snapshot()
     meta = dict(stats)
     meta.update({"feed": "thermal", "snapshot_type": "thermal"})
+    # See capture_acquisition_set()'s thermal branch for why this checks an
+    # explicit allowlist before saving rather than after: ThermalState.frame()
+    # returns a placeholder JPEG for several status values (DISABLED,
+    # NOT_DETECTED, ERROR, STARTING), and this route used to save it
+    # unconditionally then only check {"NOT_DETECTED", "DISABLED"} afterwards
+    # — an ERROR/STARTING placeholder ("THERMAL STARTING — Waiting for
+    # thermal stream") got permanently saved into the archive as if it were
+    # a real capture, only ever visible as an unexplained black/text image
+    # in the Snapshots gallery.
+    if stats.get("status") not in {"REAL", "MOCK"}:
+        runtime.events.add("THERMAL_FLIR", "SNAPSHOT_ERROR", "Thermal feed unavailable", "error", meta=meta)
+        return _snapshot_error("thermal", "thermal_snapshot.jpg", "Thermal feed unavailable", {"url": "#", "download_url": "#"}, 503)
     try:
         snapshot_info = runtime.snapshot_store.save("thermal", frame, meta=meta)
     except Exception as exc:
@@ -224,8 +236,6 @@ def thermal_snapshot():
     except Exception:
         runtime.logger.exception("Failed to index thermal snapshot in session manifest")
     runtime.events.add("THERMAL_FLIR", "SNAPSHOT_SAVED", f"Saved {snapshot_info['filename']}", "info", meta=meta)
-    if snapshot_info["meta"].get("status") in {"NOT_DETECTED", "DISABLED"}:
-        return _snapshot_error("thermal", snapshot_info["filename"], "Thermal feed unavailable", snapshot_info, 503)
     return _snapshot_success("thermal", snapshot_info)
 
 
@@ -267,9 +277,21 @@ def capture_acquisition_set():
         thermal_frame, thermal_stats = runtime.thermal.snapshot()
         thermal_meta = dict(thermal_stats)
         thermal_meta.update({"feed": "thermal", "snapshot_type": "thermal", "capture_set_id": capture_set_id})
-        thermal_info = runtime.snapshot_store.save("thermal", thermal_frame, meta=thermal_meta)
-        runtime.acquisition_manager.record_snapshot(feed="thermal", snapshot=thermal_info, meta=thermal_meta)
-        thermal_ok = thermal_info["meta"].get("status") not in {"NOT_DETECTED", "DISABLED"}
+        # ThermalState.frame() falls back to a placeholder JPEG ("THERMAL
+        # DISABLED"/"THERMAL OFFLINE"/"THERMAL STARTING") for several status
+        # values, not just NOT_DETECTED/DISABLED — the same class of bug as
+        # the RGB snapshot path (runtime.capture_snapshot): saving it
+        # unconditionally left placeholder images permanently visible in the
+        # snapshot gallery as if they were real thermal captures. Checking
+        # an explicit allowlist of "this is a real frame" statuses (REAL from
+        # a genuine capture, MOCK from the deliberate mock-mode simulator) is
+        # more robust than excluding known-bad values one at a time.
+        thermal_ok = thermal_stats.get("status") in {"REAL", "MOCK"}
+        if thermal_ok:
+            thermal_info = runtime.snapshot_store.save("thermal", thermal_frame, meta=thermal_meta)
+            runtime.acquisition_manager.record_snapshot(feed="thermal", snapshot=thermal_info, meta=thermal_meta)
+        else:
+            thermal_info = None
         captures["thermal"] = {
             "ok": thermal_ok,
             "snapshot": thermal_info,

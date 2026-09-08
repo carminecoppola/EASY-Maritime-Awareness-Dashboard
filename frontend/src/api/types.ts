@@ -306,6 +306,17 @@ export interface DatasetExportStatus {
   [key: string]: unknown
 }
 
+export interface DatasetValidationResult {
+  ok: boolean
+  error?: string
+  session_id?: string
+  valid?: boolean
+  valid_samples?: number
+  incomplete_samples?: number
+  excluded_items?: number
+  [key: string]: unknown
+}
+
 /** /thermal/status has no top-level "ok" field — verified against a real payload. */
 export interface ThermalStatusResponse {
   status: string
