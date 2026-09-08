@@ -43,8 +43,9 @@ export function ThermalEventsPage() {
             gap: 'var(--space-3)',
           }}
         >
-          <ThermalFrameViewer enableAutoPolling={true} />
-          <ThermalSnapshotAction />
+          <ThermalFrameViewer enableAutoPolling={true}>
+            <ThermalSnapshotAction />
+          </ThermalFrameViewer>
         </div>
       </div>
 
