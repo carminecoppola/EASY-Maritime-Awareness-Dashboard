@@ -31,7 +31,9 @@ export function ThermalEventsPage() {
 
       {/* PRIMARY: Live Thermal Frame & Capture Actions */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <SectionHeader title="Live Thermal Frame" />
+        <div style={{ marginBottom: 'var(--space-3)' }}>
+          <SectionHeader title="Live Thermal Frame" />
+        </div>
         <Panel>
           <ThermalFrameViewer enableAutoPolling={true}>
             <ThermalSnapshotAction />
@@ -41,7 +43,9 @@ export function ThermalEventsPage() {
 
       {/* SECONDARY: Thermal Camera Status */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <SectionHeader title="Thermal Camera Status" />
+        <div style={{ marginBottom: 'var(--space-3)' }}>
+          <SectionHeader title="Thermal Camera Status" />
+        </div>
         <ThermalStatusPanel
           status={thermalStatus.data}
           loading={thermalStatus.loading}

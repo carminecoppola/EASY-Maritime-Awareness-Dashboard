@@ -40,10 +40,13 @@ export function CpuRamGauge({ value, max = 100, label, color = 'var(--accent-inf
   const radius = (outerR + innerR) / 2 // path radius for a stroke-based ring
   const circumference = 2 * Math.PI * radius
 
-  // Small angular gap between the two segments (~2deg equivalent).
+  // recharts paddingAngle=2 puts a 2deg gap at EVERY segment boundary — with
+  // 2 segments arranged in a full circle that's 2 boundaries, so 2 gaps.
+  // Subtracting a full `gap` from each segment (not gap/2) reproduces both:
+  // one between used→available, one on the available→used wrap-around.
   const gap = circumference * (2 / 360)
-  const usedLen = Math.max(0, (percentage / 100) * circumference - gap / 2)
-  const availLen = Math.max(0, circumference - (percentage / 100) * circumference - gap / 2)
+  const usedLen = Math.max(0, (percentage / 100) * circumference - gap)
+  const availLen = Math.max(0, circumference - (percentage / 100) * circumference - gap)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-2)' }}>

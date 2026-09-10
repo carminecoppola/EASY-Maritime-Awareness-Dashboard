@@ -27,13 +27,17 @@ export function SnapshotsPage() {
 
       {/* PRIMARY: Manual Capture — the key action */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <SectionHeader title="Manual Capture" />
+        <div style={{ marginBottom: 'var(--space-3)' }}>
+          <SectionHeader title="Manual Capture" />
+        </div>
         <SnapshotActions />
       </div>
 
       {/* SECONDARY: Snapshot Gallery */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <SectionHeader title="Snapshot Gallery" />
+        <div style={{ marginBottom: 'var(--space-3)' }}>
+          <SectionHeader title="Snapshot Gallery" />
+        </div>
         {error ? (
           <div
             style={{
