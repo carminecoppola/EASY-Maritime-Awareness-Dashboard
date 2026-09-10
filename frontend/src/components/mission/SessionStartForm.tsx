@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { api, ApiError } from '../../api/client'
+import { Panel } from '../common/Panel'
 import type { Session } from '../../api/types'
 
 interface SessionStartFormProps {
@@ -63,15 +64,7 @@ export function SessionStartForm({ currentSession, isRunning, onSessionChanged }
   }
 
   return (
-    <div style={{
-      background: 'var(--bg-2)',
-      border: '1px solid var(--border-subtle)',
-      borderRadius: 'var(--radius-md)',
-      padding: 'var(--space-4)',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 'var(--space-3)',
-    }}>
+    <Panel>
       <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
         Session Control
       </h3>
@@ -230,6 +223,6 @@ export function SessionStartForm({ currentSession, isRunning, onSessionChanged }
           </button>
         </>
       )}
-    </div>
+    </Panel>
   )
 }

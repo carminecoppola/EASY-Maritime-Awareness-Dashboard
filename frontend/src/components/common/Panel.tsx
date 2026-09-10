@@ -15,6 +15,7 @@ export function Panel({ children, emphasis = false, gap = 'space-3' }: PanelProp
         background: 'var(--bg-2)',
         border: emphasis ? '2px solid var(--border-strong)' : '1px solid var(--border-subtle)',
         borderRadius: 'var(--radius-md)',
+        boxShadow: 'var(--shadow-panel)',
         display: 'flex',
         flexDirection: 'column',
         gap: `var(--${gap})`,

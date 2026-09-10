@@ -48,19 +48,14 @@ export function VideoPanel({ feed, label, availability, detections = [] }: Video
       style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: 'var(--space-3)',
-        padding: 'var(--space-4)',
         background: 'var(--bg-2)',
         border: '1px solid var(--border-subtle)',
         borderRadius: 'var(--radius-md)',
+        boxShadow: 'var(--shadow-panel)',
+        overflow: 'hidden',
         minHeight: 240,
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{label}</h3>
-        <StatusBadge tone={tone} text={availability} />
-      </div>
-
       <div
         ref={mediaRef}
         style={{
@@ -70,12 +65,34 @@ export function VideoPanel({ feed, label, availability, detections = [] }: Video
           alignItems: 'center',
           justifyContent: 'center',
           background: 'var(--bg-1)',
-          borderRadius: 'var(--radius-sm)',
           overflow: 'hidden',
           aspectRatio: '4/3',
           minHeight: 180,
         }}
       >
+        {/* Overlay diretto sul frame, non sopra il pannello — il video è
+            il contenuto primario, l'etichetta/stato sono un'informazione
+            sovrapposta, come in un vero feed di sorveglianza. */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 2,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: 'var(--space-2) var(--space-3)',
+            background: 'linear-gradient(to bottom, rgba(4,6,10,0.85), rgba(4,6,10,0))',
+          }}
+        >
+          <h3 className="mono" style={{ margin: 0, fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '0.04em' }}>
+            {label}
+          </h3>
+          <StatusBadge tone={tone} text={availability} />
+        </div>
+
         {showFeed ? (
           <>
             <img
