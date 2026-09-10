@@ -5,6 +5,8 @@ import { ThermalSnapshotAction } from '../components/thermal/ThermalSnapshotActi
 import { useThermalStatus } from '../hooks/useThermal'
 import { api } from '../api/client'
 import { usePolling } from '../hooks/usePolling'
+import { Panel } from '../components/common/Panel'
+import { SectionHeader } from '../components/common/SectionHeader'
 
 export function ThermalEventsPage() {
   const thermalStatus = useThermalStatus(3000)
@@ -29,31 +31,17 @@ export function ThermalEventsPage() {
 
       {/* PRIMARY: Live Thermal Frame & Capture Actions */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <h2 style={{ margin: '0 0 var(--space-3) 0', fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Live Thermal Frame
-        </h2>
-        <div
-          style={{
-            padding: 'var(--space-4)',
-            background: 'var(--bg-2)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-md)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 'var(--space-3)',
-          }}
-        >
+        <SectionHeader title="Live Thermal Frame" />
+        <Panel>
           <ThermalFrameViewer enableAutoPolling={true}>
             <ThermalSnapshotAction />
           </ThermalFrameViewer>
-        </div>
+        </Panel>
       </div>
 
       {/* SECONDARY: Thermal Camera Status */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <h2 style={{ margin: '0 0 var(--space-3) 0', fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Thermal Camera Status
-        </h2>
+        <SectionHeader title="Thermal Camera Status" />
         <ThermalStatusPanel
           status={thermalStatus.data}
           loading={thermalStatus.loading}
@@ -73,9 +61,9 @@ export function ThermalEventsPage() {
           thermal data when it isn't. Renamed and captioned instead of
           removed, since it's genuinely useful, just mislabeled. */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <h2 style={{ margin: '0 0 var(--space-1) 0', fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          AI Detection Log
-        </h2>
+        <div style={{ marginBottom: 'var(--space-1)' }}>
+          <SectionHeader title="AI Detection Log" />
+        </div>
         <p style={{ margin: '0 0 var(--space-2) 0', fontSize: 12, color: 'var(--text-muted)' }}>
           Every AI detection across the app (any camera source, not exclusive to thermal) — see the Source column.
         </p>

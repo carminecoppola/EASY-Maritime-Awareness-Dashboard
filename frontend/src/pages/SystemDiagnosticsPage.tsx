@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ThinkingOrb } from 'thinking-orbs'
 import { useSystemStatus } from '../hooks/useSystemStatus'
 import { useSharedDashboardState } from '../hooks/DashboardStateContext'
 import { api } from '../api/client'
@@ -8,22 +9,9 @@ import { toneForHardwareState } from '../components/status/severityColors'
 import { Sparkline, type SparklineData } from '../components/charts/Sparkline'
 import { CpuRamGauge } from '../components/charts/CpuRamGauge'
 import { Collapsible } from '../components/common/Collapsible'
+import { Panel } from '../components/common/Panel'
+import { SectionHeader } from '../components/common/SectionHeader'
 import type { CameraInventory } from '../api/types'
-
-const SECTION_TITLE_STYLE = {
-  fontSize: 14,
-  color: 'var(--text-secondary)',
-  textTransform: 'uppercase' as const,
-  letterSpacing: '0.05em',
-  marginBottom: 'var(--space-1)',
-}
-
-const PANEL_STYLE = {
-  background: 'var(--bg-2)',
-  border: '1px solid var(--border-subtle)',
-  borderRadius: 'var(--radius-md)',
-  padding: 'var(--space-4)',
-}
 
 function IdentityField({
   label,
@@ -186,7 +174,12 @@ export function SystemDiagnosticsPage() {
   }, [systemData.data])
 
   if (systemData.loading && !systemData.data) {
-    return <p style={{ color: 'var(--text-muted)' }}>Loading system diagnostics…</p>
+    return (
+      <p style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <ThinkingOrb state="working" size={20} theme="auto" />
+        Loading system diagnostics…
+      </p>
+    )
   }
   if (systemData.error && !systemData.data) {
     return <p style={{ color: 'var(--accent-critical)' }}>Failed to load diagnostics: {String(systemData.error)}</p>
@@ -207,27 +200,29 @@ export function SystemDiagnosticsPage() {
           cards. Hostname/IP get more visual weight (what an operator
           actually needs to confirm they're on the right device / reach it
           over the network); OS/Python/uptime are secondary reference info. */}
-      <section style={PANEL_STYLE}>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 'var(--space-3)' }}>
-          Device
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', rowGap: 'var(--space-3)' }}>
-          <IdentityField label="Hostname" value={diag.hostname} emphasis first />
-          <IdentityField label="IP Address" value={diag.ip_address} emphasis />
-          <IdentityField label="Uptime" value={formatUptime(diag.uptime_seconds)} />
-          <IdentityField label="Python" value={diag.python_version} />
-          <IdentityField label="Model" value={diag.model} wide />
-          <IdentityField label="OS" value={diag.os_release} wide />
-        </div>
+      <section>
+        <Panel>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            Device
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', rowGap: 'var(--space-3)' }}>
+            <IdentityField label="Hostname" value={diag.hostname} emphasis first />
+            <IdentityField label="IP Address" value={diag.ip_address} emphasis />
+            <IdentityField label="Uptime" value={formatUptime(diag.uptime_seconds)} />
+            <IdentityField label="Python" value={diag.python_version} />
+            <IdentityField label="Model" value={diag.model} wide />
+            <IdentityField label="OS" value={diag.os_release} wide />
+          </div>
+        </Panel>
       </section>
 
       {/* PRIMARY: CPU and Memory each fully self-contained — gauge, key
           numbers, and trend live together instead of being scattered
           across three separate sections a scroll apart. */}
       <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <h2 style={SECTION_TITLE_STYLE}>Resource Usage</h2>
+        <SectionHeader title="Resource Usage" />
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 'var(--space-4)' }}>
-          <div style={PANEL_STYLE}>
+          <Panel>
             <div style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'center' }}>
               <div style={{ flexShrink: 0, width: 120 }}>
                 <CpuRamGauge value={diag.cpu_percent} label="CPU" color="var(--accent-info)" height={110} />
@@ -243,8 +238,8 @@ export function SystemDiagnosticsPage() {
                 )}
               </div>
             </div>
-          </div>
-          <div style={PANEL_STYLE}>
+          </Panel>
+          <Panel>
             <div style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'center' }}>
               <div style={{ flexShrink: 0, width: 120 }}>
                 {/* diag.ram.percent (accounting for cache/buffers) can differ
@@ -264,14 +259,14 @@ export function SystemDiagnosticsPage() {
                 )}
               </div>
             </div>
-          </div>
+          </Panel>
         </div>
       </section>
 
       {/* PRIMARY: Disk — one compact bar instead of three equal-weight cards */}
       <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <h2 style={SECTION_TITLE_STYLE}>Disk Storage</h2>
-        <div style={PANEL_STYLE}>
+        <SectionHeader title="Disk Storage" />
+        <Panel>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
             {/* Same visual language as the CPU/Memory gauges above — a big
                 colored percentage — instead of a bare thin bar with no
@@ -312,7 +307,7 @@ export function SystemDiagnosticsPage() {
               </div>
             </div>
           </div>
-        </div>
+        </Panel>
       </section>
 
       {/* Camera Inventory — RGB and thermal in one consistent grid instead
@@ -322,7 +317,7 @@ export function SystemDiagnosticsPage() {
           instead of the other way around. */}
       {cameras && (
         <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-          <h2 style={SECTION_TITLE_STYLE}>Camera Inventory</h2>
+          <SectionHeader title="Camera Inventory" />
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 'var(--space-3)' }}>
             {cameras.rgb_cameras.map((cam) => (
               <CameraCard
@@ -364,7 +359,7 @@ export function SystemDiagnosticsPage() {
           useful when actually debugging, noise the rest of the time. */}
       {dashboardState && dashboardState.health && (
         <Collapsible title="System Components (technical detail)" defaultOpen={false}>
-          <div style={PANEL_STYLE}>
+          <Panel>
             {dashboardState.health.system_components?.components?.length ? (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
@@ -458,7 +453,7 @@ export function SystemDiagnosticsPage() {
             ) : (
               <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>No system components data available</p>
             )}
-          </div>
+          </Panel>
         </Collapsible>
       )}
     </div>

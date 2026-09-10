@@ -9,6 +9,8 @@ import { AcquisitionStatusSection } from '../components/mission/AcquisitionStatu
 import { StatusCard } from '../components/status/StatusCard'
 import { StatusBadge } from '../components/status/StatusBadge'
 import { Collapsible } from '../components/common/Collapsible'
+import { Panel } from '../components/common/Panel'
+import { SectionHeader } from '../components/common/SectionHeader'
 import { toneForRunningStatus } from '../components/status/severityColors'
 import type { SessionManifestCounts } from '../api/types'
 
@@ -99,19 +101,9 @@ export function MissionPage(): ReactNode {
 
       {/* SECONDARY: Current Session Status & Details */}
       {dashboardSession && currentSession ? (
-        <div style={{
-          background: 'var(--bg-2)',
-          border: '1px solid var(--border-subtle)',
-          borderRadius: 'var(--radius-md)',
-          padding: 'var(--space-4)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 'var(--space-3)',
-        }}>
+        <Panel>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Current Session
-            </h2>
+            <SectionHeader title="Current Session" />
             <StatusBadge tone={sessionStatusTone} text={isRunning ? 'RUNNING' : 'STOPPED'} />
           </div>
 
@@ -185,7 +177,7 @@ export function MissionPage(): ReactNode {
               </div>
             </div>
           ) : null}
-        </div>
+        </Panel>
       ) : null}
 
       {/* Current Session Manifest */}

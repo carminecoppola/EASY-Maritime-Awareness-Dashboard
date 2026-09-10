@@ -1,14 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Collapsible } from '../components/common/Collapsible'
-
-const SECTION_TITLE_STYLE = {
-  fontSize: 14,
-  fontWeight: 600,
-  color: 'var(--text-primary)',
-  textTransform: 'uppercase' as const,
-  letterSpacing: '0.05em',
-  margin: '0 0 var(--space-3) 0',
-}
+import { Panel } from '../components/common/Panel'
+import { SectionHeader } from '../components/common/SectionHeader'
 
 const STEPS = [
   { step: '1', title: 'Live', desc: 'Check all three feeds are updating.' },
@@ -130,9 +123,7 @@ export function HelpPage() {
           per card and using client-side <Link> instead of plain <a> (the
           old cards did a full page reload on every click). */}
       <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <h2 style={SECTION_TITLE_STYLE}>
-          Page Guide
-        </h2>
+        <SectionHeader title="Page Guide" />
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 'var(--space-3)' }}>
           {PAGE_GUIDE.map((card) => (
             <Link
@@ -180,14 +171,14 @@ export function HelpPage() {
             </ul>
           </div>
 
-          <div style={{ background: 'var(--bg-2)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+          <Panel>
             {TROUBLESHOOTING.map((item, idx) => (
               <div key={item.title} style={{ borderTop: idx > 0 ? '1px solid var(--border-subtle)' : 'none', paddingTop: idx > 0 ? 'var(--space-3)' : 0 }}>
                 <h4 style={{ fontSize: 12, fontWeight: 600, color: item.tone, margin: '0 0 4px 0' }}>{item.title}</h4>
                 <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>{item.body}</p>
               </div>
             ))}
-          </div>
+          </Panel>
         </div>
       </Collapsible>
     </div>
