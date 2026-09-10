@@ -8,7 +8,9 @@ export interface Tone {
   label: string
 }
 
-const TONES: Record<ToneKey, Tone> = {
+// Esportato per i casi (TopBar, ecc.) in cui serve un tono "puro" senza uno
+// switch/case dedicato — evita di reinventare oggetti Tone inline per stato.
+export const TONES: Record<ToneKey, Tone> = {
   ok: { color: 'var(--accent-ok)', dim: 'var(--accent-ok-dim)', label: 'OK' },
   info: { color: 'var(--accent-info)', dim: 'var(--accent-info-dim)', label: 'INFO' },
   warn: { color: 'var(--accent-warn)', dim: 'var(--accent-warn-dim)', label: 'WARN' },
@@ -73,6 +75,14 @@ export function toneForRunningStatus(status: 'RUNNING' | 'STOPPED' | string): To
     default:
       return { ...TONES.neutral, label: String(status) }
   }
+}
+
+/** Tono per un rapporto "N su M" (dispositivi online, ecc.): tutti ok = ok, zero = critical, il resto = warn. */
+export function toneForRatio(online: number, total: number): Tone {
+  if (total === 0) return TONES.neutral
+  if (online === 0) return TONES.critical
+  if (online === total) return TONES.ok
+  return TONES.warn
 }
 
 /**

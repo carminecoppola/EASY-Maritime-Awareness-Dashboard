@@ -8,9 +8,11 @@ interface StatusCardProps {
   tone?: Tone
   toneText?: string
   hint?: string
+  /** Colora anche il valore, non solo il badge — stesso principio già usato in System Diagnostics (CameraCard, tabella componenti). */
+  valueTone?: Tone
 }
 
-export function StatusCard({ title, value, tone, toneText, hint }: StatusCardProps) {
+export function StatusCard({ title, value, tone, toneText, hint, valueTone }: StatusCardProps) {
   return (
     <div
       style={{
@@ -30,7 +32,17 @@ export function StatusCard({ title, value, tone, toneText, hint }: StatusCardPro
         </span>
         {tone && <StatusBadge tone={tone} text={toneText} />}
       </div>
-      <div className="mono" style={{ fontSize: 22, fontWeight: 600, color: 'var(--text-primary)', wordBreak: 'break-word', overflowWrap: 'break-word', whiteSpace: 'normal' }}>
+      <div
+        className="mono"
+        style={{
+          fontSize: 22,
+          fontWeight: 600,
+          color: valueTone?.color ?? 'var(--text-primary)',
+          wordBreak: 'break-word',
+          overflowWrap: 'break-word',
+          whiteSpace: 'normal',
+        }}
+      >
         {value}
       </div>
       {hint && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{hint}</div>}

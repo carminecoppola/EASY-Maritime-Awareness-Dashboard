@@ -1,5 +1,3 @@
-import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
-
 interface CpuRamGaugeProps {
   value: number
   max?: number
@@ -17,13 +15,13 @@ interface CpuRamGaugeProps {
    */
 }
 
+// Hand-rolled SVG donut ring — replaces a recharts <PieChart> that pulled in
+// ~9MB of d3-* transitive deps for a two-segment ring. Geometry mirrors the
+// previous recharts config: innerRadius 65% / outerRadius 100% of the box's
+// half-min-dimension, 2deg padding angle, starting at 12 o'clock going
+// clockwise (recharts startAngle=90/endAngle=-270).
 export function CpuRamGauge({ value, max = 100, label, color = 'var(--accent-info)', height = 150 }: CpuRamGaugeProps) {
-  const percentage = (value / max) * 100
-
-  const data = [
-    { name: 'Used', value: percentage },
-    { name: 'Available', value: 100 - percentage },
-  ]
+  const percentage = Math.max(0, Math.min(100, (value / max) * 100))
 
   // Determine color based on percentage
   let fillColor = color
@@ -33,28 +31,49 @@ export function CpuRamGauge({ value, max = 100, label, color = 'var(--accent-inf
     fillColor = 'var(--accent-warn)'
   }
 
+  const size = 100 // viewBox units, scales via the wrapping div's height
+  const cx = size / 2
+  const cy = size / 2
+  const outerR = size / 2
+  const innerR = outerR * 0.65
+  const strokeWidth = outerR - innerR
+  const radius = (outerR + innerR) / 2 // path radius for a stroke-based ring
+  const circumference = 2 * Math.PI * radius
+
+  // Small angular gap between the two segments (~2deg equivalent).
+  const gap = circumference * (2 / 360)
+  const usedLen = Math.max(0, (percentage / 100) * circumference - gap / 2)
+  const availLen = Math.max(0, circumference - (percentage / 100) * circumference - gap / 2)
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-2)' }}>
       <div style={{ position: 'relative', width: '100%', height }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={data}
-              cx="50%"
-              cy="50%"
-              innerRadius="65%"
-              outerRadius="100%"
-              paddingAngle={2}
-              dataKey="value"
-              startAngle={90}
-              endAngle={-270}
-              isAnimationActive={false}
-            >
-              <Cell fill={fillColor} />
-              <Cell fill="var(--bg-3)" />
-            </Pie>
-          </PieChart>
-        </ResponsiveContainer>
+        <svg viewBox={`0 0 ${size} ${size}`} width="100%" height="100%" style={{ display: 'block' }}>
+          {/* Available (background) segment */}
+          <circle
+            cx={cx}
+            cy={cy}
+            r={radius}
+            fill="none"
+            stroke="var(--bg-3)"
+            strokeWidth={strokeWidth}
+            strokeDasharray={`${availLen} ${circumference - availLen}`}
+            strokeDashoffset={-(usedLen + gap)}
+            transform={`rotate(-90 ${cx} ${cy})`}
+          />
+          {/* Used segment */}
+          <circle
+            cx={cx}
+            cy={cy}
+            r={radius}
+            fill="none"
+            stroke={fillColor}
+            strokeWidth={strokeWidth}
+            strokeDasharray={`${usedLen} ${circumference - usedLen}`}
+            strokeDashoffset={0}
+            transform={`rotate(-90 ${cx} ${cy})`}
+          />
+        </svg>
         <div
           style={{
             position: 'absolute',
