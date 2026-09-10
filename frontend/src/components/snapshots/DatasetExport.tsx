@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { api } from '../../api/client'
+import { Panel } from '../common/Panel'
 import type { DatasetValidationResult } from '../../api/types'
 
 interface DatasetExportProps {}
@@ -55,17 +56,7 @@ export function DatasetExport({}: DatasetExportProps) {
   }, [sessionId, validationPercent])
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 'var(--space-4)',
-        background: 'var(--bg-2)',
-        border: '1px solid var(--border-subtle)',
-        borderRadius: 'var(--radius-md)',
-        padding: 'var(--space-4)',
-      }}
-    >
+    <Panel gap="space-4">
       <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Dataset Export</div>
 
       {/* Sezione Validazione */}
@@ -270,6 +261,6 @@ export function DatasetExport({}: DatasetExportProps) {
           {exportError}
         </div>
       )}
-    </div>
+    </Panel>
   )
 }

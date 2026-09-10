@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { formatRelativeTime } from '../../utils/formatTime'
 import { useThermalLastFrame, useThermalManualCapture } from '../../hooks/useThermal'
+import { Panel } from '../common/Panel'
 
 interface ThermalFrameViewerProps {
   enableAutoPolling?: boolean
@@ -60,20 +61,8 @@ export function ThermalFrameViewer({ enableAutoPolling = true, children }: Therm
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
       {/* Frame Viewer */}
-      <div
-        style={{
-          background: 'var(--bg-2)',
-          border: '1px solid var(--border-subtle)',
-          borderRadius: 'var(--radius-md)',
-          padding: 'var(--space-4)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: 300,
-          gap: 'var(--space-3)',
-        }}
-      >
+      <Panel>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 300, width: '100%' }}>
         {isLoading ? (
           <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
             Capturing thermal frame...
@@ -106,7 +95,8 @@ export function ThermalFrameViewer({ enableAutoPolling = true, children }: Therm
             </div>
           </div>
         )}
-      </div>
+        </div>
+      </Panel>
 
       {/* Erano due pulsanti pieni identici, uno sopra l'altro, a piena
           larghezza — ora affiancati, di dimensione contenuta (larghezza in
