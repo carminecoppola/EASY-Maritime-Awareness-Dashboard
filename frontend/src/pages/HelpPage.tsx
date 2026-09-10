@@ -123,7 +123,9 @@ export function HelpPage() {
           per card and using client-side <Link> instead of plain <a> (the
           old cards did a full page reload on every click). */}
       <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <SectionHeader title="Page Guide" />
+        <div style={{ marginBottom: 'var(--space-3)' }}>
+          <SectionHeader title="Page Guide" />
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 'var(--space-3)' }}>
           {PAGE_GUIDE.map((card) => (
             <Link

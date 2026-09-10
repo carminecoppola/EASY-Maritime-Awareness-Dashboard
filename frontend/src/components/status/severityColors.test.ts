@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { toneForAvailability, toneForHardwareState, toneForRunningStatus, toneForSeverity } from './severityColors'
+import { toneForAvailability, toneForHardwareState, toneForRatio, toneForRunningStatus, toneForSeverity } from './severityColors'
 
 describe('toneForHardwareState', () => {
   it('maps ERROR to the critical tone, never a warning — a hardware fault must not be visually understated', () => {
@@ -43,5 +43,23 @@ describe('toneForSeverity', () => {
     const critical = toneForSeverity('CRITICAL').color
     expect(toneForSeverity('INFO').color).not.toBe(critical)
     expect(toneForSeverity('LOW').color).not.toBe(critical)
+  })
+})
+
+describe('toneForRatio', () => {
+  it('is critical when nothing is online, even if the total is nonzero', () => {
+    expect(toneForRatio(0, 4).color).toBe('var(--accent-critical)')
+  })
+
+  it('is ok only when every unit is online', () => {
+    expect(toneForRatio(4, 4).color).toBe('var(--accent-ok)')
+  })
+
+  it('is warn for a partial ratio (neither all nor none online)', () => {
+    expect(toneForRatio(2, 4).color).toBe('var(--accent-warn)')
+  })
+
+  it('is neutral when there is nothing to report a ratio for (total=0), not falsely critical', () => {
+    expect(toneForRatio(0, 0).color).not.toBe('var(--accent-critical)')
   })
 })
