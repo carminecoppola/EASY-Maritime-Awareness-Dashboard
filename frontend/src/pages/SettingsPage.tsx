@@ -3,6 +3,7 @@ import { api } from '../api/client'
 import { getAuthToken, setAuthToken } from '../api/config'
 import { StatusBadge } from '../components/status/StatusBadge'
 import { Collapsible } from '../components/common/Collapsible'
+import { Panel } from '../components/common/Panel'
 
 // Gap trovato dalla review di sicurezza: setAuthToken() esisteva già in
 // api/config.ts ma non era mai invocata da nessuna UI — se un deployment
@@ -49,17 +50,7 @@ export function SettingsPage() {
           Security
         </div>
 
-        <section
-          style={{
-            background: 'var(--bg-2)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-md)',
-            padding: 'var(--space-4)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 'var(--space-3)',
-          }}
-        >
+        <Panel>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
             Shared access token
@@ -158,7 +149,7 @@ export function SettingsPage() {
           </div>
           {saved && <span style={{ fontSize: 11, color: 'var(--accent-ok)' }}>Saved.</span>}
         </div>
-        </section>
+        </Panel>
       </div>
     </div>
   )

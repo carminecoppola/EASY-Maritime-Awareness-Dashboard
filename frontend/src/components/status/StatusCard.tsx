@@ -13,12 +13,17 @@ interface StatusCardProps {
 }
 
 export function StatusCard({ title, value, tone, toneText, hint, valueTone }: StatusCardProps) {
+  // Il pallino ripete visivamente il colore del valore (mai l'unico segnale:
+  // il valore stesso resta testo) — leggibile come "stato" anche a distanza,
+  // prima che si arrivi a leggere il numero.
+  const dotColor = valueTone?.color ?? tone?.color
   return (
     <div
       style={{
         background: 'var(--bg-2)',
         border: '1px solid var(--border-subtle)',
         borderRadius: 'var(--radius-md)',
+        boxShadow: 'var(--shadow-panel)',
         padding: 'var(--space-4)',
         display: 'flex',
         flexDirection: 'column',
@@ -27,16 +32,25 @@ export function StatusCard({ title, value, tone, toneText, hint, valueTone }: St
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ color: 'var(--text-secondary)', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          {title}
+        <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+          {dotColor && (
+            <span
+              aria-hidden
+              style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor, flexShrink: 0 }}
+            />
+          )}
+          <span style={{ color: 'var(--text-secondary)', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            {title}
+          </span>
         </span>
         {tone && <StatusBadge tone={tone} text={toneText} />}
       </div>
       <div
         className="mono"
         style={{
-          fontSize: 22,
-          fontWeight: 600,
+          fontSize: 'var(--font-size-hero)',
+          lineHeight: 1.1,
+          fontWeight: 700,
           color: valueTone?.color ?? 'var(--text-primary)',
           wordBreak: 'break-word',
           overflowWrap: 'break-word',

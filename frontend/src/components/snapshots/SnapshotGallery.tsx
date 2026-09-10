@@ -111,6 +111,7 @@ export function SnapshotGallery({ items, feeds, loading }: SnapshotGalleryProps)
                 overflow: 'hidden',
                 background: 'var(--bg-2)',
                 border: '1px solid var(--border-subtle)',
+                boxShadow: 'var(--shadow-panel)',
                 transition: 'all 150ms ease-out',
               }}
               onMouseEnter={(e) => {

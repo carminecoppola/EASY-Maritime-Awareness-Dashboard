@@ -86,6 +86,7 @@ function CameraCard({
         background: isOffline ? tone.dim : 'var(--bg-2)',
         border: isOffline ? `1px solid ${tone.color}` : '1px solid var(--border-subtle)',
         borderRadius: 'var(--radius-md)',
+        boxShadow: 'var(--shadow-panel)',
         padding: 'var(--space-3)',
         transition: 'all 150ms ease-out',
         display: 'flex',
