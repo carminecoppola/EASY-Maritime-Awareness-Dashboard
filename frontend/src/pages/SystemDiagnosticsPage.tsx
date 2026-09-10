@@ -220,7 +220,9 @@ export function SystemDiagnosticsPage() {
           numbers, and trend live together instead of being scattered
           across three separate sections a scroll apart. */}
       <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <SectionHeader title="Resource Usage" />
+        <div style={{ marginBottom: 'var(--space-1)' }}>
+          <SectionHeader title="Resource Usage" />
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 'var(--space-4)' }}>
           <Panel>
             <div style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'center' }}>
@@ -265,7 +267,9 @@ export function SystemDiagnosticsPage() {
 
       {/* PRIMARY: Disk — one compact bar instead of three equal-weight cards */}
       <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <SectionHeader title="Disk Storage" />
+        <div style={{ marginBottom: 'var(--space-1)' }}>
+          <SectionHeader title="Disk Storage" />
+        </div>
         <Panel>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
             {/* Same visual language as the CPU/Memory gauges above — a big
@@ -317,7 +321,9 @@ export function SystemDiagnosticsPage() {
           instead of the other way around. */}
       {cameras && (
         <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-          <SectionHeader title="Camera Inventory" />
+          <div style={{ marginBottom: 'var(--space-1)' }}>
+            <SectionHeader title="Camera Inventory" />
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 'var(--space-3)' }}>
             {cameras.rgb_cameras.map((cam) => (
               <CameraCard
