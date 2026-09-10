@@ -1,10 +1,13 @@
+import { ThinkingOrb } from 'thinking-orbs'
 import { useSharedDashboardState } from '../hooks/DashboardStateContext'
 import { StatusCard } from '../components/status/StatusCard'
 import { StatusBadge } from '../components/status/StatusBadge'
-import { toneForHardwareState } from '../components/status/severityColors'
+import { toneForHardwareState, toneForRatio, toneForRunningStatus } from '../components/status/severityColors'
 import { VideoPanel } from '../components/video/VideoPanel'
 import { EventsTable, type EventTableRow } from '../components/events/EventsTable'
 import { Collapsible } from '../components/common/Collapsible'
+import { Panel } from '../components/common/Panel'
+import { SectionHeader } from '../components/common/SectionHeader'
 import { mostRecentFirst } from '../utils/sorting'
 import type { DeviceInfo } from '../api/types'
 
@@ -12,7 +15,12 @@ export function LiveOverviewPage() {
   const { data, loading, error } = useSharedDashboardState()
 
   if (loading && !data) {
-    return <p style={{ color: 'var(--text-muted)' }}>Connecting to backend…</p>
+    return (
+      <p style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <ThinkingOrb state="connecting" size={20} theme="auto" />
+        Connecting to backend…
+      </p>
+    )
   }
   if (error && !data) {
     return <p style={{ color: 'var(--accent-critical)' }}>Unable to reach the backend: {String(error)}</p>
@@ -61,27 +69,20 @@ export function LiveOverviewPage() {
   const rgbStatus = rgbLeftAvailability === 'STREAMING' && rgbRightAvailability === 'STREAMING'
     ? 'Streaming'
     : 'Degraded'
+  const rgbTone = rgbLeftAvailability === 'STREAMING' && rgbRightAvailability === 'STREAMING'
+    ? toneForHardwareState('STREAMING')
+    : rgbLeftAvailability === 'ERROR' || rgbRightAvailability === 'ERROR'
+      ? toneForHardwareState('ERROR')
+      : toneForHardwareState('DEGRADED')
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
       <h1 style={{ fontSize: 18 }}>Live Overview</h1>
 
       {/* PRIMARY: Status Summary — what matters right now */}
-      <div
-        style={{
-          padding: 'var(--space-4)',
-          background: 'var(--bg-2)',
-          border: '2px solid var(--border-strong)',
-          borderRadius: 'var(--radius-md)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 'var(--space-3)',
-        }}
-      >
+      <Panel emphasis>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-          <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Status Summary
-          </h2>
+          <SectionHeader title="Status Summary" />
         </div>
 
         <div
@@ -94,25 +95,31 @@ export function LiveOverviewPage() {
           <StatusCard
             title="Devices Online"
             value={`${devicesOnline}/${devices.length}`}
+            valueTone={toneForRatio(devicesOnline, devices.length)}
           />
           <StatusCard
             title="Video Stream"
             value={rgbStatus}
+            valueTone={rgbTone}
           />
-          <StatusCard title="Session" value={data?.session?.running ? 'RUNNING' : 'STOPPED'} />
+          <StatusCard
+            title="Session"
+            value={data?.session?.running ? 'RUNNING' : 'STOPPED'}
+            valueTone={toneForRunningStatus(data?.session?.running ? 'RUNNING' : 'STOPPED')}
+          />
           <StatusCard
             title="Detections"
             value={detections?.count ?? 0}
             hint={detections?.last_run_ts ? `Last: ${new Date(detections.last_run_ts).toLocaleTimeString()}` : undefined}
           />
         </div>
-      </div>
+      </Panel>
 
       {/* Video feeds with detection overlays */}
       <div>
-        <h2 style={{ margin: '0 0 var(--space-3) 0', fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Live Feeds
-        </h2>
+        <div style={{ marginBottom: 'var(--space-3)' }}>
+          <SectionHeader title="Live Feeds" />
+        </div>
         <div
           style={{
             display: 'grid',
@@ -137,9 +144,9 @@ export function LiveOverviewPage() {
 
       {/* Inference metrics */}
       <div>
-        <h2 style={{ margin: '0 0 var(--space-3) 0', fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Inference Performance
-        </h2>
+        <div style={{ marginBottom: 'var(--space-3)' }}>
+          <SectionHeader title="Inference Performance" />
+        </div>
         <div
           style={{
             display: 'grid',

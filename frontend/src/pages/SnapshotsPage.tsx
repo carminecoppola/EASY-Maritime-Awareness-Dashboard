@@ -2,16 +2,8 @@ import { SnapshotGallery } from '../components/snapshots/SnapshotGallery'
 import { SnapshotActions } from '../components/snapshots/SnapshotActions'
 import { DatasetExport } from '../components/snapshots/DatasetExport'
 import { Collapsible } from '../components/common/Collapsible'
+import { SectionHeader } from '../components/common/SectionHeader'
 import { useSnapshotsRecent } from '../hooks/useSnapshotsRecent'
-
-const SECTION_TITLE_STYLE = {
-  fontSize: 14,
-  fontWeight: 600,
-  color: 'var(--text-primary)',
-  textTransform: 'uppercase' as const,
-  letterSpacing: '0.05em',
-  margin: '0 0 var(--space-3) 0',
-}
 
 export function SnapshotsPage() {
   // La galleria si aggiorna già da sola ogni 5s: non serve forzarne il
@@ -35,17 +27,13 @@ export function SnapshotsPage() {
 
       {/* PRIMARY: Manual Capture — the key action */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <h2 style={SECTION_TITLE_STYLE}>
-          Manual Capture
-        </h2>
+        <SectionHeader title="Manual Capture" />
         <SnapshotActions />
       </div>
 
       {/* SECONDARY: Snapshot Gallery */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <h2 style={SECTION_TITLE_STYLE}>
-          Snapshot Gallery
-        </h2>
+        <SectionHeader title="Snapshot Gallery" />
         {error ? (
           <div
             style={{
@@ -72,4 +60,3 @@ export function SnapshotsPage() {
     </div>
   )
 }
-

@@ -1,14 +1,14 @@
 import { useMemo } from 'react'
 import { useSharedDashboardState } from '../../hooks/DashboardStateContext'
 import { StatusBadge } from '../status/StatusBadge'
-import { toneForAvailability } from '../status/severityColors'
+import { toneForAvailability, TONES } from '../status/severityColors'
 import type { Tone } from '../status/severityColors'
 
 function connectionTone(loading: boolean, hasError: boolean, ok: boolean | undefined): { tone: Tone; text: string } {
-  if (hasError) return { tone: { color: 'var(--accent-critical)', dim: 'var(--accent-critical-dim)', label: '' }, text: 'DISCONNECTED' }
-  if (loading) return { tone: { color: 'var(--text-muted)', dim: 'var(--bg-3)', label: '' }, text: 'CONNECTING' }
-  if (ok) return { tone: { color: 'var(--accent-ok)', dim: 'var(--accent-ok-dim)', label: '' }, text: 'LIVE' }
-  return { tone: { color: 'var(--accent-warn)', dim: 'var(--accent-warn-dim)', label: '' }, text: 'DEGRADED' }
+  if (hasError) return { tone: TONES.critical, text: 'DISCONNECTED' }
+  if (loading) return { tone: TONES.neutral, text: 'CONNECTING' }
+  if (ok) return { tone: TONES.ok, text: 'LIVE' }
+  return { tone: TONES.warn, text: 'DEGRADED' }
 }
 
 export function TopBar() {
@@ -44,10 +44,7 @@ export function TopBar() {
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
         {criticalCount > 0 && (
-          <StatusBadge
-            tone={{ color: 'var(--accent-critical)', dim: 'var(--accent-critical-dim)', label: '' }}
-            text={`${criticalCount} CRITICAL`}
-          />
+          <StatusBadge tone={TONES.critical} text={`${criticalCount} CRITICAL`} />
         )}
         <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
           {data?.session?.running ? `Session: ${data.session.current?.session_id ?? 'active'}` : 'No active session'}
