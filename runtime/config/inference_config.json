@@ -1,7 +1,7 @@
 {
   "runtime_root": "runtime",
   "model": {
-    "preferred_path": "runtime/models/easy_v1_best_rgb.onnx",
+    "preferred_path": "runtime/models/best.onnx",
     "fallback_path": "runtime/models/easy_v1_best_rgb.pt",
     "type": "onnx"
   },
