@@ -75,14 +75,31 @@ export function LiveOverviewPage() {
       ? toneForHardwareState('ERROR')
       : toneForHardwareState('DEGRADED')
 
+  // Il motore di inferenza ha un proprio stato "running" (avviato via
+  // /api/inference/start) indipendente dal caricamento della pagina —
+  // prima ThinkingOrb appariva solo durante il boot iniziale, mai mentre
+  // il sistema sta davvero rilevando. Qui riflette lo stato reale.
+  const inferenceRunning = Boolean((data as any)?.inference?.running)
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
-      <h1 style={{ fontSize: 18 }}>Live Overview</h1>
+      <h1>Live Overview</h1>
 
       {/* PRIMARY: Status Summary — what matters right now */}
       <Panel emphasis>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <SectionHeader title="Status Summary" />
+          {inferenceRunning && (
+            <span
+              title="Detection engine running"
+              style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}
+            >
+              <ThinkingOrb state="searching" size={20} theme="dark" aria-label="Detection engine running" />
+              <span className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Detecting
+              </span>
+            </span>
+          )}
         </div>
 
         <div

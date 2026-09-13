@@ -61,7 +61,7 @@ export function ThermalFrameViewer({ enableAutoPolling = true, children }: Therm
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
       {/* Frame Viewer */}
-      <Panel>
+      <Panel variant="flat">
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 300, width: '100%' }}>
         {isLoading ? (
           <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
