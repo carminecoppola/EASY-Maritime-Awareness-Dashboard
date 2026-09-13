@@ -20,13 +20,29 @@ operating temperature of the Raspberry Pi.
 
 ## Model and dataset
 
-The dashboard uses `easy_v1_best_rgb.onnx`, exported from the model developed in
-the [EASY Maritime Awareness model repository](https://github.com/carminecoppola/easy-maritime-awareness).
-It is a YOLOv8n RGB detector trained to recognize three classes:
+The dashboard uses `best.onnx` (YOLOv8n, 640px), exported from the model
+developed in the
+[EASY Maritime Awareness model repository](https://github.com/carminecoppola/easy-maritime-awareness).
+It recognizes three classes: `boat`, `ship`, `buoy`.
 
-- `boat`
-- `ship`
-- `buoy`
+### Known limitation: v1 baseline data leakage (superseded)
+
+The original baseline, `EASY-v1-rgb3-buoy-rebalanced`, reported mAP50 0.942 on
+its internal test set, but a sequence-level audit found data leakage in the
+official train/val/test split (video sequences split across sets during a
+buoy-rebalancing pass). On a corrected sequence-safe split, the same model
+measures mAP50 0.382, recall 0.369, buoy recall 0.000. External validation on
+MODD2 (open-water, never used in training) confirmed the gap: only 1.05% of
+real obstacles detected.
+
+The currently deployed model adds the public ABOships dataset (9038 images,
+13 sequences, CC BY 4.0) to a sequence-safe split. Measured on the corrected
+test set: mAP50 0.627, recall 0.592, buoy recall 0.485 (vs 0.000). On MODD2 it
+still detects only 3.87% of obstacles -- better, but the open-water/small-object
+domain remains underrepresented in all currently available data, public or
+internal. A proprietary acquisition campaign in the real operating domain is
+required before recall numbers can be trusted at sea; see the model
+repository's `docs/proprietary_acquisition_spec.md`.
 
 The official training baseline is `EASY-v1-rgb3-buoy-rebalanced`. Its repository
 records the following public sources:
@@ -116,3 +132,30 @@ applicare l'hardening in futuro, applicarle insieme (escludendo
 `ProtectClock`) e verificare comunque l'accesso camera con un ciclo di
 restart dedicato, dato che un'interazione tra più direttive non è esclusa
 a priori.
+
+
+## Ground-readiness check (2026-09-10, remote)
+
+Combined-load endurance pass (~5 min, 17 cycles: inference + temperature +
+memory sampling every ~18s): temperature stable 57.9-61.3C, no throttling
+event during the window, memory stable ~1.6GB/7.8GB, 17/17 inference calls
+succeeded (955-1500ms), zero errors in the service log.
+
+Repeated thermal capture (20 back-to-back `/thermal/refresh` calls, ~1s
+apart): 20/20 succeeded, no degradation, status stayed READY throughout.
+
+**Open issue found**: `vcgencmd get_throttled` reports `0x50000` --
+under-voltage and throttling have occurred since last boot (not during this
+test, but at some point). Likely cause: power supply/USB-C cable not rated
+for the combined camera + inference load. Needs physical check before sea
+deployment: official Pi 4 power supply (5V/3A), cable quality, any USB hub
+drawing current from the same rail.
+
+7-day log review: no recurring errors beyond normal per-boot camera
+initialization sequence (NOT_PRESENT -> ERROR -> INITIALIZING -> STREAMING,
+self-resolves in under a second, expected behavior).
+
+Not testable without the actual sea environment: wave motion/vibration,
+real water glare and lighting conditions, detection validation against real
+open-water objects (this is the object of the planned proprietary
+acquisition campaign, not a bench test).
