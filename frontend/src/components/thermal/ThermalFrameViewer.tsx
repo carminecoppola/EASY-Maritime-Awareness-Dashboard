@@ -132,7 +132,13 @@ export function ThermalFrameViewer({ enableAutoPolling = true, children }: Therm
             }
           }}
         >
-          <span aria-hidden>⏺</span>
+          {/* U+23FA rendered as a colour emoji on some platforms (camera-flash
+              look), inconsistent with the rest of the icon system — same
+              class of issue already fixed in the sidebar. Plain SVG dot
+              instead, guaranteed to render the same everywhere. */}
+          <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden style={{ flexShrink: 0 }}>
+            <circle cx="5" cy="5" r="4.5" fill="currentColor" />
+          </svg>
           {isLoading
             ? 'Capturing...'
             : cooldownSeconds > 0
