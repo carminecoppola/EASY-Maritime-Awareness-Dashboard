@@ -195,14 +195,14 @@ export function SystemDiagnosticsPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
-      <h1 style={{ fontSize: 18 }}>System Diagnostics</h1>
+      <h1>System Diagnostics</h1>
 
       {/* PRIMARY: compact identity strip — one glance, not six equal-weight
           cards. Hostname/IP get more visual weight (what an operator
           actually needs to confirm they're on the right device / reach it
           over the network); OS/Python/uptime are secondary reference info. */}
       <section>
-        <Panel>
+        <Panel variant="flat">
           <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
             Device
           </div>
@@ -225,7 +225,7 @@ export function SystemDiagnosticsPage() {
           <SectionHeader title="Resource Usage" />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 'var(--space-4)' }}>
-          <Panel>
+          <Panel variant="flat">
             <div style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'center' }}>
               <div style={{ flexShrink: 0, width: 120 }}>
                 <CpuRamGauge value={diag.cpu_percent} label="CPU" color="var(--accent-info)" height={110} />
@@ -242,7 +242,7 @@ export function SystemDiagnosticsPage() {
               </div>
             </div>
           </Panel>
-          <Panel>
+          <Panel variant="flat">
             <div style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'center' }}>
               <div style={{ flexShrink: 0, width: 120 }}>
                 {/* diag.ram.percent (accounting for cache/buffers) can differ
@@ -271,7 +271,7 @@ export function SystemDiagnosticsPage() {
         <div style={{ marginBottom: 'var(--space-1)' }}>
           <SectionHeader title="Disk Storage" />
         </div>
-        <Panel>
+        <Panel variant="flat">
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
             {/* Same visual language as the CPU/Memory gauges above — a big
                 colored percentage — instead of a bare thin bar with no
@@ -366,7 +366,7 @@ export function SystemDiagnosticsPage() {
           useful when actually debugging, noise the rest of the time. */}
       {dashboardState && dashboardState.health && (
         <Collapsible title="System Components (technical detail)" defaultOpen={false}>
-          <Panel>
+          <Panel variant="flat">
             {dashboardState.health.system_components?.components?.length ? (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
