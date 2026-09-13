@@ -21,7 +21,7 @@ export function ThermalEventsPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
       {/* Page Header */}
       <div>
-        <h1>Thermal Events</h1>
+        <h1>Thermal & Events</h1>
         <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '4px 0 0 0' }}>
           Capture and review thermal readings; the AI detection log below covers all sources, not just this sensor.
         </p>
