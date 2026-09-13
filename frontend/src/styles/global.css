@@ -30,6 +30,20 @@ h4 {
   letter-spacing: -0.01em;
 }
 
+/* Titolo di pagina — deve leggersi come intestazione di un pannello
+   strumenti (mono, filo d'accento), non come un titolo di sito web
+   qualunque a 18px senza carattere. Applicato una sola volta qui invece
+   che ripetuto in ogni pagina. */
+h1 {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-page-title);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  padding-bottom: var(--space-2);
+  border-bottom: 2px solid var(--accent-brand);
+  display: inline-block;
+}
+
 a {
   color: var(--accent-interactive);
 }

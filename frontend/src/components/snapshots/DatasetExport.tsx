@@ -56,7 +56,7 @@ export function DatasetExport({}: DatasetExportProps) {
   }, [sessionId, validationPercent])
 
   return (
-    <Panel gap="space-4">
+    <Panel gap="space-4" variant="flat">
       <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Dataset Export</div>
 
       {/* Sezione Validazione */}

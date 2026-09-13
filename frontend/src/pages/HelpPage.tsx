@@ -73,7 +73,7 @@ export function HelpPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
       <div>
-        <h1 style={{ fontSize: 18 }}>Help</h1>
+        <h1>Help</h1>
         <p style={{ margin: '4px 0 0 0', color: 'var(--text-muted)', fontSize: 13 }}>
           The typical flow, one page per question, and what to do when something looks wrong.
         </p>
@@ -173,7 +173,7 @@ export function HelpPage() {
             </ul>
           </div>
 
-          <Panel>
+          <Panel variant="flat">
             {TROUBLESHOOTING.map((item, idx) => (
               <div key={item.title} style={{ borderTop: idx > 0 ? '1px solid var(--border-subtle)' : 'none', paddingTop: idx > 0 ? 'var(--space-3)' : 0 }}>
                 <h4 style={{ fontSize: 12, fontWeight: 600, color: item.tone, margin: '0 0 4px 0' }}>{item.title}</h4>

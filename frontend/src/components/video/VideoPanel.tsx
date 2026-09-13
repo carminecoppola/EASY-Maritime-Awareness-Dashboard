@@ -42,6 +42,10 @@ export function VideoPanel({ feed, label, availability, detections = [] }: Video
   }
 
   const showFeed = !(error || availability === 'ERROR' || availability === 'NOT_PRESENT')
+  // Il bordo riflette lo stato reale invece di restare sempre neutro —
+  // il feed video è il contenuto primario della pagina, deve leggersi
+  // "vivo" quando streamma davvero, non solo quando lo dice il badge.
+  const borderColor = availability === 'STREAMING' ? 'var(--accent-ok)' : 'var(--border-subtle)'
 
   return (
     <div
@@ -49,11 +53,12 @@ export function VideoPanel({ feed, label, availability, detections = [] }: Video
         display: 'flex',
         flexDirection: 'column',
         background: 'var(--bg-2)',
-        border: '1px solid var(--border-subtle)',
+        border: `1px solid ${borderColor}`,
         borderRadius: 'var(--radius-md)',
         boxShadow: 'var(--shadow-panel)',
         overflow: 'hidden',
         minHeight: 240,
+        transition: 'border-color 0.3s ease',
       }}
     >
       <div

@@ -9,7 +9,7 @@ export function PresentationPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
       <div>
-        <h1 style={{ fontSize: 18 }}>Presentation Preview</h1>
+        <h1>Presentation Preview</h1>
         <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>
           A static illustrative view — does not represent simultaneous hardware acquisition. Intended for demos and
           presentation material when the physical cameras are unavailable.

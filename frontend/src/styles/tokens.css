@@ -14,6 +14,13 @@
   --text-secondary: #aab8c6;
   --text-muted: #748899;
 
+  /* Accento di marca — identità EASY, mai usato per comunicare stato
+     (quello resta sempre e solo accent-ok/warn/critical/info qui sotto).
+     Ambra segnaletica, stesso registro delle boe di navigazione reali —
+     coerente col poster del progetto, non un colore scelto a caso. */
+  --accent-brand: #e3a53a;
+  --accent-brand-dim: #3a2c12;
+
   /* Accenti di stato — usati sempre insieme a testo/icona, mai da soli */
   --accent-ok: #2ee6a8;
   --accent-ok-dim: #143a30;
@@ -49,6 +56,9 @@
 
   /* Numeri hero (StatusCard, gauge) — leggibili a colpo d'occhio da lontano */
   --font-size-hero: 36px;
+  /* Titolo di pagina — deve leggersi come intestazione di un pannello
+     strumenti, non come un titolo di sito web qualunque. */
+  --font-size-page-title: 26px;
 
   --radius-sm: 4px;
   --radius-md: 8px;
@@ -56,7 +66,9 @@
 
   --focus-ring: 0 0 0 2px var(--bg-0), 0 0 0 4px var(--accent-interactive);
 
-  /* Separazione reale tra pannello e sfondo, non solo bordo 1px */
+  /* Separazione reale tra pannello e sfondo, non solo bordo 1px.
+     Riservata ai pannelli primari: un'informazione visiva di gerarchia,
+     non un default applicato ovunque. */
   --shadow-panel: 0 2px 4px rgba(0, 0, 0, 0.5), 0 12px 32px rgba(0, 0, 0, 0.45);
 }
 

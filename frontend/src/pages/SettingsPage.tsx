@@ -39,7 +39,7 @@ export function SettingsPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)', maxWidth: 560 }}>
       <div>
-        <h1 style={{ fontSize: 18 }}>Settings</h1>
+        <h1>Settings</h1>
         <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>
           Local, per-browser settings — nothing here is sent anywhere except as the request header below.
         </p>
@@ -50,7 +50,7 @@ export function SettingsPage() {
           Security
         </div>
 
-        <Panel>
+        <Panel variant="flat">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
             Shared access token

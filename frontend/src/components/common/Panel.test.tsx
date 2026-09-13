@@ -11,8 +11,12 @@ describe('Panel', () => {
   it('uses the thicker emphasis border only when asked — the visual cue for "this is the primary panel on the page"', () => {
     const { container: plain } = render(<Panel>x</Panel>)
     const { container: emphasized } = render(<Panel emphasis>x</Panel>)
-    expect((plain.firstChild as HTMLElement).style.border).toContain('1px')
-    expect((emphasized.firstChild as HTMLElement).style.border).toContain('2px')
+    expect((plain.firstChild as HTMLElement).style.borderRight).toContain('1px')
+    // L'emphasis mette un filo d'accento sul solo lato superiore (brand
+    // color) — i quattro lati non sono più uniformi, li controlliamo
+    // separatamente invece di affidarci allo shorthand `border`.
+    expect((emphasized.firstChild as HTMLElement).style.borderRight).toContain('2px')
+    expect((emphasized.firstChild as HTMLElement).style.borderTop).toContain('var(--accent-brand)')
   })
 
   it('honors the gap override (regression: DatasetExport needed space-4, Panel defaulted to space-3)', () => {

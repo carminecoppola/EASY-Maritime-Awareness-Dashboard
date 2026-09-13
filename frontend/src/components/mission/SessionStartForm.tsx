@@ -64,7 +64,7 @@ export function SessionStartForm({ currentSession, isRunning, onSessionChanged }
   }
 
   return (
-    <Panel>
+    <Panel variant="flat">
       <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
         Session Control
       </h3>

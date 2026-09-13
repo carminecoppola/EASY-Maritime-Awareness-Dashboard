@@ -17,9 +17,7 @@ export function SnapshotsPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
       {/* Page Header */}
       <div>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-          Snapshots
-        </h1>
+        <h1>Snapshots</h1>
         <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '4px 0 0 0' }}>
           Capture snapshots and manage dataset exports
         </p>
