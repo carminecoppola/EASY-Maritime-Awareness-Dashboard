@@ -53,7 +53,7 @@ describe('ThermalEventsPage', () => {
     })
 
     render(<ThermalEventsPage />)
-    expect(screen.getByText('Thermal Events')).toBeInTheDocument()
+    expect(screen.getByText('Thermal & Events')).toBeInTheDocument()
   })
 
   it('renders all sections', () => {

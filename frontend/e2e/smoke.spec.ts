@@ -26,7 +26,10 @@ for (const { path, heading } of PAGES) {
     await page.goto(path)
     await expect(page.getByRole('heading', { name: heading, level: 1 })).toBeVisible()
     // The sidebar is a good proxy for "the SPA shell mounted", present on every page.
-    await expect(page.getByRole('link', { name: 'Live Overview' })).toBeVisible()
+    // Scoped to the nav landmark: HelpPage's own guide cards reuse page
+    // names as link text (e.g. a "Live Overview" card linking to '/'),
+    // which otherwise collides with the sidebar link of the same name.
+    await expect(page.getByRole('navigation').getByRole('link', { name: 'Live Overview' })).toBeVisible()
     expect(errors, `console errors on ${path}: ${errors.join('; ')}`).toEqual([])
   })
 }
