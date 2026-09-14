@@ -1,89 +1,89 @@
-import { ThermalStatusPanel } from '../components/thermal/ThermalStatusPanel'
-import { ThermalFrameViewer } from '../components/thermal/ThermalFrameViewer'
-import { DetectionHistory } from '../components/thermal/DetectionHistory'
-import { ThermalSnapshotAction } from '../components/thermal/ThermalSnapshotAction'
+import { useCallback, useState } from 'react'
 import { useThermalStatus } from '../hooks/useThermal'
-import { api } from '../api/client'
-import { usePolling } from '../hooks/usePolling'
-import { Panel } from '../components/common/Panel'
-import { SectionHeader } from '../components/common/SectionHeader'
+import { useSharedDashboardState } from '../hooks/DashboardStateContext'
+import { ThermalViewerPanel } from '../components/thermal/ThermalViewerPanel'
+import { SensorStatusPanel } from '../components/thermal/SensorStatusPanel'
+import { EventStream, buildStream } from '../components/thermal/EventStream'
+import { formatRelativeTime, toDate } from '../utils/formatTime'
+import type { MissionEvent, RawLogEvent } from '../api/types'
 
 export function ThermalEventsPage() {
-  const thermalStatus = useThermalStatus(3000)
-  // Il proprio storico si aggiorna già da solo via polling (5s): non serve
-  // forzare un remount dopo uno snapshot manuale. Prima invece
-  // ThermalSnapshotAction veniva rimontato via `key` subito dopo aver
-  // chiamato la sua stessa callback di successo, distruggendo il proprio
-  // messaggio "Thermal snapshot captured" a metà del proprio handler.
-  const detectionHistory = usePolling(() => api.getDetectionHistory(), { intervalMs: 5000 })
+  const thermal = useThermalStatus(3000)
+  const dashboard = useSharedDashboardState()
+  // Incrementato dopo una cattura manuale: forza un nuovo ciclo del viewer
+  // senza rimontare i pannelli vicini.
+  const [, setCaptureCount] = useState(0)
+  const handleCaptured = useCallback(() => setCaptureCount((n) => n + 1), [])
+
+  const status = thermal.data
+  const availability = status?.runtime_state?.availability ?? 'NOT_PRESENT'
+  const online = availability === 'READY' || availability === 'STREAMING'
+  const lastFrameAt = toDate(status?.last_frame_ts as number | string | undefined)
+
+  const hotspot = typeof status?.hotspot_percent === 'number' ? status.hotspot_percent : null
+  const spread = typeof status?.signal_spread === 'number' ? status.signal_spread : null
+
+  const logEvents = (dashboard.data?.events?.events ?? []) as RawLogEvent[]
+  const missionEvents = (dashboard.data?.events_current?.events ?? []) as MissionEvent[]
+  const stream = buildStream(logEvents, missionEvents)
+  const thermalCount = stream.filter((e) => e.kind === 'thermal').length
+  const aiCount = stream.filter((e) => e.kind === 'ai').length
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
-      {/* Page Header */}
-      <div>
-        <h1>Thermal & Events</h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '4px 0 0 0' }}>
-          Capture and review thermal readings; the AI detection log below covers all sources, not just this sensor.
-        </p>
-      </div>
+    <>
+      <section className="easy-headline">
+        <div>
+          <div className="easy-eyebrow">Sensor intelligence</div>
+          <h1>Thermal &amp; Events</h1>
+          <p>Inspect the thermal sensor, capture evidence and review cross-source events.</p>
+        </div>
+        <div className="easy-updated">
+          Last frame <b>{lastFrameAt ? formatRelativeTime(lastFrameAt) : 'never'}</b>
+        </div>
+      </section>
 
-      {/* PRIMARY: Live Thermal Frame & Capture Actions */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <div style={{ marginBottom: 'var(--space-3)' }}>
-          <SectionHeader title="Live Thermal Frame" />
+      <section className="easy-readiness" aria-label="Thermal summary">
+        <div className="easy-readycell">
+          <div className="easy-kicker">Thermal sensor</div>
+          <div
+            className="easy-value"
+            style={{ color: online ? 'var(--accent-ok)' : availability === 'ERROR' ? 'var(--accent-critical)' : 'var(--text-muted)' }}
+          >
+            {online ? 'Operational' : availability.replace('_', ' ')}
+          </div>
+          <div className="easy-sub">Independent hardware path · on demand</div>
         </div>
-        <Panel>
-          <ThermalFrameViewer enableAutoPolling={true}>
-            <ThermalSnapshotAction />
-          </ThermalFrameViewer>
-        </Panel>
-      </div>
+        <div className="easy-readycell">
+          <div className="easy-kicker">Hotspot coverage</div>
+          <div className="easy-value mono">{hotspot !== null ? `${hotspot.toFixed(2)}%` : '—'}</div>
+          <div className="easy-sub">
+            {status?.anomaly_active ? 'Anomaly active' : 'Share of the frame above threshold'}
+          </div>
+        </div>
+        <div className="easy-readycell">
+          <div className="easy-kicker">Signal spread</div>
+          <div className="easy-value mono">{spread !== null ? spread.toFixed(0) : '—'}</div>
+          <div className="easy-sub">Raw sensor units, not °C</div>
+        </div>
+        <div className="easy-readycell">
+          <div className="easy-kicker">Events in stream</div>
+          <div className="easy-value mono">{stream.length}</div>
+          <div className="easy-sub">
+            {thermalCount} thermal · {aiCount} AI
+          </div>
+        </div>
+      </section>
 
-      {/* SECONDARY: Thermal Camera Status */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <div style={{ marginBottom: 'var(--space-3)' }}>
-          <SectionHeader title="Thermal Camera Status" />
-        </div>
-        <ThermalStatusPanel
-          status={thermalStatus.data}
-          loading={thermalStatus.loading}
-          error={thermalStatus.error}
-        />
-        <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)' }}>
-          This sensor and the RGB cameras use independent hardware paths — capturing a thermal reading never pauses
-          or interrupts the RGB feeds.
-        </p>
-      </div>
+      <section className="easy-workspace">
+        <ThermalViewerPanel status={status} onCaptured={handleCaptured} />
+        <SensorStatusPanel status={status} loading={thermal.loading} error={thermal.error} />
+      </section>
 
-      {/* TERTIARY: AI Detection Log — this table shows api.getDetectionHistory(),
-          the same AI/inference detection feed used elsewhere in the app
-          (boat/ship/buoy from the ONNX model on RGB or replay frames), not
-          thermal-sensor-specific events. It was labeled "Detection History"
-          with no qualifier, on a page titled "Thermal Events" — reads as
-          thermal data when it isn't. Renamed and captioned instead of
-          removed, since it's genuinely useful, just mislabeled. */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <div style={{ marginBottom: 'var(--space-1)' }}>
-          <SectionHeader title="AI Detection Log" />
-        </div>
-        <p style={{ margin: '0 0 var(--space-2) 0', fontSize: 12, color: 'var(--text-muted)' }}>
-          Every AI detection across the app (any camera source, not exclusive to thermal) — see the Source column.
-        </p>
-        <div
-          style={{
-            background: 'var(--bg-2)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-md)',
-            overflow: 'hidden',
-          }}
-        >
-          <DetectionHistory
-            detections={detectionHistory.data?.detections || []}
-            loading={detectionHistory.loading}
-            error={detectionHistory.error}
-          />
-        </div>
-      </div>
-    </div>
+      <EventStream
+        events={stream}
+        loading={dashboard.loading}
+        error={Boolean(dashboard.error)}
+      />
+    </>
   )
 }

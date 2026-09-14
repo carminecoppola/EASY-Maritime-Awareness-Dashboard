@@ -1,188 +1,176 @@
 import { Link } from 'react-router-dom'
-import { Collapsible } from '../components/common/Collapsible'
-import { Panel } from '../components/common/Panel'
-import { SectionHeader } from '../components/common/SectionHeader'
+import { useSharedDashboardState } from '../hooks/DashboardStateContext'
+import { CHECK_COLOR, CHECK_GLYPH, preflightChecks } from '../lib/preflight'
 
-const STEPS = [
-  { step: '1', title: 'Live', desc: 'Check all three feeds are updating.' },
-  { step: '2', title: 'Mission', desc: 'Start a mission before saving data.' },
-  { step: '3', title: 'Capture', desc: 'Save captures, run analysis for AI results.' },
-  { step: '4', title: 'Archive', desc: 'Review saved photos and the activity log.' },
+const FLOW = [
+  { step: 1, title: 'Verify Live', detail: 'Confirm all required feeds are current.' },
+  { step: 2, title: 'Start Mission', detail: 'Create the manifest before collection.' },
+  { step: 3, title: 'Capture & Analyze', detail: 'Save synchronized sets and run RGB AI.' },
+  { step: 4, title: 'Review & Export', detail: 'Validate evidence in the archive.' },
 ]
 
-const PAGE_GUIDE = [
+const GUIDES = [
   {
-    kicker: 'Live Overview',
-    title: 'When is a feed really live?',
-    desc: 'An offline feed doesn’t mean the server stopped — that camera just isn’t delivering recent frames.',
-    href: '/',
+    to: '/',
+    tag: 'Live Overview',
+    question: 'When is a feed really live?',
+    answer: 'Confirm timestamps and provider freshness before collecting.',
+    cta: 'Open Live',
   },
   {
-    kicker: 'Mission',
-    title: 'Why start a mission?',
-    desc: 'Captures, inference runs, and detections are indexed in the mission manifest while a session is active.',
-    href: '/mission',
+    to: '/mission',
+    tag: 'Mission',
+    question: 'Why start a mission?',
+    answer: 'Captures, inference and detections are indexed in the active manifest.',
+    cta: 'Open Mission',
   },
   {
-    kicker: 'Detections',
-    title: 'What should I expect from AI?',
-    desc: 'No new detections? Check the frame source and activity log — analysis needs a live or selected source.',
-    href: '/thermal-events',
+    to: '/analysis',
+    tag: 'AI Analysis',
+    question: 'What should I expect from AI?',
+    answer: 'Choose an RGB source and monitor running, waiting or completed states.',
+    cta: 'Open Analysis',
   },
   {
-    kicker: 'Photos and Activity',
-    title: 'Where are images stored?',
-    desc: 'Locally on the Raspberry Pi, shown in the archive. The activity log tells hardware errors from normal waits.',
-    href: '/snapshots',
+    to: '/thermal-events',
+    tag: 'Thermal & Events',
+    question: 'How does the thermal sensor behave?',
+    answer: 'It is captured on demand and releases the device between frames.',
+    cta: 'Open Thermal',
   },
   {
-    kicker: 'Presentation Preview',
-    title: 'Demoing without hardware?',
-    desc: 'A static view with recorded samples, no live polling — for demos when the physical cameras aren’t available.',
-    href: '/presentation',
+    to: '/snapshots',
+    tag: 'Archive',
+    question: 'Where are images stored?',
+    answer: 'Review synchronized capture sets and prepare validated exports.',
+    cta: 'Open Archive',
+  },
+  {
+    to: '/system-diagnostics',
+    tag: 'Diagnostics',
+    question: 'Something looks wrong?',
+    answer: 'Inspect CPU, storage and exact hardware-provider errors.',
+    cta: 'Open Diagnostics',
   },
 ]
 
-const CHECKLIST = [
-  'Left and right RGB feeds have recent frames.',
-  'The thermal sensor is producing real frames or is clearly marked unavailable.',
-  'A mission is active before collecting captures intended for fine-tuning.',
-  'The session dataset reports consistent samples and RGB/thermal pairs.',
-  'The activity log does not show repeated hardware errors.',
-]
-
-const TROUBLESHOOTING = [
+const ISSUES = [
   {
-    tone: 'var(--accent-info)',
+    tone: '',
     title: 'Feed is offline?',
-    body: 'Check System Diagnostics to verify camera connectivity — could be a USB issue, missing libcamera tools, or a hardware fault. The camera inventory shows the exact error.',
+    detail: 'Open Diagnostics and check the exact provider and USB error.',
   },
   {
-    tone: 'var(--accent-warn)',
-    title: 'No detections appearing?',
-    body: 'Make sure a mission is running and the selected source is producing frames. Low light or unrelated objects can also mean genuinely nothing to detect.',
+    tone: 'warn',
+    title: 'No detections?',
+    detail: 'Verify the mission and the selected RGB source, then run analysis again.',
   },
   {
-    tone: 'var(--accent-critical)',
-    title: 'High CPU or memory usage?',
-    body: 'Inference is resource-heavy — watch System Diagnostics during analysis runs. If usage stays unsafe, stop the analysis and restart the service.',
+    tone: 'danger',
+    title: 'High resource usage?',
+    detail: 'Stop analysis if CPU load or temperature stays unsafe.',
   },
 ]
 
 export function HelpPage() {
+  const { data } = useSharedDashboardState()
+  // La checklist di preparazione riflette lo stato reale, non una lista di
+  // spunte sempre verdi come nel mockup.
+  const checks = preflightChecks(data ?? null)
+  const missionRunning = data?.session?.running ?? false
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
-      <div>
-        <h1>Help</h1>
-        <p style={{ margin: '4px 0 0 0', color: 'var(--text-muted)', fontSize: 13 }}>
-          The typical flow, one page per question, and what to do when something looks wrong.
-        </p>
-      </div>
+    <>
+      <section className="easy-headline">
+        <div>
+          <div className="easy-eyebrow">Operator guidance</div>
+          <h1>Help &amp; Onboarding</h1>
+          <p>The normal workflow, page guidance and recovery paths.</p>
+        </div>
+        <div className="easy-updated">
+          Operator guide · <b>EASY dashboard</b>
+        </div>
+      </section>
 
-      {/* PRIMARY: a visual stepper instead of a paragraph + text rows —
-          the whole workflow readable in one scan, not a read. */}
-      <section style={{ background: 'var(--bg-2)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-5)' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start' }}>
-          {STEPS.map((item, idx) => (
-            <div key={item.step} style={{ display: 'flex', alignItems: 'flex-start', flex: idx < STEPS.length - 1 ? 1 : undefined }}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 96 }}>
-                <div
-                  className="mono"
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: '50%',
-                    background: 'var(--accent-info-dim)',
-                    color: 'var(--accent-info)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 14,
-                    fontWeight: 700,
-                    flexShrink: 0,
-                  }}
-                >
-                  {item.step}
-                </div>
-                <div style={{ marginTop: 'var(--space-2)', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', textAlign: 'center' }}>
-                  {item.title}
-                </div>
-                <div style={{ marginTop: 2, fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.4 }}>
-                  {item.desc}
-                </div>
-              </div>
-              {idx < STEPS.length - 1 && (
-                <div style={{ flex: 1, height: 1, background: 'var(--border-subtle)', marginTop: 16, minWidth: 24 }} />
-              )}
+      <section className="easy-surface easy-flow">
+        {FLOW.map((item) => (
+          <div className="easy-flowstep" key={item.step}>
+            <div className="easy-num" aria-hidden>
+              {item.step}
             </div>
-          ))}
-        </div>
-      </section>
-
-      {/* SECONDARY: page guide — same info as before, trimmed to one line
-          per card and using client-side <Link> instead of plain <a> (the
-          old cards did a full page reload on every click). */}
-      <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <div style={{ marginBottom: 'var(--space-3)' }}>
-          <SectionHeader title="Page Guide" />
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 'var(--space-3)' }}>
-          {PAGE_GUIDE.map((card) => (
-            <Link
-              key={card.kicker}
-              to={card.href}
-              style={{
-                background: 'var(--bg-2)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-md)',
-                padding: 'var(--space-4)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 'var(--space-1)',
-                textDecoration: 'none',
-                transition: 'border-color 150ms ease-out',
-              }}
-            >
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                {card.kicker}
-              </div>
-              <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>{card.title}</h3>
-              <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5, margin: '2px 0 0 0' }}>{card.desc}</p>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      {/* SECONDARY (collapsed by default): reference material looked up
-          only when something's actually wrong — the checklist and the
-          troubleshooting list used to always be on screen as three more
-          full-text sections below an already text-heavy page. */}
-      <Collapsible title="Checklist & Troubleshooting" defaultOpen={false}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-          <div style={{ background: 'var(--bg-2)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-4)' }}>
-            <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 var(--space-3) 0' }}>
-              Before collecting important data
-            </h3>
-            <ul style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', listStyle: 'none', padding: 0, margin: 0 }}>
-              {CHECKLIST.map((item) => (
-                <li key={item} style={{ display: 'flex', gap: 'var(--space-2)', fontSize: 12, color: 'var(--text-secondary)' }}>
-                  <span style={{ color: 'var(--accent-ok)', fontWeight: 600, minWidth: 16 }}>✓</span>
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
+            <b>{item.title}</b>
+            <small>{item.detail}</small>
           </div>
+        ))}
+      </section>
 
-          <Panel variant="flat">
-            {TROUBLESHOOTING.map((item, idx) => (
-              <div key={item.title} style={{ borderTop: idx > 0 ? '1px solid var(--border-subtle)' : 'none', paddingTop: idx > 0 ? 'var(--space-3)' : 0 }}>
-                <h4 style={{ fontSize: 12, fontWeight: 600, color: item.tone, margin: '0 0 4px 0' }}>{item.title}</h4>
-                <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>{item.body}</p>
+      <section className="easy-helpgrid">
+        <article className="easy-surface">
+          <div className="easy-panelhead">
+            <h2>Page guide</h2>
+            <span className="easy-panelnote">One page per operator question</span>
+          </div>
+          <div className="easy-guide">
+            {GUIDES.map((guide) => (
+              <Link className="easy-guidecard" to={guide.to} key={guide.to}>
+                <span className="easy-tag" style={{ color: 'var(--accent-info)' }}>
+                  {guide.tag}
+                </span>
+                <h3>{guide.question}</h3>
+                <p>{guide.answer}</p>
+                <span className="easy-open">{guide.cta} →</span>
+              </Link>
+            ))}
+          </div>
+        </article>
+
+        <aside className="easy-surface">
+          <div className="easy-panelhead">
+            <h2>Collection readiness</h2>
+            <span className="easy-panelnote">Live checks</span>
+          </div>
+          <div className="easy-sidebody">
+            <h3>Pre-collection checklist</h3>
+            {checks.map((check) => (
+              <div className="easy-checkline" key={check.id}>
+                <i style={{ color: CHECK_COLOR[check.level] }} aria-hidden>
+                  {CHECK_GLYPH[check.level]}
+                </i>
+                <span>
+                  {check.label} — {check.detail}
+                </span>
               </div>
             ))}
-          </Panel>
-        </div>
-      </Collapsible>
-    </div>
+            <div className="easy-checkline">
+              <i style={{ color: missionRunning ? 'var(--accent-ok)' : 'var(--text-muted)' }} aria-hidden>
+                {missionRunning ? '✓' : '·'}
+              </i>
+              <span>
+                {missionRunning
+                  ? 'A mission is active — captures are being indexed.'
+                  : 'No mission is active: start one before saving samples you want to keep.'}
+              </span>
+            </div>
+
+            <h3 style={{ marginTop: 14 }}>Quick troubleshooting</h3>
+            {ISSUES.map((issue) => (
+              <div className={`easy-issue ${issue.tone}`} key={issue.title}>
+                <b>{issue.title}</b>
+                <p>{issue.detail}</p>
+              </div>
+            ))}
+
+            <div className="easy-quick">
+              <Link className="easy-btn mini" to="/system-diagnostics">
+                Diagnostics
+              </Link>
+              <Link className="easy-btn mini primary" to="/">
+                Start at Live
+              </Link>
+            </div>
+          </div>
+        </aside>
+      </section>
+    </>
   )
 }

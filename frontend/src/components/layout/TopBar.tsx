@@ -1,54 +1,67 @@
-import { useMemo } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { useSharedDashboardState } from '../../hooks/DashboardStateContext'
-import { StatusBadge } from '../status/StatusBadge'
-import { toneForAvailability, TONES } from '../status/severityColors'
-import type { Tone } from '../status/severityColors'
+import { useMissionControl } from '../../hooks/useMissionControl'
+import { readinessLevel, READINESS_COLOR, sensorReadiness } from '../../lib/readiness'
+import { formatRelativeTime } from '../../utils/formatTime'
+import { titleForPath } from './navItems'
+import { NotificationCenter } from '../feedback/NotificationCenter'
+import { AccountMenu } from '../auth/AccountMenu'
 
-function connectionTone(loading: boolean, hasError: boolean, ok: boolean | undefined): { tone: Tone; text: string } {
-  if (hasError) return { tone: TONES.critical, text: 'DISCONNECTED' }
-  if (loading) return { tone: TONES.neutral, text: 'CONNECTING' }
-  if (ok) return { tone: TONES.ok, text: 'LIVE' }
-  return { tone: TONES.warn, text: 'DEGRADED' }
+interface Connection {
+  color: string
+  text: string
+}
+
+function connectionState(loading: boolean, hasError: boolean, ok: boolean | undefined): Connection {
+  if (hasError) return { color: 'var(--accent-critical)', text: 'Disconnected' }
+  if (loading && ok === undefined) return { color: 'var(--text-muted)', text: 'Connecting…' }
+  if (ok) return { color: 'var(--accent-ok)', text: 'Operational' }
+  return { color: 'var(--accent-warn)', text: 'Degraded' }
 }
 
 export function TopBar() {
   const { data, error, loading } = useSharedDashboardState()
+  const { running, stop, stopping } = useMissionControl()
+  const { pathname } = useLocation()
 
-  const connection = useMemo(
-    () => connectionTone(loading, Boolean(error), data?.ok),
-    [loading, error, data?.ok],
-  )
+  const connection = connectionState(loading, Boolean(error), data?.ok)
+  const sensors = sensorReadiness(data ?? null)
+  const readyCount = sensors.filter((s) => s.ready).length
+  const level = readinessLevel(sensors)
+  const temperature = data?.health?.system?.cpu_temperature_c
 
-  const criticalCount =
-    data?.events_current?.events?.filter((e) => e.status !== 'RESOLVED' && e.severity === 'CRITICAL').length ?? 0
-  const rgb = data?.health?.runtime_state?.rgb
-  const thermal = data?.health?.runtime_state?.thermal
+  // L'errore di connessione non cancella l'ultimo stato ricevuto: il badge
+  // dichiara la connessione, il title dichiara quanto è vecchio il dato.
+  const lastUpdate = data?.timestamp ? formatRelativeTime(data.timestamp) : 'never'
 
   return (
-    <header
-      style={{
-        height: 56,
-        flexShrink: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 var(--space-5)',
-        borderBottom: '1px solid var(--border-subtle)',
-        background: 'var(--bg-1)',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
-        <StatusBadge tone={connection.tone} text={connection.text} />
-        {rgb && <StatusBadge tone={toneForAvailability(rgb.availability)} text={`RGB ${rgb.availability}`} />}
-        {thermal && <StatusBadge tone={toneForAvailability(thermal.availability)} text={`THERMAL ${thermal.availability}`} />}
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
-        {criticalCount > 0 && (
-          <StatusBadge tone={TONES.critical} text={`${criticalCount} CRITICAL`} />
+    <header className="easy-topbar">
+      <div className="easy-crumb">{titleForPath(pathname)}</div>
+      <div className="easy-topstats">
+        <div className="easy-status" title={`Last payload received ${lastUpdate}`}>
+          <span className="easy-dot" style={{ background: connection.color }} aria-hidden />
+          {connection.text}
+        </div>
+        <div className="easy-status" title={sensors.map((s) => `${s.label}: ${s.availability}`).join(' · ')}>
+          <span className="easy-dot" style={{ background: READINESS_COLOR[level] }} aria-hidden />
+          {readyCount}/{sensors.length} sensors ready
+        </div>
+        {typeof temperature === 'number' && (
+          <div className="easy-temp" title="CPU temperature">
+            {temperature.toFixed(1)}°C
+          </div>
         )}
-        <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-          {data?.session?.running ? `Session: ${data.session.current?.session_id ?? 'active'}` : 'No active session'}
-        </span>
+        <NotificationCenter />
+        <AccountMenu />
+        {running ? (
+          <button type="button" className="easy-btn" onClick={stop} disabled={stopping}>
+            {stopping ? 'Ending…' : 'End mission'}
+          </button>
+        ) : (
+          <Link className="easy-btn primary" to="/mission">
+            Start mission
+          </Link>
+        )}
       </div>
     </header>
   )

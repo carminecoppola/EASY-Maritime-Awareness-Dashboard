@@ -12,12 +12,14 @@ def get_runtime() -> DashboardRuntime:
 
 
 def register_blueprints(app: Flask, runtime: DashboardRuntime) -> None:
+    from easy_dashboard.routes.api_auth import api_auth_bp
     from easy_dashboard.routes.api_inference import api_inference_bp
     from easy_dashboard.routes.api_runtime import api_runtime_bp
     from easy_dashboard.routes.media import media_bp
     from easy_dashboard.routes.spa import spa_bp
 
     app.config["dashboard_runtime"] = runtime
+    app.register_blueprint(api_auth_bp)
     app.register_blueprint(api_runtime_bp)
     app.register_blueprint(media_bp)
     app.register_blueprint(api_inference_bp)

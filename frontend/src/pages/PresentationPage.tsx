@@ -1,97 +1,81 @@
 // Vista statica "Presentation Preview": nessuna chiamata API, nessun
 // polling, pensata per demo/paper quando l'hardware non è disponibile.
-// Equivalente SPA del vecchio /paper-preview Jinja (rimosso in Fase 5).
-// A differenza della pagina Live reale, qui i contenuti sono fissi e
-// dichiaratamente non rappresentano un'acquisizione live simultanea.
-import type { ReactNode } from 'react'
+// I contenuti sono fissi e dichiaratamente non rappresentano
+// un'acquisizione live simultanea.
 
 export function PresentationPage() {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
-      <div>
-        <h1>Presentation Preview</h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>
-          A static illustrative view — does not represent simultaneous hardware acquisition. Intended for demos and
-          presentation material when the physical cameras are unavailable.
-        </p>
+    <>
+      <section className="easy-headline">
+        <div>
+          <div className="easy-eyebrow">Static demonstration</div>
+          <h1>Presentation Preview</h1>
+          <p>A deterministic view for demos and publication material.</p>
+        </div>
+        <div className="easy-updated">
+          No polling · <b>no hardware actions</b>
+        </div>
+      </section>
+
+      <div className="easy-provenance">
+        <b>Recorded-source provenance</b>
+        This page uses fixed samples and does not represent simultaneous live sensor acquisition.
+        <span className="easy-tag" style={{ color: 'var(--accent-info)' }}>
+          PRESENTATION MODE
+        </span>
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-          gap: 'var(--space-4)',
-        }}
-      >
-        <PresentationPanel title="RGB LEFT" badge="Recorded sample">
-          <img
-            src="/paper-assets/rgb-left"
-            alt="Campione RGB registrato (dataset SeaShips)"
-            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-          />
-        </PresentationPanel>
+      <section className="easy-previewgrid">
+        <article className="easy-surface easy-prevfeed large">
+          <img src="/paper-assets/rgb-left" alt="Recorded RGB sample from the SeaShips dataset" />
+          <div className="easy-prevfeed-scrim" aria-hidden />
+          <div className="easy-feedhead">
+            <b>RGB Left sample</b>
+            <span className="easy-tag">SEASHIPS · RECORDED</span>
+          </div>
+          <div className="easy-feedmeta">
+            <b>Maritime scene · port approach</b>
+            <small>SeaShips dataset · illustrative inference overlay</small>
+          </div>
+        </article>
 
-        <PresentationPanel title="RGB RIGHT" badge="Recorded sample">
-          <img
-            src="/paper-assets/rgb-right"
-            alt="Campione RGB registrato (dataset SeaShips)"
-            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-          />
-        </PresentationPanel>
+        <article className="easy-surface easy-prevfeed">
+          <img src="/paper-assets/rgb-right" alt="Second recorded RGB sample from the SeaShips dataset" />
+          <div className="easy-prevfeed-scrim" aria-hidden />
+          <div className="easy-feedhead">
+            <b>RGB Right sample</b>
+            <span className="easy-tag">SEASHIPS · RECORDED</span>
+          </div>
+          <div className="easy-feedmeta">
+            <b>Secondary perspective</b>
+            <small>Independent recorded RGB image</small>
+          </div>
+        </article>
 
-        <PresentationPanel title="THERMAL" badge="Illustrative">
-          <img
-            src="/presentation-thermal.svg"
-            alt="Riferimento termico illustrativo (non una misura FLIR live)"
-            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-          />
-        </PresentationPanel>
-      </div>
+        <article className="easy-surface easy-thermalfeed">
+          <div className="easy-prevfeed" style={{ minHeight: 200 }}>
+            <img src="/presentation-thermal.svg" alt="Illustrative thermal reference, not a live measurement" />
+            <div className="easy-prevfeed-scrim" aria-hidden />
+            <div className="easy-feedhead">
+              <b>Thermal reference</b>
+            </div>
+          </div>
+          <div className="easy-thermcopy">
+            <span className="easy-tag" style={{ color: 'var(--accent-warn)' }}>
+              ILLUSTRATIVE
+            </span>
+            <h3>Thermal context</h3>
+            <p>
+              Visual reference only. This image is not a live thermal measurement and must keep its provenance label
+              in exported figures.
+            </p>
+          </div>
+        </article>
+      </section>
 
-      <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-        RGB samples from the SeaShips dataset (Shao et al., 2018). The thermal reference is illustrative, not a live
-        FLIR measurement.
+      <p className="easy-empty">
+        RGB samples from the SeaShips dataset (Shao et al., 2018). The thermal reference is illustrative.
       </p>
-    </div>
-  )
-}
-
-function PresentationPanel({ title, badge, children }: { title: string; badge: string; children: ReactNode }) {
-  return (
-    <div
-      style={{
-        background: 'var(--bg-2)',
-        border: '1px solid var(--border-subtle)',
-        borderRadius: 'var(--radius-md)',
-        overflow: 'hidden',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: 'var(--space-2) var(--space-3)',
-          borderBottom: '1px solid var(--border-subtle)',
-        }}
-      >
-        <span className="mono" style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>
-          {title}
-        </span>
-        <span
-          className="mono"
-          style={{
-            fontSize: 10,
-            padding: '2px 8px',
-            borderRadius: 999,
-            background: 'var(--bg-3)',
-            color: 'var(--text-muted)',
-          }}
-        >
-          {badge}
-        </span>
-      </div>
-      <div style={{ aspectRatio: '4 / 3', background: 'var(--bg-0)' }}>{children}</div>
-    </div>
+    </>
   )
 }

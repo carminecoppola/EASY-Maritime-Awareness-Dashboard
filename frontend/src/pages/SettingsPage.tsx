@@ -1,26 +1,76 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { api } from '../api/client'
 import { getAuthToken, setAuthToken } from '../api/config'
-import { StatusBadge } from '../components/status/StatusBadge'
-import { Collapsible } from '../components/common/Collapsible'
-import { Panel } from '../components/common/Panel'
+import { useSharedDashboardState } from '../hooks/DashboardStateContext'
+import { PREFERENCES, usePreference } from '../lib/preferences'
 
-// Gap trovato dalla review di sicurezza: setAuthToken() esisteva già in
-// api/config.ts ma non era mai invocata da nessuna UI — se un deployment
-// attivava security.shared_token lato backend, la SPA non aveva alcun modo
-// per inserire il token e tutte le richieste non-GET avrebbero ricevuto 401.
+type SectionId = 'security' | 'safety' | 'about'
+
+const SECTIONS: { id: SectionId; group: string; label: string; title: string; description: string }[] = [
+  {
+    id: 'security',
+    group: 'Workspace',
+    label: 'Security & access',
+    title: 'Security & access',
+    description: 'Configure how this browser authenticates state-changing actions on the Raspberry Pi.',
+  },
+  {
+    id: 'safety',
+    group: 'Workspace',
+    label: 'Session safety',
+    title: 'Session safety',
+    description: 'Operator protections for potentially disruptive actions, stored in this browser.',
+  },
+  {
+    id: 'about',
+    group: 'System',
+    label: 'About this device',
+    title: 'About this device',
+    description: 'Identity reported by the connected Raspberry Pi.',
+  },
+]
+
+function AuthStatusTag({ authRequired }: { authRequired: boolean | null }) {
+  // null non è "accesso aperto": è "non è stato possibile leggere la
+  // configurazione", e va detto esplicitamente.
+  if (authRequired === null) {
+    return (
+      <span className="easy-tag" style={{ color: 'var(--accent-warn)' }}>
+        ACCESS CONFIGURATION UNAVAILABLE
+      </span>
+    )
+  }
+  return (
+    <span className="easy-tag" style={{ color: authRequired ? 'var(--accent-ok)' : 'var(--text-muted)' }}>
+      {authRequired ? 'TOKEN REQUIRED' : 'OPEN ACCESS'}
+    </span>
+  )
+}
+
 export function SettingsPage() {
+  const [section, setSection] = useState<SectionId>('security')
   const [tokenInput, setTokenInput] = useState('')
   const [savedToken, setSavedToken] = useState<string | null>(null)
   const [authRequired, setAuthRequired] = useState<boolean | null>(null)
   const [saved, setSaved] = useState(false)
+  const [confirmEnd, setConfirmEnd] = usePreference('confirmEndMission')
+  const tokenId = useId()
+  const dashboard = useSharedDashboardState()
+  const system = dashboard.data?.health?.system
+
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   useEffect(() => {
+    let active = true
     setSavedToken(getAuthToken())
     api
       .getConfig()
-      .then((cfg) => setAuthRequired(cfg.auth_required))
-      .catch(() => setAuthRequired(null))
+      .then((cfg) => active && setAuthRequired(cfg.auth_required))
+      .catch(() => active && setAuthRequired(null))
+    return () => {
+      active = false
+      clearTimeout(savedTimer.current)
+    }
   }, [])
 
   const handleSave = () => {
@@ -28,7 +78,8 @@ export function SettingsPage() {
     setSavedToken(getAuthToken())
     setTokenInput('')
     setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+    clearTimeout(savedTimer.current)
+    savedTimer.current = setTimeout(() => setSaved(false), 2000)
   }
 
   const handleClear = () => {
@@ -36,121 +87,177 @@ export function SettingsPage() {
     setSavedToken(null)
   }
 
+  const active = SECTIONS.find((s) => s.id === section) ?? SECTIONS[0]
+  const groups = Array.from(new Set(SECTIONS.map((s) => s.group)))
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)', maxWidth: 560 }}>
-      <div>
-        <h1>Settings</h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>
-          Local, per-browser settings — nothing here is sent anywhere except as the request header below.
-        </p>
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-          Security
+    <>
+      <section className="easy-headline">
+        <div>
+          <div className="easy-eyebrow">Local configuration</div>
+          <h1>Settings</h1>
+          <p>Per-browser preferences and secure access for this EASY device.</p>
         </div>
+        <div className="easy-updated">
+          Changes apply to <b>this browser</b>
+        </div>
+      </section>
 
-        <Panel variant="flat">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
-            Shared access token
-          </h3>
-          {authRequired !== null && (
-            <StatusBadge
-              tone={
-                authRequired
-                  ? { color: 'var(--accent-warn)', dim: 'var(--accent-warn-dim)', label: '' }
-                  : { color: 'var(--text-muted)', dim: 'var(--bg-3)', label: '' }
-              }
-              text={authRequired ? 'TOKEN REQUIRED' : 'OPEN ACCESS'}
-            />
+      <section className="easy-settingsgrid">
+        <aside className="easy-surface easy-settingnav">
+          {groups.map((group) => (
+            <div key={group} role="tablist" aria-label={`${group} settings`}>
+              <small>{group}</small>
+              {SECTIONS.filter((s) => s.group === group).map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="tab"
+                  id={`settings-tab-${item.id}`}
+                  aria-controls="settings-panel"
+                  aria-selected={section === item.id}
+                  tabIndex={section === item.id ? 0 : -1}
+                  onClick={() => setSection(item.id)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          ))}
+        </aside>
+
+        <article
+          className="easy-surface easy-settingbody"
+          id="settings-panel"
+          role="tabpanel"
+          aria-labelledby={`settings-tab-${section}`}
+        >
+          <h2>{active.title}</h2>
+          <p>{active.description}</p>
+
+          {section === 'security' && (
+            <>
+              <div className="easy-group">
+                <div className="easy-ghead">
+                  <b>Shared access token</b>
+                  <span>Optional protection for actions such as starting missions and capturing frames.</span>
+                </div>
+                <div className="easy-settingrow" style={{ display: 'block' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                    <div>
+                      <b>Authentication status</b>
+                      <small>
+                        {authRequired === null
+                          ? 'The backend access configuration could not be read'
+                          : authRequired
+                            ? 'The backend currently requires a shared token'
+                            : 'The backend accepts requests without a token'}
+                      </small>
+                    </div>
+                    <span style={{ marginLeft: 'auto' }}>
+                      <AuthStatusTag authRequired={authRequired} />
+                    </span>
+                  </div>
+                  <div className="easy-tokenrow">
+                    <label htmlFor={tokenId} className="easy-fieldlabel" style={{ width: '100%', marginBottom: 0 }}>
+                      Shared token
+                    </label>
+                    <input
+                      id={tokenId}
+                      className="easy-input"
+                      type="password"
+                      value={tokenInput}
+                      onChange={(e) => setTokenInput(e.target.value)}
+                      placeholder="Paste the shared token"
+                      autoComplete="off"
+                    />
+                    <button type="button" className="easy-btn primary" onClick={handleSave} disabled={!tokenInput.trim()}>
+                      Save token
+                    </button>
+                    {savedToken && (
+                      <button type="button" className="easy-btn danger" onClick={handleClear}>
+                        Clear
+                      </button>
+                    )}
+                    {saved && <span style={{ color: 'var(--accent-ok)', fontSize: 11, alignSelf: 'center' }}>Saved ✓</span>}
+                  </div>
+                </div>
+                <div className="easy-settingrow">
+                  <div>
+                    <b>Token storage</b>
+                    <small>Stored only in this browser's local storage</small>
+                  </div>
+                  <span className="easy-control easy-tag mono">
+                    {savedToken ? 'CURRENT TOKEN · ••••••••' : 'NO TOKEN STORED'}
+                  </span>
+                </div>
+              </div>
+
+              <p className="easy-callout" style={{ marginTop: 0 }}>
+                <b>How access works.</b> The dashboard uses an open-LAN trust model by default. When{' '}
+                <span className="mono">security.shared_token</span> is configured on the Raspberry Pi, this browser
+                sends it as the <span className="mono">X-EASY-Token</span> header on non-GET requests. This is shared
+                device access, not an individual account system.
+              </p>
+            </>
           )}
-        </div>
 
-        {/* Trimmed from a 5-sentence security-model explainer always on
-            screen to one line + an opt-in "Learn more" — the full detail
-            (config.yaml, header name, "not a login system") is documentation,
-            not something every visitor needs read before finding the field. */}
-        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-          {authRequired
-            ? 'This device requires a token for actions that change state. Paste it below.'
-            : 'This device is open on the LAN by default. Only set this if an operator has configured a shared token.'}
-        </p>
+          {section === 'safety' && (
+            <div className="easy-group">
+              <div className="easy-ghead">
+                <b>Operator protections</b>
+                <span>These preferences live in this browser and take effect immediately.</span>
+              </div>
+              <div className="easy-settingrow">
+                <div>
+                  <b>{PREFERENCES.confirmEndMission.label}</b>
+                  <small>{PREFERENCES.confirmEndMission.description}</small>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={confirmEnd}
+                  aria-label={PREFERENCES.confirmEndMission.label}
+                  className="easy-switch easy-control"
+                  onClick={() => setConfirmEnd(!confirmEnd)}
+                />
+              </div>
+            </div>
+          )}
 
-        <Collapsible title="How does this work?" defaultOpen={false}>
-          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-            This dashboard's default trust model is an open LAN: anyone who can reach it can use it. An operator can
-            optionally require a shared token for any action that changes state (starting/stopping a session, taking
-            a snapshot, etc.) by setting <code>security.shared_token</code> in <code>config.yaml</code> on the
-            Raspberry Pi. If that's configured, paste the same token here — it's attached as the{' '}
-            <code>X-EASY-Token</code> header on every non-GET request from this browser, and stored only in this
-            browser's local storage. It is not a login system: anyone with the token has the same access.
-          </p>
-        </Collapsible>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-          <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-            Current token: <span className="mono">{savedToken ? '••••••••' : 'not set'}</span>
-          </label>
-          <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-            <input
-              type="password"
-              value={tokenInput}
-              onChange={(e) => setTokenInput(e.target.value)}
-              placeholder="Paste the shared token"
-              autoComplete="off"
-              style={{
-                flex: 1,
-                minHeight: 36,
-                padding: '6px 10px',
-                background: 'var(--bg-1)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-md)',
-                color: 'var(--text-primary)',
-                fontSize: 12,
-              }}
-            />
-            <button
-              onClick={handleSave}
-              disabled={!tokenInput.trim()}
-              style={{
-                minHeight: 36,
-                padding: '6px 16px',
-                background: 'var(--accent-interactive)',
-                color: 'var(--bg-0)',
-                border: 'none',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: tokenInput.trim() ? 'pointer' : 'not-allowed',
-                opacity: tokenInput.trim() ? 1 : 0.6,
-              }}
-            >
-              Save
-            </button>
-            {savedToken && (
-              <button
-                onClick={handleClear}
-                style={{
-                  minHeight: 36,
-                  padding: '6px 16px',
-                  background: 'transparent',
-                  color: 'var(--accent-critical)',
-                  border: '1px solid var(--accent-critical)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                Clear
-              </button>
-            )}
-          </div>
-          {saved && <span style={{ fontSize: 11, color: 'var(--accent-ok)' }}>Saved.</span>}
-        </div>
-        </Panel>
-      </div>
-    </div>
+          {section === 'about' && (
+            <div className="easy-group">
+              <div className="easy-ghead">
+                <b>Connected device</b>
+                <span>Reported by the backend; not editable from the dashboard.</span>
+              </div>
+              {dashboard.error && !system ? (
+                <p className="easy-error" style={{ margin: 13 }}>
+                  Device identity unavailable — the backend could not be reached.
+                </p>
+              ) : (
+                [
+                  ['Hostname', system?.hostname],
+                  ['IP address', system?.ip_address],
+                  ['Device', system?.model],
+                  ['Operating system', system?.os_release],
+                  ['Python runtime', system?.python_version],
+                  ['Uptime', system?.uptime_human],
+                ].map(([label, value]) => (
+                  <div className="easy-settingrow" key={String(label)}>
+                    <div>
+                      <b>{label}</b>
+                    </div>
+                    <span className="easy-control mono" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                      {value ? String(value) : 'Unavailable'}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </article>
+      </section>
+    </>
   )
 }

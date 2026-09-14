@@ -1,7 +1,9 @@
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
+import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 
-const FLASK_ORIGIN = 'http://127.0.0.1:5000'
+const FLASK_ORIGIN = process.env.EASY_BACKEND_ORIGIN || 'http://127.0.0.1:5000'
 
 // Vite's dev proxy matches plain string keys by prefix (url.startsWith(key)),
 // so a naive prefix like "/system" also matches the SPA's own
@@ -20,13 +22,16 @@ const PROXY_PATTERNS: string[] = [
   '^/snapshots/', // media route has a required /<feed>/<filename> subpath
   '^/snapshot/', // singular action route, always has a /<feed> subpath
   '^/health(/|$)',
+  '^/events(/|$)', // log attività: senza questa entry finiva nel fallback SPA
+
   '^/system$', // exact: the diagnostics API, not /system-diagnostics
   '^/cameras$',
   '^/paper-assets/',
 ]
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
+  resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   server: {
     proxy: Object.fromEntries(
       PROXY_PATTERNS.map((pattern) => [
