@@ -9,6 +9,7 @@ import { AppShell } from './components/layout/AppShell'
 // caricato on-demand.
 const LiveOverviewPage = lazy(() => import('./pages/LiveOverviewPage').then((m) => ({ default: m.LiveOverviewPage })))
 const MissionPage = lazy(() => import('./pages/MissionPage').then((m) => ({ default: m.MissionPage })))
+const AnalysisPage = lazy(() => import('./pages/AnalysisPage').then((m) => ({ default: m.AnalysisPage })))
 const ThermalEventsPage = lazy(() => import('./pages/ThermalEventsPage').then((m) => ({ default: m.ThermalEventsPage })))
 const SnapshotsPage = lazy(() => import('./pages/SnapshotsPage').then((m) => ({ default: m.SnapshotsPage })))
 const SystemDiagnosticsPage = lazy(() =>
@@ -17,6 +18,8 @@ const SystemDiagnosticsPage = lazy(() =>
 const HelpPage = lazy(() => import('./pages/HelpPage').then((m) => ({ default: m.HelpPage })))
 const PresentationPage = lazy(() => import('./pages/PresentationPage').then((m) => ({ default: m.PresentationPage })))
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })))
+const SignInPage = lazy(() => import('./pages/SignInPage').then((m) => ({ default: m.SignInPage })))
+const UsersRolesPage = lazy(() => import('./pages/UsersRolesPage').then((m) => ({ default: m.UsersRolesPage })))
 
 function PageFallback() {
   return <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading…</p>
@@ -41,6 +44,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <LiveOverviewPage /> },
       { path: 'mission', element: <MissionPage /> },
+      { path: 'analysis', element: <AnalysisPage /> },
       { path: 'thermal-events', element: <ThermalEventsPage /> },
       { path: 'snapshots', element: <SnapshotsPage /> },
       // "system" da solo collide con l'endpoint backend GET /system
@@ -53,6 +57,8 @@ export const router = createBrowserRouter([
       // Fase 5 insieme al resto di pages_bp).
       { path: 'presentation', element: <PresentationPage /> },
       { path: 'settings', element: <SettingsPage /> },
+      { path: 'sign-in', element: <SignInPage /> },
+      { path: 'admin/users', element: <UsersRolesPage /> },
       { path: '*', element: <Navigate to="/" replace /> },
     ],
   },

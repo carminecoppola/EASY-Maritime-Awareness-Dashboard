@@ -1,0 +1,310 @@
+/* Login, first-run setup, Users & Roles, 403. */
+
+.easy-authscreen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  background: var(--bg-0);
+}
+
+.easy-authcard {
+  width: 100%;
+  max-width: 380px;
+  background: var(--bg-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-panel);
+  padding: var(--space-6) var(--space-5);
+}
+
+.easy-authbrand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+  text-align: center;
+}
+
+.easy-authbrand-mark {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent-brand) 45%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--accent-brand) 8%, transparent);
+  color: var(--accent-brand);
+}
+
+.easy-authbrand h1 {
+  all: unset;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: 0.08em;
+  color: var(--text-primary);
+}
+
+.easy-authbrand .easy-authdevice {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.easy-authbrand .easy-authdevice b {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.easy-authreach {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.easy-authfield {
+  margin-bottom: var(--space-3);
+}
+
+.easy-authfield label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.easy-authfield .easy-input {
+  width: 100%;
+  height: 42px;
+}
+
+.easy-authcapslock {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--accent-warn);
+}
+
+.easy-authsubmit {
+  width: 100%;
+  margin-top: var(--space-2);
+  min-height: 44px;
+}
+
+/* Piccolo scatto orizzontale una sola volta su credenziali errate —
+   rispetta prefers-reduced-motion, mai un lampeggio continuo. */
+@media (prefers-reduced-motion: no-preference) {
+  .easy-authcard.shake {
+    animation: easy-auth-shake 240ms ease-in-out;
+  }
+}
+
+@keyframes easy-auth-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-6px);
+  }
+  75% {
+    transform: translateX(6px);
+  }
+}
+
+.easy-authmode {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+  padding: 3px;
+}
+
+.easy-authmode button {
+  flex: 1;
+  min-height: 34px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.easy-authmode button[aria-pressed='true'] {
+  background: var(--bg-3);
+  color: var(--text-primary);
+}
+
+.easy-authsteps {
+  display: flex;
+  gap: 6px;
+  margin-bottom: var(--space-4);
+  justify-content: center;
+}
+
+.easy-authstep {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+
+.easy-authstep[data-active='true'] {
+  background: var(--accent-brand);
+}
+
+.easy-authstep[data-done='true'] {
+  background: var(--accent-ok);
+}
+
+/* Users & Roles */
+
+.easy-roletag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.easy-roletag.admin {
+  color: var(--accent-brand);
+  background: color-mix(in srgb, var(--accent-brand) 14%, transparent);
+}
+
+.easy-roletag.operator {
+  color: var(--accent-info);
+  background: color-mix(in srgb, var(--accent-info) 14%, transparent);
+}
+
+.easy-roletag.viewer {
+  color: var(--text-secondary);
+  background: var(--bg-3);
+}
+
+.easy-userrow-self {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.easy-accountmenu {
+  position: relative;
+}
+
+.easy-accountchip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-3);
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.easy-accountchip:hover {
+  border-color: var(--border-strong);
+}
+
+.easy-accountavatar {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--accent-info) 20%, transparent);
+  color: var(--accent-info);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.easy-accountmenu-panel {
+  position: absolute;
+  top: 46px;
+  right: 0;
+  z-index: 40;
+  min-width: 220px;
+  background: var(--bg-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-panel);
+  padding: var(--space-2);
+}
+
+.easy-accountmenu-panel .easy-accountname {
+  padding: var(--space-2) var(--space-2) var(--space-1);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.easy-accountmenu-panel .easy-accountmeta {
+  padding: 0 var(--space-2) var(--space-2);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.easy-accountmenu-panel button {
+  width: 100%;
+  text-align: left;
+  min-height: 38px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.easy-accountmenu-panel button:hover {
+  background: var(--bg-3);
+  color: var(--text-primary);
+}
+
+/* Access denied */
+
+.easy-denied {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-3);
+  padding: var(--space-7) var(--space-5);
+}
+
+.easy-denied-icon {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--accent-warn) 12%, transparent);
+  color: var(--accent-warn);
+  font-size: 22px;
+  font-weight: 800;
+}
+
+@media (max-width: 620px) {
+  .easy-authcard {
+    padding: var(--space-5) var(--space-4);
+  }
+}

@@ -1,4 +1,5 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { MissionPage } from './MissionPage'
 import * as DashboardStateContext from '../hooks/DashboardStateContext'
@@ -16,101 +17,120 @@ vi.mock('../hooks/useSessionList', () => ({
 vi.mock('../api/client', () => ({
   api: {
     getSessionManifest: vi.fn(),
+    startSession: vi.fn(),
+    stopSession: vi.fn(),
+    captureAcquisitionSet: vi.fn(),
   },
+  ApiError: class ApiError extends Error {},
 }))
 
-vi.mock('../components/mission/SessionStartForm', () => ({
-  SessionStartForm: () => <div>Session Start Form</div>,
-}))
+function renderPage() {
+  return render(
+    <MemoryRouter>
+      <MissionPage />
+    </MemoryRouter>,
+  )
+}
 
-vi.mock('../components/mission/SessionHistoryTable', () => ({
-  SessionHistoryTable: () => <div>Session History Table</div>,
-}))
+function mockDashboard(data: unknown, error: unknown = null) {
+  vi.mocked(DashboardStateContext.useSharedDashboardState).mockReturnValue({
+    data,
+    loading: false,
+    error,
+  } as any)
+}
+
+function mockSessionList(overrides: Partial<ReturnType<typeof SessionListHook.useSessionList>> = {}) {
+  vi.mocked(SessionListHook.useSessionList).mockReturnValue({
+    sessions: [],
+    loading: false,
+    error: null,
+    refresh: vi.fn(),
+    ...overrides,
+  } as any)
+}
+
+const RUNNING_STATE = {
+  session: { running: true, current: { session_id: 'sess-7', start_time: new Date().toISOString() } },
+  acquisition: { manifest_counts: { synchronized_samples: 4, detections: 9, snapshots: 12 } },
+}
 
 describe('MissionPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(ApiClient.api.getSessionManifest).mockResolvedValue({} as any)
   })
 
-  it('renders mission title', () => {
-    vi.mocked(DashboardStateContext.useSharedDashboardState).mockReturnValue({
-      data: {} as any,
-      loading: false,
-      error: null,
-    } as any)
-
-    vi.mocked(SessionListHook.useSessionList).mockReturnValue({
-      sessions: [],
-      loading: false,
-      error: null,
-      refresh: vi.fn(),
-    })
-
-    vi.mocked(ApiClient.api.getSessionManifest).mockResolvedValue({} as any)
-
-    render(<MissionPage />)
-    expect(screen.getByText('Mission')).toBeInTheDocument()
+  it('renders the page title', () => {
+    mockDashboard({})
+    mockSessionList()
+    renderPage()
+    expect(screen.getByRole('heading', { name: 'Mission Control' })).toBeInTheDocument()
   })
 
-  it('renders session start form', () => {
-    vi.mocked(DashboardStateContext.useSharedDashboardState).mockReturnValue({
-      data: { session: { running: false, current: null } } as any,
-      loading: false,
-      error: null,
-    } as any)
-
-    vi.mocked(SessionListHook.useSessionList).mockReturnValue({
-      sessions: [],
-      loading: false,
-      error: null,
-      refresh: vi.fn(),
-    })
-
-    vi.mocked(ApiClient.api.getSessionManifest).mockResolvedValue({} as any)
-
-    render(<MissionPage />)
-    expect(screen.getByText('Session Start Form')).toBeInTheDocument()
+  it('shows the configuration form when no mission is running', () => {
+    mockDashboard({ session: { running: false, current: null } })
+    mockSessionList()
+    renderPage()
+    expect(screen.getByText('Configure mission')).toBeInTheDocument()
+    expect(screen.getByLabelText('Operator')).toBeInTheDocument()
   })
 
-  it('renders session history table', () => {
-    vi.mocked(DashboardStateContext.useSharedDashboardState).mockReturnValue({
-      data: {} as any,
-      loading: false,
-      error: null,
-    } as any)
+  it('renders the preflight checklist', () => {
+    mockDashboard({})
+    mockSessionList()
+    renderPage()
+    expect(screen.getByText('Preflight checklist')).toBeInTheDocument()
+    expect(screen.getByText('RGB feeds current')).toBeInTheDocument()
+    expect(screen.getByText('System temperature')).toBeInTheDocument()
+  })
 
-    vi.mocked(SessionListHook.useSessionList).mockReturnValue({
-      sessions: [],
-      loading: false,
-      error: null,
-      refresh: vi.fn(),
-    })
+  it('reports unknown instead of inventing storage and temperature', () => {
+    mockDashboard({ health: { runtime_state: {} } })
+    mockSessionList()
+    renderPage()
+    expect(screen.getAllByText('Disk usage not reported').length).toBeGreaterThan(0)
+    expect(screen.getByText('CPU temperature not reported')).toBeInTheDocument()
+  })
 
-    vi.mocked(ApiClient.api.getSessionManifest).mockResolvedValue({} as any)
+  it('does not claim a failure before the first payload arrives', () => {
+    mockDashboard(null)
+    mockSessionList()
+    renderPage()
+    expect(screen.getByText('Checks incomplete')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Start mission' })).toBeDisabled()
+  })
 
-    render(<MissionPage />)
-    fireEvent.click(screen.getByText('Session History'))
-    expect(screen.getByText('Session History Table')).toBeInTheDocument()
+  it('blocks the start button when a check is failing', () => {
+    mockDashboard({ health: { runtime_state: {} } })
+    mockSessionList()
+    renderPage()
+    expect(screen.getByRole('button', { name: 'Start mission' })).toBeDisabled()
+  })
+
+  it('shows the active mission panel with real manifest counters', () => {
+    mockDashboard(RUNNING_STATE)
+    mockSessionList()
+    renderPage()
+    expect(screen.getByText('sess-7')).toBeInTheDocument()
+    expect(screen.getByText('Capture sets')).toBeInTheDocument()
+    expect(screen.getByText('4')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'End mission' })).toBeInTheDocument()
+    expect(screen.queryByText('Configure mission')).not.toBeInTheDocument()
+  })
+
+  it('renders the mission history and its empty state', () => {
+    mockDashboard({})
+    mockSessionList()
+    renderPage()
+    expect(screen.getByText('Recent missions')).toBeInTheDocument()
+    expect(screen.getByText('No missions recorded yet.')).toBeInTheDocument()
   })
 
   it('handles session list errors gracefully', () => {
-    vi.mocked(DashboardStateContext.useSharedDashboardState).mockReturnValue({
-      data: {} as any,
-      loading: false,
-      error: null,
-    } as any)
-
-    vi.mocked(SessionListHook.useSessionList).mockReturnValue({
-      sessions: [],
-      loading: false,
-      error: new Error('Load failed'),
-      refresh: vi.fn(),
-    })
-
-    vi.mocked(ApiClient.api.getSessionManifest).mockResolvedValue({} as any)
-
-    render(<MissionPage />)
-    fireEvent.click(screen.getByText('Session History'))
+    mockDashboard({})
+    mockSessionList({ error: new Error('Load failed') })
+    renderPage()
     expect(screen.getByText(/Failed to load session history/)).toBeInTheDocument()
   })
 })

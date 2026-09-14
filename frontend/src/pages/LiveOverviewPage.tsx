@@ -1,305 +1,185 @@
-import { ThinkingOrb } from 'thinking-orbs'
+import { useEffect, useState } from 'react'
+import { api } from '../api/client'
 import { useSharedDashboardState } from '../hooks/DashboardStateContext'
-import { StatusCard } from '../components/status/StatusCard'
-import { StatusBadge } from '../components/status/StatusBadge'
-import { toneForHardwareState, toneForRatio, toneForRunningStatus } from '../components/status/severityColors'
+import { ReadinessStrip } from '../components/live/ReadinessStrip'
+import { ThermalReadinessPanel } from '../components/live/ThermalReadinessPanel'
+import { ActivityTimeline } from '../components/live/ActivityTimeline'
+import { MissionBar } from '../components/live/MissionBar'
 import { VideoPanel } from '../components/video/VideoPanel'
-import { EventsTable, type EventTableRow } from '../components/events/EventsTable'
 import { Collapsible } from '../components/common/Collapsible'
-import { Panel } from '../components/common/Panel'
-import { SectionHeader } from '../components/common/SectionHeader'
+import { StatusBadge } from '../components/status/StatusBadge'
+import { toneForHardwareState } from '../components/status/severityColors'
+import { sensorReadiness } from '../lib/readiness'
 import { mostRecentFirst } from '../utils/sorting'
-import type { DeviceInfo } from '../api/types'
+import { formatRelativeTime, toDate } from '../utils/formatTime'
+import type { Availability, RawLogEvent, RgbCamera } from '../api/types'
+
+/** Telemetria reale per lato, dall'inventario camere; assente = nessun chip. */
+function cameraFor(cameras: RgbCamera[], side: 'left' | 'right'): RgbCamera | undefined {
+  return cameras.find((camera) => String(camera.logical_name || '').toLowerCase().includes(side))
+}
 
 export function LiveOverviewPage() {
   const { data, loading, error } = useSharedDashboardState()
+  const [now, setNow] = useState(() => Date.now())
+  const [refreshing, setRefreshing] = useState(false)
+
+  // Un solo tick al secondo per la durata missione: il resto della pagina
+  // si aggiorna col polling condiviso, non con timer locali.
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
 
   if (loading && !data) {
     return (
-      <p style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
-        <ThinkingOrb state="connecting" size={20} theme="auto" />
-        Connecting to backend…
+      <p className="easy-empty" style={{ marginTop: 0 }}>
+        <span className="easy-shimmer">Connecting to backend…</span>
       </p>
     )
   }
   if (error && !data) {
-    return <p style={{ color: 'var(--accent-critical)' }}>Unable to reach the backend: {String(error)}</p>
+    return (
+      <div className="easy-panel">
+        <h2 style={{ margin: 0, fontSize: 16 }}>Unable to reach the backend</h2>
+        <p className="easy-sub">
+          The dashboard could not load any state. Technical detail: {String(error)}
+        </p>
+      </div>
+    )
   }
 
-  const rgb = data?.health?.runtime_state?.rgb
+  const sensors = sensorReadiness(data ?? null)
+  const leftSensor = sensors[0]
+  const rightSensor = sensors[1]
+
+  const cameras = ((data?.health?.cameras as { rgb_cameras?: RgbCamera[] } | undefined)?.rgb_cameras ?? []) as RgbCamera[]
+  const leftCamera = cameraFor(cameras, 'left')
+  const rightCamera = cameraFor(cameras, 'right')
+
   const detections = data?.detections
-  const devices = data?.devices?.devices || []
-  const sources = data?.sources?.sources || []
-  const rawEvents = data?.events?.events || []
-  const missionEvents = data?.events_current?.events || []
+  const devices = (data?.devices?.devices ?? []) as Record<string, any>[]
+  const sources = data?.sources?.sources ?? []
 
-  // Convert raw events to EventTableRow format. /events is returned oldest
-  // first (verified against a real payload: index 0 was 25 days older than
-  // the last entry) — without re-sorting, "recent activity" showed events
-  // from weeks ago instead of what just happened.
-  const activityLogRows: EventTableRow[] = mostRecentFirst(
-    rawEvents.map((event) => ({
-      id: event.id,
-      timestamp: event.timestamp,
-      label: event.description,
-      severity_or_status: event.severity,
-      description: event.action || event.type,
-    })),
-  )
+  const rawEvents = (data?.events?.events ?? []) as RawLogEvent[]
+  // /events è restituito dal più vecchio al più recente (verificato su un
+  // payload reale): senza riordino "recent activity" mostrava eventi di
+  // settimane prima invece di quanto appena accaduto.
+  const recentEvents = mostRecentFirst(rawEvents)
 
-  // Convert mission events to EventTableRow format
-  const missionEventRows: EventTableRow[] = mostRecentFirst(
-    missionEvents.map((event) => ({
-      id: event.event_id,
-      timestamp: event.created_at,
-      label: event.type,
-      severity_or_status: event.severity,
-      description: event.track_id ? `Track ${event.track_id}` : undefined,
-    })),
-  )
+  const lastUpdate = toDate(data?.timestamp)
 
-  // Extract RGB devices for status
-  const rgbLeftDevice = devices.find((d: DeviceInfo) => 'feed' in d && (d as any).feed === 'rgb_left') as any
-  const rgbRightDevice = devices.find((d: DeviceInfo) => 'feed' in d && (d as any).feed === 'rgb_right') as any
-
-  const rgbLeftAvailability = rgbLeftDevice?.runtime_state?.availability || rgb?.availability || 'NOT_PRESENT'
-  const rgbRightAvailability = rgbRightDevice?.runtime_state?.availability || rgb?.availability || 'NOT_PRESENT'
-
-  const devicesOnline = devices.filter((d: any) => d.health !== 'OFFLINE').length
-  const rgbStatus = rgbLeftAvailability === 'STREAMING' && rgbRightAvailability === 'STREAMING'
-    ? 'Streaming'
-    : 'Degraded'
-  const rgbTone = rgbLeftAvailability === 'STREAMING' && rgbRightAvailability === 'STREAMING'
-    ? toneForHardwareState('STREAMING')
-    : rgbLeftAvailability === 'ERROR' || rgbRightAvailability === 'ERROR'
-      ? toneForHardwareState('ERROR')
-      : toneForHardwareState('DEGRADED')
-
-  // Il motore di inferenza ha un proprio stato "running" (avviato via
-  // /api/inference/start) indipendente dal caricamento della pagina —
-  // prima ThinkingOrb appariva solo durante il boot iniziale, mai mentre
-  // il sistema sta davvero rilevando. Qui riflette lo stato reale.
-  const inferenceRunning = Boolean((data as any)?.inference?.running)
+  const handleRefresh = async () => {
+    if (refreshing) return
+    setRefreshing(true)
+    try {
+      await Promise.all([api.refreshDevices(), api.refreshSources()])
+    } catch {
+      // Il polling condiviso riporta comunque lo stato reale al tick
+      // successivo: un refresh fallito non deve bloccare la pagina.
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
-      <h1>Live Overview</h1>
-
-      {/* PRIMARY: Status Summary — what matters right now */}
-      <Panel emphasis>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <SectionHeader title="Status Summary" />
-          {inferenceRunning && (
-            <span
-              title="Detection engine running"
-              style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}
-            >
-              <ThinkingOrb state="searching" size={20} theme="dark" aria-label="Detection engine running" />
-              <span className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Detecting
-              </span>
-            </span>
+    <>
+      <section className="easy-headline">
+        <div>
+          <div className="easy-eyebrow">Real-time monitoring</div>
+          <h1>Live Operations</h1>
+          <p>Monitor camera feeds, sensor readiness and recent activity.</p>
+        </div>
+        <div className="easy-updated">
+          {error ? (
+            <>
+              Connection lost — showing last state from <b>{lastUpdate ? formatRelativeTime(lastUpdate) : 'unknown'}</b>
+            </>
+          ) : (
+            <>
+              Last synchronized update <b>{lastUpdate ? formatRelativeTime(lastUpdate) : 'unknown'}</b>
+            </>
           )}
         </div>
+      </section>
 
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-            gap: 'var(--space-3)',
-          }}
-        >
-          <StatusCard
-            title="Devices Online"
-            value={`${devicesOnline}/${devices.length}`}
-            valueTone={toneForRatio(devicesOnline, devices.length)}
-          />
-          <StatusCard
-            title="Video Stream"
-            value={rgbStatus}
-            valueTone={rgbTone}
-          />
-          <StatusCard
-            title="Session"
-            value={data?.session?.running ? 'RUNNING' : 'STOPPED'}
-            valueTone={toneForRunningStatus(data?.session?.running ? 'RUNNING' : 'STOPPED')}
-          />
-          <StatusCard
-            title="Detections"
-            value={detections?.count ?? 0}
-            hint={detections?.last_run_ts ? `Last: ${new Date(detections.last_run_ts).toLocaleTimeString()}` : undefined}
-          />
-        </div>
-      </Panel>
+      <ReadinessStrip data={data ?? null} now={now} />
 
-      {/* Video feeds with detection overlays */}
-      <div>
-        <div style={{ marginBottom: 'var(--space-3)' }}>
-          <SectionHeader title="Live Feeds" />
-        </div>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-            gap: 'var(--space-4)',
-          }}
-        >
-          <VideoPanel
-            feed="rgb_left"
-            label="RGB LEFT"
-            availability={rgbLeftAvailability as any}
-            detections={detections?.detections}
-          />
-          <VideoPanel
-            feed="rgb_right"
-            label="RGB RIGHT"
-            availability={rgbRightAvailability as any}
-            detections={detections?.detections}
-          />
+      <div className="easy-sectionhead">
+        <h2>Live RGB feeds</h2>
+        <div className="easy-actions">
+          <button type="button" className="easy-btn mini" onClick={handleRefresh} disabled={refreshing}>
+            {refreshing ? 'Refreshing…' : 'Refresh status'}
+          </button>
         </div>
       </div>
 
-      {/* Inference metrics */}
-      <div>
-        <div style={{ marginBottom: 'var(--space-3)' }}>
-          <SectionHeader title="Inference Performance" />
-        </div>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-            gap: 'var(--space-4)',
-          }}
-        >
-          <StatusCard
-            title="Framerate"
-            value={detections?.fps ? `${detections.fps.toFixed(1)} FPS` : 'N/A'}
-            hint={detections?.last_inference_ms ? `${detections.last_inference_ms}ms` : undefined}
-          />
-        </div>
-      </div>
+      <section className="easy-feeds">
+        <VideoPanel
+          feed="rgb_left"
+          label="RGB Left"
+          availability={leftSensor.availability as Availability}
+          detections={detections?.detections}
+          fps={leftCamera?.fps ?? null}
+          lastAcquisitionTs={leftCamera?.last_acquisition_ts ?? null}
+          cameraError={leftCamera?.error ?? null}
+        />
+        <VideoPanel
+          feed="rgb_right"
+          label="RGB Right"
+          availability={rightSensor.availability as Availability}
+          detections={detections?.detections}
+          fps={rightCamera?.fps ?? null}
+          lastAcquisitionTs={rightCamera?.last_acquisition_ts ?? null}
+          cameraError={rightCamera?.error ?? null}
+        />
+      </section>
 
-      {/* SECONDARY: Device and source inventory (collapsible) */}
-      <Collapsible title="Device & Source Inventory" defaultOpen={false}>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-            gap: 'var(--space-4)',
-          }}
-        >
-          {/* Devices */}
-          <div
-            style={{
-              padding: 'var(--space-4)',
-              background: 'var(--bg-2)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: 'var(--radius-md)',
-            }}
-          >
-            <h3 style={{ margin: '0 0 var(--space-3) 0', fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
-              Devices ({devices.length})
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+      <section className="easy-lower">
+        <ThermalReadinessPanel data={data ?? null} />
+        <ActivityTimeline events={recentEvents} loading={loading} error={Boolean(error)} />
+      </section>
+
+      <div style={{ marginTop: 'var(--space-3)' }}>
+        <Collapsible title="Device & source inventory" defaultOpen={false}>
+          <div className="easy-lower" style={{ marginTop: 0 }}>
+            <article className="easy-panel">
+              <div className="easy-kicker">Devices ({devices.length})</div>
               {devices.length === 0 ? (
-                <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>No devices</p>
+                <p className="easy-empty">No devices reported.</p>
               ) : (
-                devices.map((device: any) => (
-                  <div
-                    key={device.device_id}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      fontSize: 12,
-                      padding: 'var(--space-2)',
-                      background: 'var(--bg-1)',
-                      borderRadius: 'var(--radius-sm)',
-                    }}
-                  >
-                    <span style={{ color: 'var(--text-primary)' }}>{device.device_name}</span>
-                    <StatusBadge tone={toneForHardwareState(device.health)} text={device.health} />
-                  </div>
-                ))
+                <div className="easy-events">
+                  {devices.map((device) => (
+                    <div
+                      key={String(device.device_id)}
+                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', gap: 8 }}
+                    >
+                      <span style={{ fontSize: 12 }}>{String(device.device_name)}</span>
+                      <StatusBadge tone={toneForHardwareState(String(device.health))} text={String(device.health)} />
+                    </div>
+                  ))}
+                </div>
               )}
-            </div>
-          </div>
-
-          {/* Sources */}
-          <div
-            style={{
-              padding: 'var(--space-4)',
-              background: 'var(--bg-2)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: 'var(--radius-md)',
-            }}
-          >
-            <h3 style={{ margin: '0 0 var(--space-3) 0', fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
-              Sources ({sources.length})
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+            </article>
+            <article className="easy-panel">
+              <div className="easy-kicker">Sources ({sources.length})</div>
               {sources.length === 0 ? (
-                <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>No sources</p>
+                <p className="easy-empty">No sources reported.</p>
               ) : (
-                sources.map((source: any) => (
-                  <div
-                    key={source.id}
-                    style={{
-                      fontSize: 12,
-                      padding: 'var(--space-2)',
-                      background: 'var(--bg-1)',
-                      borderRadius: 'var(--radius-sm)',
-                      color: 'var(--text-primary)',
-                    }}
-                  >
-                    {source.id}
-                  </div>
-                ))
+                <div className="easy-events">
+                  {sources.map((source) => (
+                    <div key={source.id} className="mono" style={{ fontSize: 12, padding: '6px 0' }}>
+                      {source.id}
+                    </div>
+                  ))}
+                </div>
               )}
-            </div>
+            </article>
           </div>
-        </div>
-      </Collapsible>
-
-      {/* Activity logs and events */}
-      <div>
-        <h2 style={{ margin: '0 0 var(--space-3) 0', fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Activity
-        </h2>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(500px, 1fr))',
-            gap: 'var(--space-4)',
-          }}
-        >
-          {/* Activity Log */}
-          <div
-            style={{
-              padding: 'var(--space-4)',
-              background: 'var(--bg-2)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: 'var(--radius-md)',
-            }}
-          >
-            <EventsTable rows={activityLogRows} title="Activity Log" maxRows={5} statusType="severity" />
-          </div>
-
-          {/* Mission Events */}
-          {missionEventRows.length > 0 && (
-            <div
-              style={{
-                padding: 'var(--space-4)',
-                background: 'var(--bg-2)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-md)',
-              }}
-            >
-              <EventsTable rows={missionEventRows} title="Mission Events" maxRows={5} statusType="severity" />
-            </div>
-          )}
-        </div>
+        </Collapsible>
       </div>
-    </div>
+
+      <MissionBar data={data ?? null} now={now} />
+    </>
   )
 }

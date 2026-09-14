@@ -39,10 +39,17 @@ export function useThermalManualCapture() {
   const [url, setUrl] = useState<string | null>(null)
   const objectUrlRef = useRef<string | null>(null)
   const revertTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const mountedRef = useRef(true)
+  const abortRef = useRef<AbortController | null>(null)
 
   useEffect(
     () => () => {
+      mountedRef.current = false
       clearTimeout(revertTimerRef.current)
+      // Una cattura hardware dura fino a 15 s: se l'operatore cambia pagina
+      // nel frattempo, senza abort il blob veniva allocato su un componente
+      // già smontato e non veniva mai revocato.
+      abortRef.current?.abort()
       if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current)
     },
     [],
@@ -52,6 +59,7 @@ export function useThermalManualCapture() {
     setLoading(true)
     setError(null)
     const controller = new AbortController()
+    abortRef.current = controller
     // Senza timeout, un sensore termico bloccato lascia il bottone su
     // "Capturing..." indefinitamente: fetch() da solo non ha un limite.
     const timeout = setTimeout(() => controller.abort(), 15000)
@@ -64,6 +72,7 @@ export function useThermalManualCapture() {
       const response = await fetch('/thermal/frame', { signal: controller.signal })
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
       const blob = await response.blob()
+      if (!mountedRef.current) return
       if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current)
       const objectUrl = URL.createObjectURL(blob)
       objectUrlRef.current = objectUrl
@@ -83,10 +92,11 @@ export function useThermalManualCapture() {
         }
       }, MANUAL_CAPTURE_DISPLAY_MS)
     } catch (e) {
-      setError(e)
+      if (mountedRef.current) setError(e)
     } finally {
       clearTimeout(timeout)
-      setLoading(false)
+      if (abortRef.current === controller) abortRef.current = null
+      if (mountedRef.current) setLoading(false)
     }
   }, [])
 

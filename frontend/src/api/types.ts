@@ -212,7 +212,8 @@ export interface RgbCamera {
   hardware_name: string
   state: string
   fps: number | null
-  last_acquisition_ts: string | null
+  /** Epoch in secondi (time.time()), non una stringa ISO. */
+  last_acquisition_ts: number | string | null
   error: string | null
   enabled: boolean
   message: string | null
@@ -257,7 +258,8 @@ export interface SnapshotsRecentResponse {
 
 export interface StreamState {
   enabled: boolean
-  state: string
+  /** Stato completo della camera (camera_state, fps, status…), non una stringa. */
+  state: Record<string, unknown>
 }
 
 export interface StreamStateResponse {
@@ -299,6 +301,18 @@ export interface AcquisitionStatus {
   manifest_counts?: SessionManifestCounts
   dataset_summary?: unknown
   [key: string]: unknown
+}
+
+/** POST /api/acquisition/capture-set — un solo capture_set_id per RGB left/right + thermal. */
+export interface CaptureSetResponse {
+  ok: boolean
+  complete: boolean
+  capture_set_id: string
+  sample_id: string
+  successful_feeds: number
+  total_feeds: number
+  captures: Record<string, { ok: boolean; snapshot: Snapshot | null; error: string | null }>
+  manifest_counts?: SessionManifestCounts
 }
 
 export interface DatasetExportStatus {
@@ -355,7 +369,8 @@ export interface HealthResponse {
   ok: boolean
   service: string
   timestamp: string
-  system?: unknown
+  /** Stesso payload di GET /system — già incluso qui, non ripollarlo a parte. */
+  system?: SystemDiagnostics
   system_orchestrator?: unknown
   system_components?: SystemComponentsPayload
   cameras?: unknown
@@ -369,6 +384,48 @@ export interface HealthResponse {
   devices?: unknown
   operations?: unknown
   events_count?: number
+}
+
+/** GET /api/inference/status — campi verificati contro un payload reale. */
+export interface InferenceStatus {
+  ok: boolean
+  running: boolean
+  mode: string
+  backend: string
+  backend_status?: {
+    loaded?: boolean
+    cpu_threads?: number
+    execution_mode?: string
+    graph_optimization?: string
+    error?: string
+  }
+  model_path?: string
+  fallback_model_path?: string
+  config_path?: string
+  config_error?: string
+  error?: string
+  source?: string
+  source_label?: string
+  source_status?: string
+  count?: number
+  fps?: number | null
+  interval_seconds?: number
+  last_image?: string | null
+  last_inference_ms?: number | null
+  last_run_ts?: string | null
+  updated_at?: string
+  [key: string]: unknown
+}
+
+/** POST /api/inference/run-on-next-frame */
+export interface InferenceRunResult {
+  ok: boolean
+  error?: string
+  count?: number
+  detections?: Detection[]
+  last_inference_ms?: number | null
+  last_image?: string | null
+  [key: string]: unknown
 }
 
 export interface StatusSummaryResponse {
@@ -407,6 +464,70 @@ export interface DashboardState {
 
 export interface ConfigResponse {
   auth_required: boolean
+}
+
+// Autenticazione locale — vedi easy_dashboard/auth.py per il contratto lato
+// backend. Non confondere con Session/SessionStatusResponse sopra: quelle
+// sono le "missioni" del dominio operativo, questo è il login dell'operatore.
+
+export type AuthRole = 'viewer' | 'operator' | 'admin'
+
+export interface AuthUser {
+  id: string
+  username: string
+  role: AuthRole
+  active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface AuthStatusResponse {
+  ok: boolean
+  setup_complete: boolean
+  /** Stato effettivo, già al netto di un eventuale override dell'ambiente. */
+  enforcement_enabled: boolean
+  /** Preferenza salvata dall'Admin — può differire da enforcement_enabled
+   * se il processo la sovrascrive (vedi enforcement_forced_by_server). */
+  auth_enforced_setting: boolean
+  /** true/false se il server forza lo stato, null se segue la preferenza salvata. */
+  enforcement_forced_by_server: boolean | null
+  anonymous_viewer_enabled: boolean
+  /** Nome del dispositivo, mostrato sulla schermata di login prima di autenticarsi. */
+  hostname: string | null
+}
+
+export interface AuthSessionResponse {
+  ok: boolean
+  user: AuthUser | null
+  csrf_token?: string | null
+  /** true se l'identità viene dal token condiviso legacy, non da un vero login. */
+  legacy?: boolean
+  /** true nella breve finestra dopo aver ri-confermato la password (step-up). */
+  elevated?: boolean
+  elevated_until?: number | null
+}
+
+/** Corpo di un 403 con `code: "step_up_required"` — vedi easy_dashboard/auth.py. */
+export interface StepUpRequiredError {
+  ok: false
+  code: 'step_up_required'
+  error: string
+  step_up_window_seconds?: number
+}
+
+export function isStepUpRequiredBody(body: unknown): body is StepUpRequiredError {
+  return Boolean(body) && typeof body === 'object' && (body as { code?: unknown }).code === 'step_up_required'
+}
+
+export interface AuditEntry {
+  timestamp: string
+  actor: string
+  role: AuthRole | null
+  action: string
+  resource: string | null
+  result: string
+  client_ip: string | null
+  detail: string | null
 }
 
 export interface ApiErrorBody {

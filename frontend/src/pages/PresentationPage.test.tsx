@@ -3,31 +3,37 @@ import { describe, expect, it } from 'vitest'
 import { PresentationPage } from './PresentationPage'
 
 describe('PresentationPage', () => {
-  it('renders presentation preview title', () => {
+  it('renders the page title', () => {
     render(<PresentationPage />)
-    expect(screen.getByText('Presentation Preview')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Presentation Preview' })).toBeInTheDocument()
   })
 
   it('displays all presentation panels', () => {
     render(<PresentationPage />)
-    expect(screen.getByText('RGB LEFT')).toBeInTheDocument()
-    expect(screen.getByText('RGB RIGHT')).toBeInTheDocument()
-    expect(screen.getByText('THERMAL')).toBeInTheDocument()
+    expect(screen.getByText('RGB Left sample')).toBeInTheDocument()
+    expect(screen.getByText('RGB Right sample')).toBeInTheDocument()
+    expect(screen.getByText('Thermal reference')).toBeInTheDocument()
   })
 
-  it('shows that it is a static illustrative view', () => {
+  it('states the recorded-source provenance prominently', () => {
     render(<PresentationPage />)
-    expect(screen.getByText(/does not represent simultaneous hardware acquisition/)).toBeInTheDocument()
+    expect(screen.getByText(/does not represent simultaneous live sensor acquisition/)).toBeInTheDocument()
+    expect(screen.getByText('PRESENTATION MODE')).toBeInTheDocument()
   })
 
-  it('displays sample badges', () => {
+  it('labels every sample with its provenance', () => {
     render(<PresentationPage />)
-    expect(screen.getAllByText('Recorded sample')).toHaveLength(2)
-    expect(screen.getByText('Illustrative')).toBeInTheDocument()
+    expect(screen.getAllByText('SEASHIPS · RECORDED')).toHaveLength(2)
+    expect(screen.getByText('ILLUSTRATIVE')).toBeInTheDocument()
   })
 
-  it('credits SeaShips dataset', () => {
+  it('credits the SeaShips dataset', () => {
     render(<PresentationPage />)
-    expect(screen.getByText(/SeaShips dataset/)).toBeInTheDocument()
+    expect(screen.getAllByText(/SeaShips dataset/).length).toBeGreaterThan(0)
+  })
+
+  it('performs no hardware action', () => {
+    render(<PresentationPage />)
+    expect(screen.getByText(/no hardware actions/)).toBeInTheDocument()
   })
 })

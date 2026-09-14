@@ -16,6 +16,11 @@ THERMAL_DIR = CAPTURES_DIR / "thermal"
 PRELIGHT_REPORT = REPORT_DIR / "preflight_report.txt"
 EVENTS_LOG = LOG_DIR / "events.jsonl"
 CONFIG_PATH = PROJECT_ROOT / "config.yaml"
+# Utenti/ruoli e log di audit dell'autenticazione (vedi easy_dashboard/auth.py).
+# File separati dagli altri store: contengono credenziali, quindi restano
+# fuori da EVENTS_LOG e dal resto dei dati operativi.
+AUTH_USERS_FILE = DATA_DIR / "auth_users.json"
+AUDIT_LOG = LOG_DIR / "audit.jsonl"
 
 SNAPSHOT_FEED_MAP = {
     "rgb_left": {"label": "RGB Left", "source": "RGB_CAM_LEFT", "folder": "rgb_left"},

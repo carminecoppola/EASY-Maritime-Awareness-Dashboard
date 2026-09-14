@@ -1,28 +1,44 @@
-import { useState } from 'react'
-import { api, ApiError } from '../../api/client'
-import { Panel } from '../common/Panel'
-import type { Session } from '../../api/types'
+import { useId, useState } from 'react'
+import { api } from '../../api/client'
+import { normalizeApiError } from '../../lib/errors'
 
 interface SessionStartFormProps {
-  currentSession: Session | null
-  isRunning: boolean
   onSessionChanged: () => void
+  /** Modello di inferenza registrato nel manifest della sessione. */
+  modelLabel: string
+  /** Impedisce l'avvio quando un controllo di preflight è bloccante. */
+  blockedReason?: string | null
 }
 
-const MODE_HINTS: Record<string, string> = {
-  live: 'Captures from the real RGB cameras right now.',
-  replay: 'Replays one previously recorded image — for testing without live hardware.',
-  replay_folder: 'Replays a folder of recorded images in sequence — for testing or demos.',
-}
+const MODES: { value: string; title: string; description: string }[] = [
+  {
+    value: 'live',
+    title: 'Live acquisition',
+    description: 'Use the connected RGB and thermal sensors.',
+  },
+  {
+    value: 'replay',
+    title: 'Replay — single image',
+    description: 'Replay one recorded image, for testing without hardware.',
+  },
+  {
+    value: 'replay_folder',
+    title: 'Replay — folder',
+    description: 'Replay a folder of recorded images in sequence.',
+  },
+]
 
-export function SessionStartForm({ currentSession, isRunning, onSessionChanged }: SessionStartFormProps) {
+export function SessionStartForm({ onSessionChanged, modelLabel, blockedReason }: SessionStartFormProps) {
   const [mode, setMode] = useState('live')
   const [operator, setOperator] = useState('')
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const operatorId = useId()
+  const notesId = useId()
 
   const handleStart = async () => {
+    if (loading) return
     setLoading(true)
     setError(null)
     try {
@@ -36,193 +52,104 @@ export function SessionStartForm({ currentSession, isRunning, onSessionChanged }
       setNotes('')
       onSessionChanged()
     } catch (e) {
-      if (e instanceof ApiError) {
-        setError(e.message)
-      } else {
-        setError('Failed to start session')
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleStop = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      await api.stopSession()
-      onSessionChanged()
-    } catch (e) {
-      if (e instanceof ApiError) {
-        setError(e.message)
-      } else {
-        setError('Failed to stop session')
-      }
+      setError(normalizeApiError(e, 'session-start').message)
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <Panel variant="flat">
-      <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
-        Session Control
-      </h3>
+    <article className="easy-panel">
+      <div className="easy-panelhead plain">
+        <div>
+          <h2>Configure mission</h2>
+          <p>Create the session that links captures, detections and events.</p>
+        </div>
+        <span className="easy-step" aria-hidden>
+          1
+        </span>
+      </div>
 
-      {!isRunning ? (
-        <>
-          <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 'var(--space-1)' }}>
-              Mode
-            </label>
-            <select
-              value={mode}
-              onChange={(e) => setMode(e.target.value)}
-              disabled={loading}
-              style={{
-                width: '100%',
-                padding: 'var(--space-2)',
-                background: 'var(--bg-1)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-sm)',
-                color: 'var(--text-primary)',
-                fontSize: 13,
-                fontFamily: 'inherit',
-              }}
-            >
-              <option value="live">Live</option>
-              <option value="replay">Replay</option>
-              <option value="replay_folder">Replay Folder</option>
-            </select>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-              {MODE_HINTS[mode]}
-            </div>
-          </div>
-
-          <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 'var(--space-1)' }}>
-              Operator
-            </label>
-            <input
-              type="text"
-              value={operator}
-              onChange={(e) => setOperator(e.target.value)}
-              disabled={loading}
-              placeholder="e.g., operator name"
-              style={{
-                width: '100%',
-                padding: 'var(--space-2)',
-                background: 'var(--bg-1)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-sm)',
-                color: 'var(--text-primary)',
-                fontSize: 13,
-                fontFamily: 'inherit',
-                boxSizing: 'border-box',
-              }}
-            />
-          </div>
-
-          <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 'var(--space-1)' }}>
-              Notes
-            </label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              disabled={loading}
-              placeholder="Optional session notes"
-              style={{
-                width: '100%',
-                padding: 'var(--space-2)',
-                background: 'var(--bg-1)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-sm)',
-                color: 'var(--text-primary)',
-                fontSize: 13,
-                fontFamily: 'inherit',
-                boxSizing: 'border-box',
-                minHeight: 60,
-                resize: 'vertical',
-              }}
-            />
-          </div>
-
-          {error && (
-            <div style={{
-              padding: 'var(--space-2)',
-              background: 'var(--accent-critical-dim)',
-              border: '1px solid var(--accent-critical)',
-              borderRadius: 'var(--radius-sm)',
-              color: 'var(--accent-critical)',
-              fontSize: 12,
-            }}>
-              {error}
-            </div>
-          )}
-
-          <button
-            onClick={handleStart}
+      <div className="easy-formgrid">
+        <div className="easy-field">
+          <label htmlFor={operatorId}>Operator</label>
+          <input
+            id={operatorId}
+            className="easy-input"
+            type="text"
+            value={operator}
+            onChange={(e) => setOperator(e.target.value)}
             disabled={loading}
-            style={{
-              padding: 'var(--space-2) var(--space-3)',
-              background: 'var(--accent-ok)',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 'var(--radius-sm)',
-              fontWeight: 600,
-              fontSize: 13,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.6 : 1,
-            }}
-          >
-            {loading ? 'Starting...' : 'Start Session'}
-          </button>
-        </>
-      ) : (
-        <>
-          <div style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
-            <p>
-              Session running since{' '}
-              <span className="mono">{currentSession?.start_time}</span>
-            </p>
-            {currentSession?.operator && (
-              <p>Operator: <span className="mono">{currentSession.operator}</span></p>
-            )}
+            placeholder="Operator name"
+          />
+          <div className="easy-hint">Recorded in the mission manifest. Defaults to “operator” if left empty.</div>
+        </div>
+
+        <div className="easy-field">
+          {/* Il nome missione non esiste nel contratto backend: l'identificativo
+              è generato all'avvio. Qui si mostra il modello realmente registrato. */}
+          <span className="easy-fieldlabel">Detection model</span>
+          <div className="easy-readonly" title={modelLabel}>
+            {modelLabel}
           </div>
+          <div className="easy-hint">The mission identifier is assigned by the backend when it starts.</div>
+        </div>
 
-          {error && (
-            <div style={{
-              padding: 'var(--space-2)',
-              background: 'var(--accent-critical-dim)',
-              border: '1px solid var(--accent-critical)',
-              borderRadius: 'var(--radius-sm)',
-              color: 'var(--accent-critical)',
-              fontSize: 12,
-            }}>
-              {error}
-            </div>
-          )}
+        <div className="easy-field full">
+          <span className="easy-fieldlabel" id={`${operatorId}-mode`}>
+            Acquisition mode
+          </span>
+          <div className="easy-modecards" role="radiogroup" aria-labelledby={`${operatorId}-mode`}>
+            {MODES.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                role="radio"
+                aria-checked={mode === option.value}
+                className="easy-mode"
+                onClick={() => setMode(option.value)}
+                disabled={loading}
+              >
+                <span className="easy-radio" aria-hidden />
+                <b>{option.title}</b>
+                <span>{option.description}</span>
+              </button>
+            ))}
+          </div>
+        </div>
 
-          <button
-            onClick={handleStop}
+        <div className="easy-field full">
+          <label htmlFor={notesId}>
+            Mission notes <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>· optional</span>
+          </label>
+          <textarea
+            id={notesId}
+            className="easy-textarea"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
             disabled={loading}
-            style={{
-              padding: 'var(--space-2) var(--space-3)',
-              background: 'var(--accent-critical)',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 'var(--radius-sm)',
-              fontWeight: 600,
-              fontSize: 13,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.6 : 1,
-            }}
-          >
-            {loading ? 'Stopping...' : 'Stop Session'}
-          </button>
-        </>
-      )}
-    </Panel>
+          />
+          <div className="easy-hint">Notes remain attached to the mission manifest and the exported dataset.</div>
+        </div>
+      </div>
+
+      {error && <p className="easy-error">{error}</p>}
+
+      <div className="easy-formfooter">
+        <span className="easy-note">
+          Starting a mission does not automatically save frames. Use synchronized capture during the session.
+        </span>
+        <button
+          type="button"
+          className="easy-btn primary"
+          onClick={handleStart}
+          disabled={loading || Boolean(blockedReason)}
+          title={blockedReason ?? undefined}
+        >
+          {loading ? 'Starting…' : 'Start mission'}
+        </button>
+      </div>
+      {blockedReason && <p className="easy-empty">{blockedReason}</p>}
+    </article>
   )
 }

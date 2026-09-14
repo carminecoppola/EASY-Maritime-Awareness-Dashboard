@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
-import { StatusBadge } from '../status/StatusBadge'
-import { toneForAvailability } from '../status/severityColors'
+import { api } from '../../api/client'
+import { toDate } from '../../utils/formatTime'
 import { DetectionOverlay } from './DetectionOverlay'
 import type { Availability, Detection } from '../../api/types'
 
@@ -17,20 +17,40 @@ interface VideoPanelProps {
    * un'attribuzione per-lato.
    */
   detections?: Detection[]
+  /** FPS reale della camera (health.cameras.rgb_cameras); omesso se assente. */
+  fps?: number | null
+  /** Ultima acquisizione riportata dalla camera: epoch in secondi o ISO. */
+  lastAcquisitionTs?: number | string | null
+  /** Messaggio d'errore della camera, mostrato nello stato non disponibile. */
+  cameraError?: string | null
 }
 
-export function VideoPanel({ feed, label, availability, detections = [] }: VideoPanelProps) {
-  const [error, setError] = useState(false)
+const AVAILABILITY_REASON: Record<Availability, string> = {
+  STREAMING: '',
+  READY: 'Camera ready but not streaming',
+  INITIALIZING: 'Camera is starting up',
+  NOT_PRESENT: 'Device not present',
+  ERROR: 'Camera reported an error',
+}
+
+export function VideoPanel({
+  feed,
+  label,
+  availability,
+  detections = [],
+  fps,
+  lastAcquisitionTs,
+  cameraError,
+}: VideoPanelProps) {
+  const [imageError, setImageError] = useState(false)
+  const cardRef = useRef<HTMLElement>(null)
   const mediaRef = useRef<HTMLDivElement>(null)
   const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null)
-  const tone = toneForAvailability(availability)
-
-  const handleError = () => {
-    setError(true)
-  }
+  const [capturing, setCapturing] = useState(false)
+  const [captureMessage, setCaptureMessage] = useState<string | null>(null)
 
   const handleLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    setError(false)
+    setImageError(false)
     // Misura la risoluzione nativa direttamente dall'immagine servita,
     // invece di assumere una risoluzione fissa: elimina il disallineamento
     // dei bounding box quando la risoluzione reale differisce da un valore
@@ -41,72 +61,50 @@ export function VideoPanel({ feed, label, availability, detections = [] }: Video
     }
   }
 
-  const showFeed = !(error || availability === 'ERROR' || availability === 'NOT_PRESENT')
-  // Il bordo riflette lo stato reale invece di restare sempre neutro —
-  // il feed video è il contenuto primario della pagina, deve leggersi
-  // "vivo" quando streamma davvero, non solo quando lo dice il badge.
-  const borderColor = availability === 'STREAMING' ? 'var(--accent-ok)' : 'var(--border-subtle)'
+  const handleCapture = async () => {
+    if (capturing) return
+    setCapturing(true)
+    setCaptureMessage(null)
+    try {
+      await api.takeSnapshot(feed)
+      setCaptureMessage('Captured')
+    } catch (e) {
+      setCaptureMessage(e instanceof Error ? `Capture failed: ${e.message}` : 'Capture failed')
+    } finally {
+      setCapturing(false)
+    }
+  }
+
+  const handleExpand = () => {
+    const node = cardRef.current
+    if (!node) return
+    if (document.fullscreenElement) {
+      document.exitFullscreen()
+    } else {
+      node.requestFullscreen?.()
+    }
+  }
+
+  const streaming = availability === 'STREAMING'
+  const showFeed = !(imageError || availability === 'ERROR' || availability === 'NOT_PRESENT')
+
+  // last_acquisition_ts è un epoch in secondi (time.time()): passarlo a
+  // new Date() direttamente mostrava un orario del 1970 come "ultimo frame".
+  const lastFrameAt = toDate(lastAcquisitionTs)
+  const frameInfo = captureMessage
+    ? captureMessage
+    : lastFrameAt
+      ? `Last frame ${lastFrameAt.toLocaleTimeString(undefined, { hour12: false })}`
+      : streaming
+        ? 'Streaming'
+        : AVAILABILITY_REASON[availability] || availability
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        background: 'var(--bg-2)',
-        border: `1px solid ${borderColor}`,
-        borderRadius: 'var(--radius-md)',
-        boxShadow: 'var(--shadow-panel)',
-        overflow: 'hidden',
-        minHeight: 240,
-        transition: 'border-color 0.3s ease',
-      }}
-    >
-      <div
-        ref={mediaRef}
-        style={{
-          position: 'relative',
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'var(--bg-1)',
-          overflow: 'hidden',
-          aspectRatio: '4/3',
-          minHeight: 180,
-        }}
-      >
-        {/* Overlay diretto sul frame, non sopra il pannello — il video è
-            il contenuto primario, l'etichetta/stato sono un'informazione
-            sovrapposta, come in un vero feed di sorveglianza. */}
-        <div
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            zIndex: 2,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: 'var(--space-2) var(--space-3)',
-            background: 'linear-gradient(to bottom, rgba(4,6,10,0.85), rgba(4,6,10,0))',
-          }}
-        >
-          <h3 className="mono" style={{ margin: 0, fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '0.04em' }}>
-            {label}
-          </h3>
-          <StatusBadge tone={tone} text={availability} />
-        </div>
-
+    <article ref={cardRef} className={`easy-feed${streaming ? ' streaming' : ''}`}>
+      <div className="easy-feed-media" ref={mediaRef}>
         {showFeed ? (
           <>
-            <img
-              src={`/video/${feed}`}
-              alt={label}
-              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-              onError={handleError}
-              onLoad={handleLoad}
-            />
+            <img src={`/video/${feed}`} alt={`${label} camera feed`} onError={() => setImageError(true)} onLoad={handleLoad} />
             {naturalSize && detections.length > 0 && (
               <DetectionOverlay
                 detections={detections}
@@ -117,16 +115,40 @@ export function VideoPanel({ feed, label, availability, detections = [] }: Video
             )}
           </>
         ) : (
-          <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-            <p style={{ margin: '0 0 8px 0' }}>Feed unavailable</p>
-            <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)' }}>
-              {availability === 'ERROR' && 'Connection error'}
-              {availability === 'NOT_PRESENT' && 'Device not present'}
-              {error && 'Unable to load the stream'}
+          <div className="easy-feed-empty">
+            <p style={{ margin: 0 }}>Feed unavailable</p>
+            <p style={{ margin: 0, fontSize: 11 }}>
+              {cameraError || (imageError ? 'Unable to load the stream' : AVAILABILITY_REASON[availability] || availability)}
             </p>
           </div>
         )}
       </div>
-    </div>
+
+      <div className="easy-feed-scrim" aria-hidden />
+
+      <div className="easy-feedtop">
+        <span className="easy-feedname">{label}</span>
+        {streaming ? (
+          <span className="easy-live">LIVE</span>
+        ) : (
+          <span className="easy-chip">{availability.replace('_', ' ')}</span>
+        )}
+        <div className="easy-telemetry">
+          {typeof fps === 'number' && <span className="easy-chip">{fps.toFixed(1)} FPS</span>}
+        </div>
+      </div>
+
+      <div className="easy-feedbottom">
+        <span className="easy-frameinfo">{frameInfo}</span>
+        <div className="easy-feedbuttons">
+          <button type="button" className="easy-ghost" onClick={handleCapture} disabled={capturing || !showFeed}>
+            {capturing ? 'Capturing…' : 'Capture'}
+          </button>
+          <button type="button" className="easy-ghost" onClick={handleExpand}>
+            Expand
+          </button>
+        </div>
+      </div>
+    </article>
   )
 }

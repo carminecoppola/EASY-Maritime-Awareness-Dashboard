@@ -17,6 +17,31 @@ vi.mock('../hooks/usePolling', () => ({
   usePolling: vi.fn(),
 }))
 
+vi.mock('../hooks/AuthContext', async () => {
+  const actual = await vi.importActual<typeof import('../hooks/AuthContext')>('../hooks/AuthContext')
+  return {
+    ...actual,
+    useAuth: vi.fn(() => ({
+      status: 'ready',
+      setupComplete: false,
+      enforcementEnabled: false,
+      enforcementForcedByServer: null,
+      anonymousViewerEnabled: false,
+      user: null,
+      legacy: false,
+      hostname: null,
+      refresh: vi.fn(),
+      login: vi.fn(),
+      logout: vi.fn(),
+      setup: vi.fn(),
+    })),
+  }
+})
+
+vi.mock('../components/feedback/StepUpProvider', () => ({
+  useStepUp: () => ({ requestStepUp: vi.fn(), runElevated: (action: () => Promise<unknown>) => action() }),
+}))
+
 const baseDiag = {
   hostname: 'test',
   ip_address: '127.0.0.1',
@@ -41,7 +66,10 @@ describe('SystemDiagnosticsPage', () => {
       data: baseDiag as any,
       loading: false,
       error: null,
-    })
+      failures: 0,
+      lastSuccessAt: Date.now(),
+      refresh: vi.fn(),
+    } as any)
 
     vi.mocked(DashboardStateContext.useSharedDashboardState).mockReturnValue({
       data: null,
@@ -53,7 +81,10 @@ describe('SystemDiagnosticsPage', () => {
       data: null,
       loading: false,
       error: null,
-    })
+      failures: 0,
+      lastSuccessAt: Date.now(),
+      refresh: vi.fn(),
+    } as any)
 
     render(<SystemDiagnosticsPage />)
     expect(screen.getByText('System Diagnostics')).toBeInTheDocument()
@@ -64,7 +95,10 @@ describe('SystemDiagnosticsPage', () => {
       data: null,
       loading: true,
       error: null,
-    })
+      failures: 0,
+      lastSuccessAt: Date.now(),
+      refresh: vi.fn(),
+    } as any)
 
     vi.mocked(DashboardStateContext.useSharedDashboardState).mockReturnValue({
       data: null,
@@ -76,7 +110,10 @@ describe('SystemDiagnosticsPage', () => {
       data: null,
       loading: false,
       error: null,
-    })
+      failures: 0,
+      lastSuccessAt: Date.now(),
+      refresh: vi.fn(),
+    } as any)
 
     render(<SystemDiagnosticsPage />)
     expect(screen.getByText(/Loading system diagnostics/)).toBeInTheDocument()
@@ -87,7 +124,10 @@ describe('SystemDiagnosticsPage', () => {
       data: null,
       loading: false,
       error: new Error('Failed'),
-    })
+      failures: 0,
+      lastSuccessAt: Date.now(),
+      refresh: vi.fn(),
+    } as any)
 
     vi.mocked(DashboardStateContext.useSharedDashboardState).mockReturnValue({
       data: null,
@@ -99,10 +139,13 @@ describe('SystemDiagnosticsPage', () => {
       data: null,
       loading: false,
       error: null,
-    })
+      failures: 0,
+      lastSuccessAt: Date.now(),
+      refresh: vi.fn(),
+    } as any)
 
     render(<SystemDiagnosticsPage />)
-    expect(screen.getByText(/Failed to load diagnostics/)).toBeInTheDocument()
+    expect(screen.getByText(/The backend could not be reached/)).toBeInTheDocument()
   })
 
   it('renders system information section', () => {
@@ -110,7 +153,10 @@ describe('SystemDiagnosticsPage', () => {
       data: { ...baseDiag, hostname: 'test-host', model: 'Raspberry Pi 4' } as any,
       loading: false,
       error: null,
-    })
+      failures: 0,
+      lastSuccessAt: Date.now(),
+      refresh: vi.fn(),
+    } as any)
 
     vi.mocked(DashboardStateContext.useSharedDashboardState).mockReturnValue({
       data: null,
@@ -122,7 +168,10 @@ describe('SystemDiagnosticsPage', () => {
       data: null,
       loading: false,
       error: null,
-    })
+      failures: 0,
+      lastSuccessAt: Date.now(),
+      refresh: vi.fn(),
+    } as any)
 
     render(<SystemDiagnosticsPage />)
     // The identity strip is a compact, unlabeled panel (no "System

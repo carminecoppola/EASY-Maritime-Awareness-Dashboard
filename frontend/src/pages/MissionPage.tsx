@@ -4,217 +4,182 @@ import { useSharedDashboardState } from '../hooks/DashboardStateContext'
 import { useSessionList } from '../hooks/useSessionList'
 import { SessionStartForm } from '../components/mission/SessionStartForm'
 import { SessionHistoryTable } from '../components/mission/SessionHistoryTable'
-import { ManifestStats } from '../components/mission/ManifestStats'
-import { AcquisitionStatusSection } from '../components/mission/AcquisitionStatusSection'
-import { StatusCard } from '../components/status/StatusCard'
-import { StatusBadge } from '../components/status/StatusBadge'
+import { ActiveMissionPanel } from '../components/mission/ActiveMissionPanel'
+import { PreflightChecklist } from '../components/mission/PreflightChecklist'
 import { Collapsible } from '../components/common/Collapsible'
-import { Panel } from '../components/common/Panel'
-import { SectionHeader } from '../components/common/SectionHeader'
-import { toneForRunningStatus } from '../components/status/severityColors'
+import { AcquisitionStatusSection } from '../components/mission/AcquisitionStatusSection'
+import { CHECK_COLOR, preflightChecks, preflightSummary } from '../lib/preflight'
+import { sensorReadiness } from '../lib/readiness'
+import { formatRelativeTime, toDate } from '../utils/formatTime'
 import type { SessionManifestCounts } from '../api/types'
+
+function modelLabelFrom(inference: unknown): string {
+  const payload = inference as { model_path?: string; backend?: string } | undefined
+  const path = payload?.model_path
+  if (!path) return 'Model unavailable'
+  const name = path.split('/').pop() || path
+  return payload?.backend ? `${name} · ${payload.backend}` : name
+}
 
 export function MissionPage(): ReactNode {
   const dashboard = useSharedDashboardState()
   const { sessions, loading: sessionListLoading, refresh: refreshSessionList, error: sessionListError } = useSessionList()
   const [currentManifest, setCurrentManifest] = useState<SessionManifestCounts | null>(null)
-  const [manifestLoading, setManifestLoading] = useState(false)
+  const [now, setNow] = useState(() => Date.now())
+  // Una risposta di polling partita PRIMA dello stop può arrivare dopo e
+  // rimettere running=true: il pannello sarebbe tornato indietro, perdendo i
+  // propri messaggi. Si tiene lo stato locale finché il backend concorda.
+  const [pendingStop, setPendingStop] = useState(false)
 
-  const dashboardSession = dashboard.data?.session
+  const data = dashboard.data
+  const dashboardSession = data?.session
   const currentSession = dashboardSession?.current ?? null
-  const isRunning = dashboardSession?.running ?? false
-  const acquisitionStatus = dashboard.data?.acquisition
+  const backendRunning = dashboardSession?.running ?? false
+  const isRunning = backendRunning && !pendingStop
+  const sessionId = currentSession?.session_id ?? null
 
-  // Carica il manifest della sessione corrente quando cambia
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
+
   const loadCurrentManifest = useCallback(async () => {
-    if (!currentSession?.session_id) {
+    if (!sessionId) {
       setCurrentManifest(null)
       return
     }
-    setManifestLoading(true)
     try {
-      const manifest = await api.getSessionManifest(currentSession.session_id)
+      const manifest = await api.getSessionManifest(sessionId)
       setCurrentManifest(manifest.counts)
     } catch (e) {
       console.error('Failed to load current session manifest:', e)
-    } finally {
-      setManifestLoading(false)
     }
-  }, [currentSession?.session_id])
+  }, [sessionId])
 
-  // Carica il manifest anche all'apertura della pagina se una sessione è
-  // già attiva — prima veniva richiesto SOLO dopo un'azione start/stop,
-  // quindi restava vuoto per l'intera durata di una sessione avviata prima
-  // di navigare su questa pagina.
+  // Carica il manifest anche all'apertura della pagina se una missione è già
+  // attiva, non solo dopo uno start/stop.
   useEffect(() => {
     loadCurrentManifest()
   }, [loadCurrentManifest])
 
-  // Dopo uno start/stop: ricarica il manifest della sessione corrente E lo
-  // storico sessioni, che altrimenti resta fermo allo snapshot caricato al
-  // mount (useSessionList non fa polling automatico di proposito).
   const handleSessionChanged = useCallback(async () => {
     await Promise.all([loadCurrentManifest(), refreshSessionList()])
   }, [loadCurrentManifest, refreshSessionList])
 
-  // Formato durata per la sessione corrente
-  const formatDuration = (seconds: number | null) => {
-    if (!seconds || seconds < 0) return '—'
-    if (seconds < 60) return `${Math.round(seconds)}s`
-    if (seconds < 3600) return `${Math.round(seconds / 60)}m`
-    return `${(seconds / 3600).toFixed(1)}h`
-  }
+  const handleStopped = useCallback(async () => {
+    setPendingStop(true)
+    await handleSessionChanged()
+  }, [handleSessionChanged])
 
-  // Formatta data
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return '—'
-    try {
-      return new Date(dateString).toLocaleString()
-    } catch {
-      return dateString
-    }
-  }
+  // Appena il backend conferma, l'override locale si azzera.
+  useEffect(() => {
+    if (!backendRunning) setPendingStop(false)
+  }, [backendRunning])
 
-  const sessionStatusTone = toneForRunningStatus(isRunning ? 'RUNNING' : 'STOPPED')
+  const sensors = sensorReadiness(data ?? null)
+  const checks = preflightChecks(data ?? null)
+  const summary = preflightSummary(checks)
+  const rgbOnline = sensors.slice(0, 2).filter((s) => s.ready).length
+  const thermal = sensors[2]
+  const disk = data?.health?.system?.disk
+  const lastUpdate = toDate(data?.timestamp)
+
+  // Il manifest live del backend è la fonte per i contatori durante la
+  // missione; il manifest caricato a parte copre il caso in cui il payload
+  // aggregato non lo includa ancora.
+  const liveCounts = (data?.acquisition?.manifest_counts as SessionManifestCounts | undefined) ?? currentManifest
+
+  const blockedReason =
+    summary.level === 'fail'
+      ? 'A blocking preflight check must be resolved before starting a mission.'
+      : summary.level === 'unknown'
+        ? 'Waiting for the system status before a mission can be started.'
+        : null
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-      <div>
-        <h1 style={{ marginBottom: 'var(--space-1)' }}>Mission</h1>
-        <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 13, maxWidth: 640, lineHeight: 1.5 }}>
-          A Mission is a recording session: while it's running, everything you capture — photos, AI detections — is
-          saved together and organized so you can review or export it afterward. Start one before capturing anything
-          you want to keep.
-        </p>
-      </div>
-
-      {/* PRIMARY: Session Start/Stop Form — the main action */}
-      {dashboardSession ? (
-        <SessionStartForm
-          currentSession={currentSession}
-          isRunning={isRunning}
-          onSessionChanged={handleSessionChanged}
-        />
-      ) : null}
-
-      {/* SECONDARY: Current Session Status & Details */}
-      {dashboardSession && currentSession ? (
-        <Panel>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <SectionHeader title="Current Session" />
-            <StatusBadge tone={sessionStatusTone} text={isRunning ? 'RUNNING' : 'STOPPED'} />
-          </div>
-
-          {currentSession.session_id ? (
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-              gap: 'var(--space-2)',
-            }}>
-              <StatusCard
-                title="Session ID"
-                value={
-                  <span title={currentSession.session_id} style={{ fontSize: 14 }}>
-                    {currentSession.session_id}
-                  </span>
-                }
-              />
-              <StatusCard title="Start Time" value={formatDate(currentSession.start_time)} />
-              <StatusCard title="Duration" value={formatDuration(currentSession.duration)} />
-              {currentSession.operator && <StatusCard title="Operator" value={currentSession.operator} />}
-              {currentSession.mode && <StatusCard title="Mode" value={currentSession.mode} />}
-            </div>
+    <>
+      <section className="easy-headline">
+        <div>
+          <div className="easy-eyebrow">Acquisition workflow</div>
+          <h1>Mission Control</h1>
+          <p>Prepare, start and monitor a coordinated acquisition session.</p>
+        </div>
+        <div className="easy-updated">
+          {dashboard.error ? (
+            <>
+              Connection lost — checks from <b>{lastUpdate ? formatRelativeTime(lastUpdate) : 'unknown'}</b>
+            </>
           ) : (
-            <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>
-              No session running
-            </div>
+            <>
+              System checked <b>{lastUpdate ? formatRelativeTime(lastUpdate) : 'unknown'}</b>
+            </>
           )}
+        </div>
+      </section>
 
-          {/* Current Session Editable Context */}
-          {currentSession.editable ? (
-            <div style={{
-              padding: 'var(--space-3)',
-              background: 'var(--bg-1)',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: 12,
-            }}>
-              <h4 style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', margin: '0 0 var(--space-2) 0', textTransform: 'uppercase' }}>
-                Mission Context
-              </h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                {currentSession.editable.operator ? (
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Operator:</span>
-                    <span className="mono" style={{ color: 'var(--text-primary)' }}>{currentSession.editable.operator}</span>
-                  </div>
-                ) : null}
-                {currentSession.editable.notes ? (
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Notes:</span>
-                    <span className="mono" style={{ color: 'var(--text-primary)', maxWidth: 300, textAlign: 'right' }}>{currentSession.editable.notes}</span>
-                  </div>
-                ) : null}
-                {currentSession.editable.campaign ? (
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Campaign:</span>
-                    <span className="mono" style={{ color: 'var(--text-primary)' }}>{currentSession.editable.campaign}</span>
-                  </div>
-                ) : null}
-                {currentSession.editable.location ? (
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Location:</span>
-                    <span className="mono" style={{ color: 'var(--text-primary)' }}>{currentSession.editable.location}</span>
-                  </div>
-                ) : null}
-                {currentSession.editable.weather ? (
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Weather:</span>
-                    <span className="mono" style={{ color: 'var(--text-primary)' }}>{currentSession.editable.weather}</span>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
-        </Panel>
-      ) : null}
+      <section className="easy-readiness" aria-label="Mission readiness">
+        <div className="easy-readycell">
+          <div className="easy-kicker">Preflight</div>
+          <div className="easy-value" style={{ color: CHECK_COLOR[summary.level] }}>
+            {summary.label}
+          </div>
+          <div className="easy-sub">{summary.detail}</div>
+        </div>
+        <div className="easy-readycell">
+          <div className="easy-kicker">RGB cameras</div>
+          <div className="easy-value">{rgbOnline} / 2 online</div>
+          <div className="easy-sub">{rgbOnline === 2 ? 'Frames current' : 'Check the live feeds'}</div>
+        </div>
+        <div className="easy-readycell">
+          <div className="easy-kicker">Thermal</div>
+          <div className="easy-value">{thermal.ready ? 'Ready' : thermal.availability.replace('_', ' ')}</div>
+          <div className="easy-sub">On-demand capture</div>
+        </div>
+        <div className="easy-readycell">
+          <div className="easy-kicker">Available storage</div>
+          <div className="easy-value">{disk ? `${disk.free_gb.toFixed(1)} GB` : 'Unavailable'}</div>
+          <div className="easy-sub">
+            {disk ? `${(100 - disk.percent).toFixed(0)}% of ${disk.total_gb.toFixed(0)} GB free` : 'Disk usage not reported'}
+          </div>
+        </div>
+      </section>
 
-      {/* Current Session Manifest */}
-      {manifestLoading ? (
-        <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>
-          Loading manifest...
+      <section className="easy-mission-layout">
+        {isRunning ? (
+          <ActiveMissionPanel
+            session={currentSession}
+            counts={liveCounts ?? null}
+            sensorsReady={sensors.filter((s) => s.ready).length}
+            sensorsTotal={sensors.length}
+            now={now}
+            onChanged={handleSessionChanged}
+            onStopped={handleStopped}
+          />
+        ) : (
+          <SessionStartForm
+            onSessionChanged={handleSessionChanged}
+            modelLabel={modelLabelFrom(data?.inference)}
+            blockedReason={blockedReason}
+          />
+        )}
+
+        <PreflightChecklist checks={checks} />
+      </section>
+
+      <SessionHistoryTable
+        sessions={sessions}
+        loading={sessionListLoading}
+        error={sessionListError}
+        onRefresh={refreshSessionList}
+      />
+
+      {data?.acquisition ? (
+        <div style={{ marginTop: 'var(--space-3)' }}>
+          <Collapsible title="Acquisition details" defaultOpen={false}>
+            <AcquisitionStatusSection acquisitionStatus={data.acquisition} />
+          </Collapsible>
         </div>
       ) : null}
-      {currentSession && currentManifest && !manifestLoading ? (
-        <ManifestStats counts={currentManifest} title="Current Session Manifest" />
-      ) : null}
-
-      {/* Acquisition Status */}
-      {acquisitionStatus ? (
-        <AcquisitionStatusSection acquisitionStatus={acquisitionStatus} />
-      ) : null}
-
-      {/* TERTIARY: Session History (collapsible) */}
-      <Collapsible title="Session History" defaultOpen={false}>
-        <SessionHistoryTable
-          sessions={sessions}
-          loading={sessionListLoading}
-          onRefresh={refreshSessionList}
-        />
-
-        {sessionListError ? (
-          <div style={{
-            padding: 'var(--space-3)',
-            background: 'var(--accent-critical-dim)',
-            border: '1px solid var(--accent-critical)',
-            borderRadius: 'var(--radius-md)',
-            color: 'var(--accent-critical)',
-            fontSize: 12,
-            marginTop: 'var(--space-3)',
-          }}>
-            Failed to load session history
-          </div>
-        ) : null}
-      </Collapsible>
-    </div>
+    </>
   )
 }

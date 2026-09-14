@@ -1,126 +1,72 @@
-import { useEffect, useState } from 'react'
-import { ThinkingOrb } from 'thinking-orbs'
+import { useCallback, useEffect, useState } from 'react'
 import { useSystemStatus } from '../hooks/useSystemStatus'
 import { useSharedDashboardState } from '../hooks/DashboardStateContext'
-import { api } from '../api/client'
-import { usePolling } from '../hooks/usePolling'
+import { api, ApiError } from '../api/client'
 import { StatusBadge } from '../components/status/StatusBadge'
 import { toneForHardwareState } from '../components/status/severityColors'
 import { Sparkline, type SparklineData } from '../components/charts/Sparkline'
 import { CpuRamGauge } from '../components/charts/CpuRamGauge'
 import { Collapsible } from '../components/common/Collapsible'
-import { Panel } from '../components/common/Panel'
-import { SectionHeader } from '../components/common/SectionHeader'
+import { authErrorMessage, roleAtLeast, useAuth } from '../hooks/AuthContext'
+import { useStepUp } from '../components/feedback/StepUpProvider'
+import { isStepUpRequiredBody } from '../api/types'
 import type { CameraInventory } from '../api/types'
 
-function IdentityField({
-  label,
-  value,
-  emphasis = false,
-  first = false,
-  wide = false,
-}: {
-  label: string
-  value: string
-  emphasis?: boolean
-  first?: boolean
-  /** Model/OS strings are long enough that a single-line ellipsis silently
-   * hides real information (only recoverable via hover, which doesn't work
-   * on touch) — those wrap to two lines instead of truncating. */
-  wide?: boolean
-}) {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 4,
-        minWidth: 0,
-        padding: '0 var(--space-4)',
-        borderLeft: first ? 'none' : '1px solid var(--border-subtle)',
-        gridColumn: wide ? 'span 2' : undefined,
-      }}
-    >
-      <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-        {label}
-      </span>
-      <span
-        className="mono"
-        style={{
-          fontSize: emphasis ? 15 : 13,
-          fontWeight: emphasis ? 600 : 400,
-          color: emphasis ? 'var(--text-primary)' : 'var(--text-secondary)',
-          overflow: 'hidden',
-          textOverflow: wide ? 'clip' : 'ellipsis',
-          whiteSpace: wide ? 'normal' : 'nowrap',
-          lineHeight: 1.4,
-        }}
-        title={value}
-      >
-        {value}
-      </span>
-    </div>
-  )
-}
+function RestartServicesPanel() {
+  const auth = useAuth()
+  const { runElevated } = useStepUp()
+  const [restarting, setRestarting] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
 
-function CameraCard({
-  primaryName,
-  secondaryName,
-  state,
-  meta,
-  error,
-  message,
-}: {
-  primaryName: string
-  secondaryName: string
-  state: string
-  meta: [string, string][]
-  error: string | null
-  message: string | null
-}) {
-  const tone = toneForHardwareState(state)
-  const isOffline = ['ERROR', 'OFFLINE', 'NOT_PRESENT'].includes(state)
+  // Fuori dall'enforcement (auth.user è nullo/nessun ruolo se non attivo)
+  // il pulsante resta disponibile: il gate reale è il backend. Quando
+  // l'enforcement è attivo, un non-admin lo vede disabilitato con motivo.
+  const canAttempt = !auth.enforcementEnabled || roleAtLeast(auth.user?.role, 'admin')
+
+  const handleRestart = async () => {
+    if (restarting) return
+    setRestarting(true)
+    setMessage(null)
+    try {
+      await runElevated(
+        () => api.restartSystemServices(),
+        'Confirm restarting the hardware services. RGB and thermal capture will briefly stop.',
+      )
+      setMessage('Hardware services restarted.')
+    } catch (e) {
+      // L'operatore ha semplicemente annullato il dialogo di conferma: non
+      // è un errore da mostrare, solo un'azione non completata.
+      const cancelled = e instanceof ApiError && e.status === 403 && isStepUpRequiredBody(e.body)
+      if (!cancelled) {
+        setMessage(authErrorMessage(e))
+      }
+    } finally {
+      setRestarting(false)
+    }
+  }
+
   return (
-    <div
-      style={{
-        background: isOffline ? tone.dim : 'var(--bg-2)',
-        border: isOffline ? `1px solid ${tone.color}` : '1px solid var(--border-subtle)',
-        borderRadius: 'var(--radius-md)',
-        boxShadow: 'var(--shadow-panel)',
-        padding: 'var(--space-3)',
-        transition: 'all 150ms ease-out',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 'var(--space-2)',
-      }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 'var(--space-2)' }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: isOffline ? tone.color : 'var(--text-primary)' }}>
-            {primaryName}
-          </div>
-          <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
-            {secondaryName}
-          </div>
-        </div>
-        <StatusBadge tone={tone} text={state} />
+    <article className="easy-surface" style={{ marginTop: 'var(--space-3)' }}>
+      <div className="easy-panelhead">
+        <h2>System services</h2>
+        <span className="easy-panelnote">Admin only</span>
       </div>
-      <div style={{ display: 'flex', gap: 'var(--space-4)', fontSize: 12, color: 'var(--text-muted)' }}>
-        {meta.map(([label, value]) => (
-          <div key={label}>
-            {label}: <span style={{ color: 'var(--text-primary)' }} className="mono">{value}</span>
-          </div>
-        ))}
-      </div>
-      {error && (
-        <div style={{ padding: 'var(--space-2)', background: 'var(--accent-critical-dim)', borderRadius: 'var(--radius-sm)', fontSize: 11, color: 'var(--accent-critical)' }}>
-          Error: {error}
+      <div className="easy-capturebar">
+        <div>
+          <b>Restart hardware services</b>
+          <small>{message ?? 'Stops and restarts camera and thermal acquisition. Live feeds briefly drop.'}</small>
         </div>
-      )}
-      {message && !error && (
-        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{message}</div>
-      )}
-    </div>
+        <button
+          type="button"
+          className="easy-btn danger"
+          onClick={handleRestart}
+          disabled={restarting || !canAttempt}
+          title={canAttempt ? undefined : 'Requires role Admin or higher'}
+        >
+          {restarting ? 'Restarting…' : 'Restart services'}
+        </button>
+      </div>
+    </article>
   )
 }
 
@@ -132,203 +78,298 @@ interface HistoryItem {
 }
 
 const HISTORY_MAX_SAMPLES = 60
+const CAMERA_REFRESH_MS = 30000
 
 function formatBytes(mb: number): string {
-  if (mb >= 1024) {
-    return `${(mb / 1024).toFixed(1)} GB`
-  }
-  return `${mb.toFixed(1)} MB`
+  return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb.toFixed(1)} MB`
 }
 
 function formatUptime(seconds: number): string {
-  const hours = Math.floor(seconds / 3600)
+  const days = Math.floor(seconds / 86400)
+  const hours = Math.floor((seconds % 86400) / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
-  const secs = Math.floor(seconds % 60)
+  if (days > 0) return `${days}d ${hours}h`
+  if (hours > 0) return `${hours}h ${minutes}m`
+  return `${minutes}m`
+}
 
-  if (hours > 0) {
-    return `${hours}h ${minutes}m ${secs}s`
-  }
-  if (minutes > 0) {
-    return `${minutes}m ${secs}s`
-  }
-  return `${secs}s`
+function CameraCard({
+  primaryName,
+  secondaryName,
+  state,
+  meta,
+  error,
+  message,
+  initial,
+}: {
+  primaryName: string
+  secondaryName: string
+  state: string
+  meta: [string, string][]
+  error: string | null
+  message: string | null
+  initial: string
+}) {
+  const tone = toneForHardwareState(state)
+  const offline = ['ERROR', 'OFFLINE', 'NOT_PRESENT', 'NOT_DETECTED'].includes(state)
+  return (
+    <div className="easy-hw" style={offline ? { borderColor: tone.color } : undefined}>
+      <div className="easy-hwtop">
+        <span className="easy-hwicon" aria-hidden>
+          {initial}
+        </span>
+        <div style={{ minWidth: 0 }}>
+          <b style={offline ? { color: tone.color } : undefined}>{primaryName}</b>
+          <small className="mono">{secondaryName}</small>
+        </div>
+        <StatusBadge tone={tone} text={state} />
+      </div>
+      <div className="easy-hwmeta">
+        {meta.map(([label, value]) => (
+          <span key={label}>
+            {label}: <span className="mono" style={{ color: 'var(--text-primary)' }}>{value}</span>
+          </span>
+        ))}
+      </div>
+      {error && <p className="easy-error">{error}</p>}
+      {message && !error && <p className="easy-empty" style={{ marginTop: 6 }}>{message}</p>}
+    </div>
+  )
 }
 
 export function SystemDiagnosticsPage() {
   const systemData = useSystemStatus(10000)
   const { data: dashboardState } = useSharedDashboardState()
-  const camerasData = usePolling(() => api.getCameras(), { intervalMs: 30000 })
 
-  // Ring buffer for history — kept in state (not a plain ref) so a new
-  // sample triggers a re-render immediately; a ref-only buffer left the
-  // sparkline permanently one sample behind the numbers shown elsewhere.
+  const [cameras, setCameras] = useState<CameraInventory | null>(null)
+  const [camerasError, setCamerasError] = useState<unknown>(null)
+  const [refreshing, setRefreshing] = useState(false)
   const [history, setHistory] = useState<HistoryItem[]>([])
 
+  const loadCameras = useCallback(async () => {
+    try {
+      setCameras(await api.getCameras())
+      setCamerasError(null)
+    } catch (e) {
+      setCamerasError(e)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadCameras()
+    const id = setInterval(loadCameras, CAMERA_REFRESH_MS)
+    return () => clearInterval(id)
+  }, [loadCameras])
+
+  // Ring buffer della cronologia in state (non in un ref) così un nuovo
+  // campione ridisegna subito: con un ref lo sparkline restava un campione
+  // indietro rispetto ai numeri mostrati accanto.
   useEffect(() => {
     if (!systemData.data) return
-    const newItem: HistoryItem = {
-      timestamp: Date.now(),
-      cpu_percent: systemData.data.cpu_percent,
-      ram_percent: systemData.data.ram.percent,
-    }
-    setHistory((prev) => [...prev, newItem].slice(-HISTORY_MAX_SAMPLES))
+    setHistory((prev) =>
+      [
+        ...prev,
+        {
+          timestamp: Date.now(),
+          cpu_percent: systemData.data!.cpu_percent,
+          ram_percent: systemData.data!.ram.percent,
+        },
+      ].slice(-HISTORY_MAX_SAMPLES),
+    )
   }, [systemData.data])
+
+  const handleRefreshInventory = async () => {
+    if (refreshing) return
+    setRefreshing(true)
+    try {
+      await api.refreshDevices()
+      await loadCameras()
+    } catch (e) {
+      setCamerasError(e)
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   if (systemData.loading && !systemData.data) {
     return (
-      <p style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
-        <ThinkingOrb state="working" size={20} theme="auto" />
+      <p className="easy-empty" role="status">
         Loading system diagnostics…
       </p>
     )
   }
   if (systemData.error && !systemData.data) {
-    return <p style={{ color: 'var(--accent-critical)' }}>Failed to load diagnostics: {String(systemData.error)}</p>
+    return (
+      <div className="easy-panel">
+        <h2 style={{ margin: 0, fontSize: 16 }}>Diagnostics unavailable</h2>
+        <p className="easy-sub">The backend could not be reached: {String(systemData.error)}</p>
+      </div>
+    )
   }
 
   const diag = systemData.data!
   const historyData = history as SparklineData[]
-  const cameras = camerasData.data as CameraInventory | null
+  const diskPercent = diag.disk.percent
+  const diskTone =
+    diskPercent >= 90 ? 'var(--accent-critical)' : diskPercent >= 75 ? 'var(--accent-warn)' : 'var(--accent-ok)'
+  const cpuTone =
+    diag.cpu_percent >= 90 ? 'var(--accent-critical)' : diag.cpu_percent >= 70 ? 'var(--accent-warn)' : 'var(--accent-ok)'
 
-  const diskUsedPercent = diag.disk.percent
-  const diskTone = diskUsedPercent >= 90 ? 'var(--accent-critical)' : diskUsedPercent >= 75 ? 'var(--accent-warn)' : 'var(--accent-ok)'
+  const components = dashboardState?.health?.system_components?.components ?? []
+  const activeComponents = components.filter((c) => c.active).length
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
-      <h1>System Diagnostics</h1>
-
-      {/* PRIMARY: compact identity strip — one glance, not six equal-weight
-          cards. Hostname/IP get more visual weight (what an operator
-          actually needs to confirm they're on the right device / reach it
-          over the network); OS/Python/uptime are secondary reference info. */}
-      <section>
-        <Panel variant="flat">
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            Device
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', rowGap: 'var(--space-3)' }}>
-            <IdentityField label="Hostname" value={diag.hostname} emphasis first />
-            <IdentityField label="IP Address" value={diag.ip_address} emphasis />
-            <IdentityField label="Uptime" value={formatUptime(diag.uptime_seconds)} />
-            <IdentityField label="Python" value={diag.python_version} />
-            <IdentityField label="Model" value={diag.model} wide />
-            <IdentityField label="OS" value={diag.os_release} wide />
-          </div>
-        </Panel>
-      </section>
-
-      {/* PRIMARY: CPU and Memory each fully self-contained — gauge, key
-          numbers, and trend live together instead of being scattered
-          across three separate sections a scroll apart. */}
-      <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <div style={{ marginBottom: 'var(--space-1)' }}>
-          <SectionHeader title="Resource Usage" />
+    <>
+      <section className="easy-headline">
+        <div>
+          <div className="easy-eyebrow">Device health</div>
+          <h1>System Diagnostics</h1>
+          <p>Monitor Raspberry Pi resources, storage and camera hardware.</p>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 'var(--space-4)' }}>
-          <Panel variant="flat">
-            <div style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'center' }}>
-              <div style={{ flexShrink: 0, width: 120 }}>
-                <CpuRamGauge value={diag.cpu_percent} label="CPU" color="var(--accent-info)" height={110} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                {diag.cpu_temperature_c !== null && (
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 'var(--space-2)' }}>
-                    Temp: <span style={{ color: 'var(--text-primary)' }} className="mono">{diag.cpu_temperature_c.toFixed(1)}°C</span>
-                  </div>
-                )}
-                {historyData.length > 1 && (
-                  <Sparkline data={historyData} dataKey="cpu_percent" label="%" color="var(--accent-info)" yMax={100} height={90} showGrid={false} />
-                )}
-              </div>
-            </div>
-          </Panel>
-          <Panel variant="flat">
-            <div style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'center' }}>
-              <div style={{ flexShrink: 0, width: 120 }}>
-                {/* diag.ram.percent (accounting for cache/buffers) can differ
-                    substantially from a naive used_mb/total_mb ratio — using
-                    used/total here showed 41% while ram.percent showed 87%
-                    for the same instant, so both gauge and history use
-                    ram.percent consistently. */}
-                <CpuRamGauge value={diag.ram.percent} max={100} label="Memory" color="var(--accent-warn)" height={110} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 'var(--space-2)' }}>
-                  <span style={{ color: 'var(--text-primary)' }} className="mono">{formatBytes(diag.ram.used_mb)}</span> used of{' '}
-                  <span style={{ color: 'var(--text-primary)' }} className="mono">{formatBytes(diag.ram.total_mb)}</span>
-                </div>
-                {historyData.length > 1 && (
-                  <Sparkline data={historyData} dataKey="ram_percent" label="%" color="var(--accent-warn)" yMax={100} height={90} showGrid={false} />
-                )}
-              </div>
-            </div>
-          </Panel>
+        <div className="easy-updated">
+          {systemData.error ? (
+            <>Connection lost — showing the <b>last received</b> sample</>
+          ) : (
+            <>Resource sampling every <b>10s</b></>
+          )}
         </div>
       </section>
 
-      {/* PRIMARY: Disk — one compact bar instead of three equal-weight cards */}
-      <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <div style={{ marginBottom: 'var(--space-1)' }}>
-          <SectionHeader title="Disk Storage" />
+      <section className="easy-surface easy-identity" aria-live="polite">
+        <div className="easy-id">
+          <span>Hostname</span>
+          <b className="mono">{diag.hostname}</b>
         </div>
-        <Panel variant="flat">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
-            {/* Same visual language as the CPU/Memory gauges above — a big
-                colored percentage — instead of a bare thin bar with no
-                number, which read as an afterthought next to them. */}
-            <div
-              className="mono"
-              style={{ fontSize: 28, fontWeight: 600, color: diskTone, flexShrink: 0, minWidth: 64, textAlign: 'right' }}
-            >
-              {diskUsedPercent.toFixed(0)}%
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 'var(--space-2)', fontSize: 13 }}>
+        <div className="easy-id">
+          <span>IP address</span>
+          <b className="mono" style={{ color: 'var(--accent-info)' }}>
+            {diag.ip_address}
+          </b>
+        </div>
+        <div className="easy-id">
+          <span>Device</span>
+          <b>{diag.model}</b>
+        </div>
+        <div className="easy-id">
+          <span>Operating system</span>
+          <b>{diag.os_release}</b>
+        </div>
+        <div className="easy-id">
+          <span>Uptime</span>
+          <b className="mono">{formatUptime(diag.uptime_seconds)}</b>
+        </div>
+      </section>
+
+      <section className="easy-resourcegrid">
+        <article className="easy-surface easy-resource">
+          <h2 className="easy-resourcetitle">CPU utilization</h2>
+          <div className="easy-big" style={{ color: cpuTone }}>
+            {diag.cpu_percent.toFixed(0)}%
+          </div>
+          <p>
+            {diag.cpu_temperature_c !== null ? (
+              <>
+                Temperature{' '}
                 <span className="mono" style={{ color: 'var(--text-primary)' }}>
-                  {diag.disk.used_gb.toFixed(1)} GB used of {diag.disk.total_gb.toFixed(1)} GB
+                  {diag.cpu_temperature_c.toFixed(1)}°C
                 </span>
-                <span className="mono" style={{ color: 'var(--text-muted)' }}>{diag.disk.free_gb.toFixed(1)} GB free</span>
-              </div>
-              <div style={{ position: 'relative', height: 10, borderRadius: 5, background: 'var(--bg-3)', overflow: 'hidden' }}>
-                <div
-                  style={{
-                    height: '100%',
-                    width: `${Math.min(100, diskUsedPercent)}%`,
-                    background: diskTone,
-                    borderRadius: 5,
-                    transition: 'width 300ms ease-out',
-                  }}
-                />
-                {/* Threshold markers so the color change (green→amber→red)
-                    has a visible reference instead of just changing
-                    unexplained. */}
-                <div style={{ position: 'absolute', top: 0, bottom: 0, left: '75%', width: 1, background: 'var(--bg-0)', opacity: 0.6 }} />
-                <div style={{ position: 'absolute', top: 0, bottom: 0, left: '90%', width: 1, background: 'var(--bg-0)', opacity: 0.6 }} />
-              </div>
-              <div style={{ position: 'relative', height: 14, marginTop: 4, fontSize: 10, color: 'var(--text-muted)' }}>
-                <span style={{ position: 'absolute', left: 0 }}>0%</span>
-                <span style={{ position: 'absolute', left: '75%', transform: 'translateX(-50%)' }}>75% warn</span>
-                <span style={{ position: 'absolute', right: 0 }}>90% critical</span>
-              </div>
-            </div>
+              </>
+            ) : (
+              'Temperature not reported'
+            )}
+          </p>
+          {historyData.length > 1 ? (
+            <Sparkline
+              data={historyData}
+              dataKey="cpu_percent"
+              label="%"
+              color="var(--accent-info)"
+              yMax={100}
+              height={70}
+              showGrid={false}
+            />
+          ) : (
+            <p className="easy-empty">Collecting samples…</p>
+          )}
+        </article>
+
+        <article className="easy-surface easy-resource">
+          <h2 className="easy-resourcetitle">Memory</h2>
+          {/* diag.ram.percent tiene conto di cache/buffer e può differire
+              molto dal rapporto used/total: gauge e cronologia usano lo
+              stesso campo per non mostrare due verità diverse. */}
+          <div style={{ width: 120, margin: '12px auto 0' }}>
+            <CpuRamGauge value={diag.ram.percent} max={100} label="Memory" color="var(--accent-warn)" height={110} />
           </div>
-        </Panel>
+          <p style={{ textAlign: 'center' }}>
+            <span className="mono" style={{ color: 'var(--text-primary)' }}>
+              {formatBytes(diag.ram.used_mb)}
+            </span>{' '}
+            used of{' '}
+            <span className="mono" style={{ color: 'var(--text-primary)' }}>
+              {formatBytes(diag.ram.total_mb)}
+            </span>
+          </p>
+        </article>
+
+        <article className="easy-surface easy-resource">
+          <h2 className="easy-resourcetitle">Disk storage</h2>
+          <div className="easy-big" style={{ color: diskTone }}>
+            {diskPercent.toFixed(0)}%
+          </div>
+          <p>
+            <span className="mono" style={{ color: 'var(--text-primary)' }}>
+              {diag.disk.used_gb.toFixed(1)} GB
+            </span>{' '}
+            used ·{' '}
+            <span className="mono" style={{ color: 'var(--text-primary)' }}>
+              {diag.disk.free_gb.toFixed(1)} GB
+            </span>{' '}
+            free
+          </p>
+          <div className="easy-bar" style={{ marginTop: 18 }}>
+            <i style={{ width: `${Math.min(100, diskPercent)}%`, background: diskTone }} />
+          </div>
+          <div className="easy-thresholds">
+            <span>0%</span>
+            <span>75% warn</span>
+            <span>90% critical</span>
+          </div>
+          <p style={{ color: diskTone }}>
+            {diskPercent >= 90
+              ? 'Critical: free space before collecting'
+              : diskPercent >= 75
+                ? 'Running low for long collections'
+                : 'Healthy capacity for collection'}
+          </p>
+        </article>
       </section>
 
-      {/* Camera Inventory — RGB and thermal in one consistent grid instead
-          of two differently-laid-out sub-sections; hardware_name (the
-          human-readable "Arducam UC-517 LEFT") leads, the internal
-          logical_name ("RGB_CAM_LEFT") is now the small secondary tag
-          instead of the other way around. */}
-      {cameras && (
-        <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-          <div style={{ marginBottom: 'var(--space-1)' }}>
-            <SectionHeader title="Camera Inventory" />
+      <section className="easy-surface">
+        <div className="easy-panelhead">
+          <h2>Camera inventory</h2>
+          <span className="easy-panelnote">Physical hardware and logical providers</span>
+          <div className="easy-tools">
+            <button type="button" className="easy-btn mini" onClick={handleRefreshInventory} disabled={refreshing}>
+              {refreshing ? 'Refreshing…' : 'Refresh inventory'}
+            </button>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 'var(--space-3)' }}>
+        </div>
+
+        {camerasError && !cameras ? (
+          <p className="easy-error" style={{ margin: 13 }}>
+            Camera inventory unavailable: {camerasError instanceof Error ? camerasError.message : String(camerasError)}
+          </p>
+        ) : !cameras ? (
+          <p className="easy-empty" style={{ margin: 13 }}>
+            Reading camera inventory…
+          </p>
+        ) : (
+          <div className="easy-hwgrid">
             {cameras.rgb_cameras.map((cam) => (
               <CameraCard
                 key={cam.logical_name}
+                initial={/left/i.test(cam.logical_name) ? 'L' : /right/i.test(cam.logical_name) ? 'R' : 'C'}
                 primaryName={cam.hardware_name}
                 secondaryName={cam.logical_name}
                 state={cam.state}
@@ -340,115 +381,72 @@ export function SystemDiagnosticsPage() {
                 message={cam.message}
               />
             ))}
-            {cameras.thermal_camera && (() => {
-              const thermal = cameras.thermal_camera as any
-              const status = thermal?.status ?? {}
-              const runtimeState = thermal?.runtime_state ?? {}
-              return (
-                <CameraCard
-                  primaryName={thermal?.hardware_name ?? 'Thermal Sensor'}
-                  secondaryName={thermal?.logical_name ?? 'THERMAL_FLIR'}
-                  state={thermal?.state ?? 'NOT_PRESENT'}
-                  meta={[
-                    ['Device', status.device ?? '—'],
-                    ['Capture', runtimeState.capture_mode === 'on_demand' ? 'On demand' : (runtimeState.capture_mode ?? '—')],
-                  ]}
-                  error={null}
-                  message={null}
-                />
-              )
-            })()}
+            {cameras.thermal_camera &&
+              (() => {
+                const thermal = cameras.thermal_camera as Record<string, any>
+                const status = thermal?.status ?? {}
+                const runtimeState = thermal?.runtime_state ?? {}
+                return (
+                  <CameraCard
+                    initial="TH"
+                    primaryName={String(thermal?.hardware_name ?? 'Thermal sensor')}
+                    secondaryName={String(thermal?.logical_name ?? 'THERMAL')}
+                    state={String(thermal?.state ?? 'NOT_PRESENT')}
+                    meta={[
+                      ['Device', String(status.device ?? '—')],
+                      ['Capture', runtimeState.capture_mode === 'on_demand' ? 'On demand' : String(runtimeState.capture_mode ?? '—')],
+                    ]}
+                    error={String(status.error || '') || null}
+                    message={runtimeState.health && runtimeState.health !== 'GOOD' ? `Health: ${runtimeState.health}` : null}
+                  />
+                )
+              })()}
           </div>
-        </section>
-      )}
+        )}
 
-      {/* SECONDARY (collapsed by default): per-manager technical detail —
-          useful when actually debugging, noise the rest of the time. */}
-      {dashboardState && dashboardState.health && (
-        <Collapsible title="System Components (technical detail)" defaultOpen={false}>
-          <Panel variant="flat">
-            {dashboardState.health.system_components?.components?.length ? (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+        <div style={{ margin: '0 10px', padding: '11px 0', borderTop: '1px solid var(--border-subtle)' }}>
+          <Collapsible
+            title={`System components — ${activeComponents} of ${components.length} active`}
+            defaultOpen={false}
+          >
+            {components.length === 0 ? (
+              <p className="easy-empty">No system component data available.</p>
+            ) : (
+              <div className="easy-tablewrap" tabIndex={0} role="region" aria-label="Scrollable table">
+                <table className="easy-table">
                   <thead>
-                    <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                    <tr>
                       {['Component', 'Kind', 'Status', 'Health', 'Uptime', 'Error'].map((h) => (
-                        <th
-                          key={h}
-                          style={{
-                            padding: 'var(--space-2)',
-                            textAlign: 'left',
-                            color: 'var(--text-secondary)',
-                            fontWeight: 600,
-                            textTransform: 'uppercase',
-                            fontSize: 10,
-                            letterSpacing: '0.04em',
-                          }}
-                        >
+                        <th key={h} scope="col">
                           {h}
                         </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {dashboardState.health.system_components.components.map((c) => {
+                    {components.map((c) => {
                       const tone = toneForHardwareState(c.status)
-                      const isAnomalous = ['ERROR', 'OFFLINE', 'DEGRADED'].includes(c.status)
+                      const anomalous = ['ERROR', 'OFFLINE', 'DEGRADED'].includes(c.status)
                       return (
-                        <tr
-                          key={c.id}
-                          style={{
-                            borderBottom: '1px solid var(--border-subtle)',
-                            background: isAnomalous ? tone.dim : undefined,
-                          }}
-                        >
-                          <td style={{ padding: 'var(--space-2)', color: isAnomalous ? tone.color : 'var(--text-primary)' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                              {isAnomalous && (
-                                <span
-                                  style={{
-                                    width: 8,
-                                    height: 8,
-                                    borderRadius: '50%',
-                                    background: tone.color,
-                                    flexShrink: 0,
-                                  }}
-                                  aria-hidden
-                                />
-                              )}
-                              <span>
-                                {c.label}
-                                {c.critical && (
-                                  // c.critical classifies this component as
-                                  // core to system health (its failure counts
-                                  // as a system-wide error) — it is not a
-                                  // live alert, so the label reads "CORE" and
-                                  // not "CRITICAL" to avoid looking like a
-                                  // problem on an otherwise healthy row.
-                                  <span
-                                    className="mono"
-                                    style={{ marginLeft: 6, fontSize: 9, color: 'var(--text-muted)' }}
-                                    title="Core component: its failure is treated as a system-wide error, not just its own row"
-                                  >
-                                    CORE
-                                  </span>
-                                )}
+                        <tr key={c.id} style={anomalous ? { background: tone.dim } : undefined}>
+                          <td className="easy-cell-strong" style={anomalous ? { color: tone.color } : undefined}>
+                            {c.label}
+                            {c.critical && (
+                              // "CORE" e non "CRITICAL": classifica il
+                              // componente come essenziale, non segnala un
+                              // problema in corso.
+                              <span className="mono" style={{ marginLeft: 6, fontSize: 9, color: 'var(--text-muted)' }}>
+                                CORE
                               </span>
-                            </div>
+                            )}
                           </td>
-                          <td className="mono" style={{ padding: 'var(--space-2)', color: isAnomalous ? tone.color : 'var(--text-secondary)' }}>
-                            {c.kind}
-                          </td>
-                          <td style={{ padding: 'var(--space-2)' }}>
+                          <td className="mono">{c.kind}</td>
+                          <td>
                             <StatusBadge tone={tone} text={c.status} />
                           </td>
-                          <td style={{ padding: 'var(--space-2)', color: isAnomalous ? tone.color : 'var(--text-secondary)' }}>
-                            {c.health}
-                          </td>
-                          <td className="mono" style={{ padding: 'var(--space-2)', color: isAnomalous ? tone.color : 'var(--text-muted)' }}>
-                            {c.uptime}
-                          </td>
-                          <td style={{ padding: 'var(--space-2)', color: c.error ? 'var(--accent-critical)' : 'var(--text-muted)', maxWidth: 260 }}>
+                          <td>{c.health}</td>
+                          <td className="mono">{c.uptime}</td>
+                          <td style={{ color: c.error ? 'var(--accent-critical)' : 'var(--text-muted)' }}>
                             {c.error || '—'}
                           </td>
                         </tr>
@@ -457,12 +455,12 @@ export function SystemDiagnosticsPage() {
                   </tbody>
                 </table>
               </div>
-            ) : (
-              <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>No system components data available</p>
             )}
-          </Panel>
-        </Collapsible>
-      )}
-    </div>
+          </Collapsible>
+        </div>
+      </section>
+
+      <RestartServicesPanel />
+    </>
   )
 }

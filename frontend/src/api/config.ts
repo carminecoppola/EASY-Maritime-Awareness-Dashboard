@@ -25,3 +25,16 @@ export function setAuthToken(token: string | null): void {
     // solo per la sessione corrente, nessun crash.
   }
 }
+
+// Token CSRF della sessione di login — solo in memoria, mai in localStorage:
+// vive quanto la scheda del browser, esattamente come il cookie di sessione
+// HttpOnly a cui è associato. Un reload lo riottiene da GET /api/auth/session.
+let csrfToken: string | null = null
+
+export function getCsrfToken(): string | null {
+  return csrfToken
+}
+
+export function setCsrfToken(token: string | null): void {
+  csrfToken = token
+}

@@ -1,4 +1,20 @@
 /**
+ * Normalizza i timestamp del backend: ISO string oppure epoch (il runtime
+ * hardware usa time.time(), quindi secondi in virgola mobile, dove 0 =
+ * "mai acquisito"). Restituisce null quando non c'è un istante reale.
+ */
+export function toDate(value: string | number | null | undefined): Date | null {
+  if (value === null || value === undefined || value === '') return null
+  if (typeof value === 'number') {
+    if (value <= 0) return null
+    const date = new Date(value > 10 ** 11 ? value : value * 1000)
+    return isNaN(date.getTime()) ? null : date
+  }
+  const date = new Date(value)
+  return isNaN(date.getTime()) ? null : date
+}
+
+/**
  * Format a timestamp as a relative time string (e.g., "2h ago", "just now")
  * Handles both ISO strings and numeric timestamps
  */

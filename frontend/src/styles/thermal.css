@@ -1,0 +1,218 @@
+/* Sezioni specifiche della pagina Thermal & Events. */
+
+.easy-viewer {
+  height: 337px;
+  position: relative;
+  background: var(--bg-inset);
+  overflow: hidden;
+}
+
+.easy-viewer img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* contain: il frame termico è la prova, non deve essere ritagliato. */
+  object-fit: contain;
+}
+
+.easy-viewer-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(#0007, transparent 25%, transparent 70%, #000a);
+  pointer-events: none;
+}
+
+.easy-viewer-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.easy-badge.thermal {
+  background: #1c1312;
+  border: 1px solid color-mix(in srgb, #ff8a38 44%, transparent);
+  color: #ffad6f;
+}
+
+.easy-badge.frozen {
+  background: var(--bg-3);
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+}
+
+/* Barra colore: solo scala relativa, non una mappa di temperature assolute. */
+.easy-palette {
+  height: 5px;
+  position: absolute;
+  z-index: 4;
+  left: 12px;
+  right: 12px;
+  bottom: 42px;
+  background: linear-gradient(90deg, #160048, #2428b9, #00b7ff, #19e88f, #f6f72e, #ff7a13, #fff);
+  border-radius: 5px;
+}
+
+.easy-capturebar {
+  min-height: 62px;
+  padding: 12px 13px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.easy-capturebar b {
+  font-size: 12px;
+  display: block;
+  color: var(--text-primary);
+}
+
+.easy-capturebar small {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.easy-capturebar .easy-btn {
+  margin-left: auto;
+}
+
+/* Stato sensore */
+
+.easy-statusbody {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.easy-sensortop {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 11px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.easy-sensoricon {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  background: color-mix(in srgb, #ff8a38 9%, transparent);
+  color: #ff9d59;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.easy-sensortop b {
+  display: block;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.easy-sensortop small {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+}
+
+.easy-sensortop .easy-tag {
+  margin-left: auto;
+}
+
+.easy-sectiontitle {
+  font-size: 12px;
+  color: #7e90a1;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  margin: 13px 0 7px;
+}
+
+.easy-rule {
+  min-height: 40px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.easy-rule:first-of-type {
+  border-top: 0;
+}
+
+.easy-rule i {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.easy-rule b {
+  font-size: 12px;
+  display: block;
+  color: var(--text-primary);
+}
+
+.easy-rule small {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.easy-rule .easy-rulevalue {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.easy-independent {
+  margin-top: 13px;
+  padding: 9px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--accent-info) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-info) 20%, transparent);
+  color: #8db7d9;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* Stream eventi */
+
+.easy-eventstream {
+  margin-top: 13px;
+}
+
+.easy-eventtype {
+  font-size: 12px;
+}
+
+.easy-eventtype.thermal {
+  color: #ffae72;
+}
+
+.easy-eventtype.ai {
+  color: #83c4ff;
+}
+
+.easy-eventtype.system {
+  color: var(--text-muted);
+}
+
+@media (max-width: 980px) {
+  .easy-viewer {
+    height: 300px;
+  }
+}

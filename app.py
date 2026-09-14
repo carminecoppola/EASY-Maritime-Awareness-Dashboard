@@ -6,12 +6,23 @@ import logging
 import os
 import threading
 import time
+from pathlib import Path
 from typing import Any
 
-from flask import Flask, jsonify, request
+from flask import Flask, g, jsonify, request
 
+from easy_dashboard.auth import (
+    AuditLog,
+    AuthContext,
+    PUBLIC_AUTH_PATHS,
+    SessionStore,
+    UserStore,
+    required_role_for,
+    requires_elevation,
+    role_at_least,
+)
 from easy_dashboard.config import load_config
-from easy_dashboard.constants import EVENTS_LOG, PROJECT_ROOT, SNAPSHOTS_DIR
+from easy_dashboard.constants import AUDIT_LOG, AUTH_USERS_FILE, EVENTS_LOG, PROJECT_ROOT, SNAPSHOTS_DIR
 from easy_dashboard.hardware import RgbMasterSource, SystemProbe, ThermalState
 from easy_dashboard.presentation import append_startup_notice, run_preflight_script
 from easy_dashboard.routes import register_blueprints
@@ -227,24 +238,133 @@ def create_app(
     register_blueprints(app, runtime)
     app.easy_dashboard_runtime = runtime  # type: ignore[attr-defined]
 
-    # Lightweight shared-secret check for state-changing requests: unset by
+    # Legacy shared-secret check, kept working for backward compatibility
+    # while the SPA still has a "shared token" field in Settings: unset by
     # default (LAN-only trust model unchanged), opt-in via config.yaml's
-    # security.shared_token or the EASY_DASHBOARD_TOKEN env var for a demo on
-    # a network with untrusted peers. Not a full auth system: the operator
-    # pastes the token once into the SPA's Settings panel (stored in
-    # localStorage), so it only stops requests that never went through that
-    # step.
+    # security.shared_token or the EASY_DASHBOARD_TOKEN env var.
     shared_token = os.environ.get("EASY_DASHBOARD_TOKEN") or str(
         (load_config().get("security") or {}).get("shared_token") or ""
     )
     app.config["EASY_AUTH_REQUIRED"] = bool(shared_token)
 
+    # Real auth: local users, roles (viewer/operator/admin) and server-side
+    # sessions — see easy_dashboard/auth.py for the full design rationale.
+    # Storage paths are overridable so tests never touch the real on-disk
+    # user database.
+    users_path = Path(os.environ.get("EASY_DASHBOARD_AUTH_USERS_FILE") or AUTH_USERS_FILE)
+    audit_path = Path(os.environ.get("EASY_DASHBOARD_AUDIT_LOG") or AUDIT_LOG)
+    # "auto" (unset) follows the Admin's persisted preference (toggled from
+    # Users & Roles); "1"/"0" force enforcement on/off regardless of that
+    # preference — "0" is the recovery path (SSH in, set the var, restart)
+    # if a device is ever locked out with no login UI reachable.
+    _env_enable = os.environ.get("EASY_DASHBOARD_ENABLE_AUTH")
+    env_override = {"1": True, "0": False}.get(_env_enable)
+
+    auth = AuthContext(
+        user_store=UserStore(users_path),
+        session_store=SessionStore(),
+        audit_log=AuditLog(audit_path),
+        legacy_shared_token=shared_token,
+        env_override=env_override,
+    )
+    app.config["easy_auth"] = auth
+
+    def _client_ip() -> str:
+        return request.headers.get("X-Forwarded-For", request.remote_addr or "unknown").split(",")[0].strip()
+
     @app.before_request
-    def _require_shared_token() -> Any:
-        if not shared_token or request.method in ("GET", "HEAD", "OPTIONS"):
+    def _authenticate_and_authorize() -> Any:
+        if request.method == "OPTIONS":
             return None
-        if request.headers.get("X-EASY-Token") != shared_token:
-            return jsonify({"ok": False, "error": "Missing or invalid X-EASY-Token header"}), 401
+
+        g.current_user = None
+        g.current_session = None
+
+        # Legacy path: a valid X-EASY-Token always grants an "operator"
+        # identity, regardless of whether enforcement is on. Keeps existing
+        # shared-token deployments working exactly as before.
+        if shared_token and request.headers.get("X-EASY-Token") == shared_token:
+            g.current_user = {"id": "legacy-token", "username": "shared-token", "role": "operator", "active": True}
+
+        # Session-cookie identity is always resolved (not gated behind
+        # enforcement): /api/auth/session must reflect "who am I" correctly
+        # even before an Admin flips enforcement on, e.g. right after
+        # first-run setup, and CSRF protection on a real session should not
+        # depend on whether role enforcement happens to be active.
+        if g.current_user is None:
+            session_id = request.cookies.get("easy_session")
+            session = auth.session_store.get(session_id) if session_id else None
+            if session is not None:
+                user = auth.user_store.get_user(session.user_id)
+                if user is not None and user["active"]:
+                    g.current_user = {k: v for k, v in user.items() if k != "password_hash"}
+                    g.current_session = session
+                else:
+                    auth.session_store.delete(session_id)  # type: ignore[arg-type]
+
+        if g.current_user is None and auth.user_store.anonymous_viewer_enabled():
+            g.current_user = {"id": "anonymous", "username": "anonymous", "role": "viewer", "active": True}
+
+        # CSRF applies to any cookie-session-authenticated mutation whenever
+        # a session exists, independent of role enforcement: it protects the
+        # session itself from forgery, not the resource being mutated.
+        # Exempt login/logout/setup/status/session themselves — they are the
+        # entry and exit points of authentication, not actions performed
+        # "as" an already-trusted identity, and a leftover cookie must never
+        # be able to block a fresh login or a logout.
+        if (
+            g.current_session is not None
+            and request.method not in ("GET", "HEAD")
+            and request.path not in PUBLIC_AUTH_PATHS
+        ):
+            csrf_header = request.headers.get("X-EASY-CSRF")
+            if not csrf_header or csrf_header != g.current_session.csrf_token:
+                return jsonify({"ok": False, "error": "Missing or invalid CSRF token"}), 403
+
+        if not auth.enforcing():
+            # Enforcement off: behave like the legacy hook — only the shared
+            # token gate applies to mutating requests, and only when no
+            # other identity (session, anonymous) already resolved above.
+            if not shared_token or request.method in ("GET", "HEAD"):
+                return None
+            if g.current_user is None:
+                return jsonify({"ok": False, "error": "Missing or invalid X-EASY-Token header"}), 401
+            return None
+
+        required = required_role_for(request.method, request.path)
+        if required is None:
+            return None
+
+        role = g.current_user["role"] if g.current_user else None
+        if not role_at_least(role, required):
+            if g.current_user is None:
+                return jsonify({"ok": False, "error": "Authentication required"}), 401
+            if auth.audit_log:
+                auth.audit_log.add(
+                    actor=g.current_user["username"],
+                    role=role,
+                    action="access.denied",
+                    resource=request.path,
+                    result="denied",
+                    client_ip=_client_ip(),
+                    detail=f"requires {required}",
+                )
+            return jsonify({"ok": False, "error": f"Requires role '{required}' or higher", "your_role": role}), 403
+
+        if requires_elevation(request.method, request.path):
+            session = g.current_session
+            if session is None or not session.elevated():
+                return (
+                    jsonify(
+                        {
+                            "ok": False,
+                            "code": "step_up_required",
+                            "error": "Re-enter your password to confirm this action",
+                        }
+                    ),
+                    403,
+                )
+
         return None
 
     if bootstrap_async and (run_startup_checks or start_runtime_services):
