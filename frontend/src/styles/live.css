@@ -1,0 +1,372 @@
+/* Sezioni specifiche della pagina Live Operations. */
+
+/* Feeds */
+
+.easy-feeds {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.easy-feed {
+  position: relative;
+  min-height: 286px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-inset);
+  box-shadow: var(--shadow-panel);
+}
+
+.easy-feed.streaming {
+  border-color: color-mix(in srgb, var(--accent-ok) 45%, var(--border-subtle));
+}
+
+.easy-feed-media {
+  position: absolute;
+  inset: 0;
+}
+
+.easy-feed-media img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+}
+
+.easy-feed-scrim {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.58), transparent 24%, transparent 65%, rgba(0, 0, 0, 0.66));
+  pointer-events: none;
+}
+
+.easy-feedtop,
+.easy-feedbottom {
+  position: absolute;
+  z-index: 2;
+  left: 14px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
+.easy-feedtop {
+  top: 13px;
+}
+
+.easy-feedbottom {
+  bottom: 13px;
+}
+
+.easy-feedname {
+  font-weight: 720;
+  color: var(--text-primary);
+}
+
+.easy-live {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  font-weight: 750;
+  color: #0b251d;
+  background: var(--accent-ok);
+  padding: 3px 7px;
+  border-radius: 5px;
+}
+
+.easy-telemetry {
+  margin-left: auto;
+  display: flex;
+  gap: 7px;
+}
+
+.easy-chip {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: rgba(8, 13, 18, 0.76);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 5px 7px;
+  border-radius: var(--radius-sm);
+  backdrop-filter: blur(8px);
+}
+
+.easy-frameinfo {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.easy-feedbuttons {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+
+.easy-ghost {
+  min-height: 32px;
+  color: #fff;
+  background: rgba(7, 11, 16, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 7px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 620;
+  cursor: pointer;
+}
+
+.easy-ghost:hover:not(:disabled) {
+  background: rgba(7, 11, 16, 0.9);
+}
+
+.easy-ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.easy-feed-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  padding: 16px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* Fascia inferiore: termica + attività */
+
+.easy-lower {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(340px, 0.75fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.easy-thermal {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 16px;
+  min-height: 174px;
+}
+
+.easy-thermalimg {
+  border-radius: 9px;
+  overflow: hidden;
+  background: var(--bg-inset);
+  position: relative;
+  display: grid;
+  place-items: center;
+  /* Altezza fissata dal pannello: senza questo l'altezza naturale del frame
+     termico (verticale) allungava l'intera riga della griglia. */
+  height: 174px;
+}
+
+.easy-thermalimg img {
+  width: 100%;
+  height: 100%;
+  /* contain, non cover: il ritaglio nasconderebbe parte della scena termica. */
+  object-fit: contain;
+}
+
+.easy-thermalimg .easy-stamp {
+  position: absolute;
+  left: 8px;
+  bottom: 7px;
+  background: rgba(0, 0, 0, 0.67);
+  padding: 4px 6px;
+  border-radius: 5px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.easy-thermal-placeholder {
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 12px;
+  text-align: center;
+}
+
+.easy-thermalcopy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.easy-thermalcopy h3 {
+  margin: 2px 0 4px;
+  font-size: 17px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.easy-thermalcopy p {
+  margin: 0;
+  color: var(--text-muted);
+  max-width: 52ch;
+  font-size: 12px;
+}
+
+.easy-thermalmeta {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.easy-thermalmeta b {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.easy-thermalmeta span {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.easy-thermalactions {
+  margin-top: auto;
+  padding-top: 12px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Attività */
+
+.easy-activityhead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.easy-activityhead h2 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.easy-activityhead .easy-link {
+  margin-left: auto;
+  font-size: 12px;
+}
+
+.easy-events {
+  margin-top: 10px;
+}
+
+.easy-event {
+  display: grid;
+  grid-template-columns: 50px 18px minmax(0, 1fr);
+  gap: 7px;
+  padding: 9px 0;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.easy-event:first-child {
+  border-top: 0;
+}
+
+.easy-event-time {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.easy-event-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.easy-event b {
+  font-size: 12px;
+  display: block;
+  color: var(--text-primary);
+}
+
+.easy-event small {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* Barra missione attiva */
+
+.easy-missionbar {
+  position: fixed;
+  left: 252px;
+  right: 24px;
+  bottom: 20px;
+  z-index: 20;
+  padding: 13px 15px;
+  border-radius: 11px;
+  background: #152018;
+  border: 1px solid color-mix(in srgb, var(--accent-ok) 35%, transparent);
+  box-shadow: var(--shadow-panel);
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  flex-wrap: wrap;
+}
+
+.easy-missionbar strong {
+  color: var(--accent-ok);
+  letter-spacing: 0.06em;
+  font-size: 12px;
+}
+
+.easy-missionbar .easy-missionbar-meta {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.easy-missionbar .easy-btn {
+  margin-left: auto;
+}
+
+@media (max-width: 980px) {
+  .easy-feeds {
+    grid-template-columns: 1fr;
+  }
+  .easy-lower {
+    grid-template-columns: 1fr;
+  }
+  .easy-missionbar {
+    left: 92px;
+  }
+  .easy-feed {
+    min-height: 300px;
+  }
+}
+
+@media (max-width: 620px) {
+  .easy-feed {
+    min-height: 230px;
+  }
+  .easy-thermal {
+    grid-template-columns: 1fr;
+  }
+  .easy-thermalimg {
+    height: 190px;
+  }
+  .easy-missionbar {
+    left: 12px;
+    right: 12px;
+  }
+}

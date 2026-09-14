@@ -1,7 +1,12 @@
-import { getAuthToken } from './config'
+import { getAuthToken, getCsrfToken } from './config'
 import type {
   AcquisitionStatus,
+  AuditEntry,
+  AuthSessionResponse,
+  AuthStatusResponse,
+  AuthUser,
   CameraInventory,
+  CaptureSetResponse,
   ConfigResponse,
   DashboardState,
   DatasetExportStatus,
@@ -11,6 +16,8 @@ import type {
   EventsLogResponse,
   FocusResponse,
   HealthResponse,
+  InferenceRunResult,
+  InferenceStatus,
   MissionEventsWrapper,
   SessionManifest,
   SessionStatusResponse,
@@ -63,6 +70,13 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   if (token && !SAFE_METHODS.has(method)) {
     headers['X-EASY-Token'] = token
   }
+  // Il cookie di sessione è HttpOnly (mai leggibile da JS): il CSRF token
+  // ottenuto al login viaggia come header separato, verificato lato server
+  // contro quello legato alla sessione — vedi easy_dashboard/auth.py.
+  const csrf = getCsrfToken()
+  if (csrf && !SAFE_METHODS.has(method) && !headers['X-EASY-CSRF']) {
+    headers['X-EASY-CSRF'] = csrf
+  }
   try {
     const res = await fetch(path, { ...opts, method, headers, signal: controller.signal })
     if (!res.ok) {
@@ -88,8 +102,11 @@ function qs(params: Record<string, string | number | undefined>): string {
 export const api = {
   getConfig: () => request<ConfigResponse>('/api/config'),
 
+  // Endpoint aggregato e volutamente costoso (~2 s misurati sul Raspberry,
+  // psutil incluso): con il timeout predefinito di 8 s bastava una richiesta
+  // accodata per farlo abortire, lasciando la dashboard senza dati.
   getDashboardState: (params: { events_limit?: number; snapshots_limit?: number } = {}) =>
-    request<DashboardState>(`/api/dashboard/state${qs(params)}`),
+    request<DashboardState>(`/api/dashboard/state${qs(params)}`, { timeoutMs: 20000 }),
 
   getHealth: () => request<HealthResponse>('/health'),
   getHealthReady: () => request<{ ok: boolean; service: string; orchestrator_status: string }>('/health/ready'),
@@ -104,6 +121,13 @@ export const api = {
 
   getDevicesStatus: () => request<DevicesResponse>('/api/devices/status'),
   refreshDevices: () => request('/api/devices/refresh', { method: 'POST' }),
+
+  getInferenceStatus: () => request<InferenceStatus>('/api/inference/status'),
+  /** Esegue l'inferenza sul frame successivo della sorgente selezionata. Attesa reale sulla CPU del Raspberry. */
+  runInferenceOnNextFrame: () =>
+    request<InferenceRunResult>('/api/inference/run-on-next-frame', { method: 'POST', timeoutMs: 60000 }),
+  startInference: () => request<{ ok: boolean }>('/api/inference/start', { method: 'POST' }),
+  stopInference: () => request<{ ok: boolean }>('/api/inference/stop', { method: 'POST' }),
 
   getDetectionsCurrent: () => request<DetectionsResponse>('/api/detections/current'),
   getDetectionHistory: () => request<DetectionsResponse>('/api/detection/history'),
@@ -128,6 +152,9 @@ export const api = {
   getSessionList: () => request<{ sessions: unknown[] }>('/api/session/list'),
 
   getAcquisitionStatus: () => request<AcquisitionStatus>('/api/acquisition/status'),
+  /** RGB left+right+thermal sotto un unico capture_set_id. Richiede una missione attiva (409 altrimenti). */
+  captureAcquisitionSet: () =>
+    request<CaptureSetResponse>('/api/acquisition/capture-set', { method: 'POST', timeoutMs: 20000 }),
   validateDataset: (sessionId?: string) =>
     request<DatasetValidationResult>(`/api/dataset/validate${qs({ session_id: sessionId })}`),
   exportDataset: (payload: { session_id?: string; validation_percent?: number }) =>
@@ -147,12 +174,55 @@ export const api = {
   setStreamState: (feed: 'rgb_left' | 'rgb_right', enabled: boolean) =>
     request<StreamStateResponse>('/api/stream-state', {
       method: 'POST',
-      body: JSON.stringify({ [feed]: { enabled } }),
+      // Il backend fa bool(payload[feed]): un dict è sempre truthy, quindi
+      // disabilitare un feed lo abilitava. Va inviato il booleano nudo.
+      body: JSON.stringify({ [feed]: enabled }),
     }),
   startStream: (feed: 'rgb_left' | 'rgb_right') => request(`/video/${feed}/start`, { method: 'POST' }),
   stopStream: (feed: 'rgb_left' | 'rgb_right') => request(`/video/${feed}/stop`, { method: 'POST' }),
 
   getFocus: (side: 'rgb_left' | 'rgb_right') => request<FocusResponse>(`/api/focus/${side}`),
+
+  /** Ferma e riavvia i servizi hardware (camere, termico). Admin-only, richiede step-up. */
+  restartSystemServices: () => request<{ ok: boolean }>('/api/system/restart', { method: 'POST', timeoutMs: 30000 }),
+
+  getAuthStatus: () => request<AuthStatusResponse>('/api/auth/status'),
+  getAuthSession: () => request<AuthSessionResponse>('/api/auth/session'),
+  authSetup: (payload: { username: string; password: string; allow_anonymous_viewer?: boolean }) =>
+    request<{ ok: boolean; user: AuthUser; csrf_token: string }>('/api/auth/setup', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  authLogin: (payload: { username: string; password: string }) =>
+    request<{ ok: boolean; user: AuthUser; csrf_token: string }>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  authLogout: () => request<{ ok: boolean }>('/api/auth/logout', { method: 'POST' }),
+  /** Ri-conferma la password per sbloccare un'azione distruttiva per una finestra breve. */
+  authStepUp: (payload: { password: string }) =>
+    request<{ ok: boolean; elevated_until: number | null }>('/api/auth/step-up', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  listAuthUsers: () => request<{ ok: boolean; users: AuthUser[] }>('/api/auth/users'),
+  createAuthUser: (payload: { username: string; password: string; role: string }) =>
+    request<{ ok: boolean; user: AuthUser }>('/api/auth/users', { method: 'POST', body: JSON.stringify(payload) }),
+  updateAuthUser: (userId: string, payload: { role?: string; active?: boolean; new_password?: string }) =>
+    request<{ ok: boolean; user: AuthUser }>(`/api/auth/users/${userId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+  deactivateAuthUser: (userId: string) =>
+    request<{ ok: boolean; user: AuthUser }>(`/api/auth/users/${userId}`, { method: 'DELETE' }),
+
+  updateAuthSettings: (payload: { anonymous_viewer_enabled?: boolean; auth_enforced?: boolean }) =>
+    request<{ ok: boolean; anonymous_viewer_enabled: boolean; auth_enforced_setting: boolean; enforcement_enabled: boolean }>(
+      '/api/auth/settings',
+      { method: 'POST', body: JSON.stringify(payload) },
+    ),
+  getAuditLog: (limit = 100) => request<{ ok: boolean; entries: AuditEntry[]; count: number }>(`/api/auth/audit?limit=${limit}`),
 }
 
 /** Aggiunge un cache-buster: usare per <img src> di endpoint no-store (preview, thermal/frame). */

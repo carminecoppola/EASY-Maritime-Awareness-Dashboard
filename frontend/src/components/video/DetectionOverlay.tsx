@@ -62,7 +62,7 @@ export function DetectionOverlay({ detections, containerRef, nativeWidth, native
       viewBox={`0 0 ${displaySize.width} ${displaySize.height}`}
       preserveAspectRatio="none"
     >
-      {detections.map((detection, idx) => {
+      {detections.map((detection) => {
         // Convert bbox from native to display coordinates via the same
         // uniform-scale-plus-offset transform as object-fit: cover.
         const { x: x1, y: y1 } = toDisplayPoint(transform, detection.bbox.x1, detection.bbox.y1)
@@ -75,7 +75,7 @@ export function DetectionOverlay({ detections, containerRef, nativeWidth, native
         const color = `hsl(${hue}, 70%, 50%)`
 
         return (
-          <g key={`${detection.id}-${idx}`}>
+          <g key={detection.id}>
             {/* Bounding box rectangle */}
             <rect
               x={x1}

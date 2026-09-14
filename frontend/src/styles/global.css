@@ -1,4 +1,17 @@
 @import './tokens.css';
+/* Utilities for registry components; omit Preflight to preserve existing controls. */
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+@import './shell.css';
+@import './components.css';
+@import './live.css';
+@import './mission.css';
+@import './analysis.css';
+@import './thermal.css';
+@import './pages.css';
+@import './feedback.css';
+@import './auth.css';
 
 * {
   box-sizing: border-box;
@@ -74,6 +87,34 @@ button:focus {
 .mono {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+}
+
+/* Beautiful UI shimmer, mapped to EASY and disabled for reduced motion. */
+.easy-shimmer {
+  display: inline-block;
+  color: var(--text-secondary);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .easy-loader-dot { animation: easy-loader-bounce 1s ease-in-out infinite; }
+  .easy-shimmer {
+    background-image: linear-gradient(90deg, var(--text-secondary) 35%, var(--text-primary) 50%, var(--text-secondary) 65%);
+    background-size: 200% 100%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    animation: easy-shimmer-text 1.8s linear infinite;
+  }
+}
+
+@keyframes easy-shimmer-text {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+@keyframes easy-loader-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
 }
 
 ::-webkit-scrollbar {

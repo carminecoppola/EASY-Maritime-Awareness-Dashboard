@@ -6,6 +6,9 @@ interface DashboardStateContextValue {
   data: DashboardState | null
   error: unknown
   loading: boolean
+  failures: number
+  lastSuccessAt: number | null
+  refresh: () => void
 }
 
 const DashboardStateContext = createContext<DashboardStateContextValue | null>(null)
@@ -16,7 +19,14 @@ const DashboardStateContext = createContext<DashboardStateContextValue | null>(n
  * la stessa chiamata aggregata in più componenti.
  */
 export function DashboardStateProvider({ children }: { children: ReactNode }) {
-  const value = useDashboardState(2000)
+  // Senza limiti espliciti /api/dashboard/state restituisce l'intero log
+  // eventi e l'intera galleria (≈3,4 MB, ~2,5 s a richiesta): con un
+  // intervallo di 2 s le richieste superavano il timeout del client e
+  // venivano abortite, lasciando la dashboard senza dati. Le pagine che
+  // servono liste complete usano i propri endpoint dedicati.
+  // 3 s, non 2: la risposta impiega ~2 s sul Raspberry, quindi a 2 s la
+  // richiesta successiva partiva praticamente sopra la precedente.
+  const value = useDashboardState(3000, { eventsLimit: 50, snapshotsLimit: 12 })
   return <DashboardStateContext.Provider value={value}>{children}</DashboardStateContext.Provider>
 }
 

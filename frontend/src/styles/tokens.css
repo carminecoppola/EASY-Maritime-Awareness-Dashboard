@@ -2,33 +2,34 @@
   color-scheme: dark;
 
   /* Superfici — blu-nero profondo, tre livelli di elevazione */
-  --bg-0: #04060a;
-  --bg-1: #0d1218;
-  --bg-2: #131b24;
-  --bg-3: #1a2430;
-  --border-subtle: #223041;
+  --bg-0: #070b10;
+  --bg-1: #0b1118;
+  --bg-2: #101821;
+  --bg-3: #151f2a;
+  --bg-inset: #0c131b;
+  --border-subtle: #22303d;
   --border-strong: #2f4257;
 
   /* Testo — contrasto verificato ≥4.5:1 su --bg-0/--bg-1 */
-  --text-primary: #e8eef4;
-  --text-secondary: #aab8c6;
-  --text-muted: #748899;
+  --text-primary: #f1f5f9;
+  --text-secondary: #b6c1cc;
+  --text-muted: #8fa0b2;
 
   /* Accento di marca — identità EASY, mai usato per comunicare stato
      (quello resta sempre e solo accent-ok/warn/critical/info qui sotto).
      Ambra segnaletica, stesso registro delle boe di navigazione reali —
      coerente col poster del progetto, non un colore scelto a caso. */
-  --accent-brand: #e3a53a;
+  --accent-brand: #f5b82e;
   --accent-brand-dim: #3a2c12;
 
   /* Accenti di stato — usati sempre insieme a testo/icona, mai da soli */
-  --accent-ok: #2ee6a8;
+  --accent-ok: #2dd4a4;
   --accent-ok-dim: #143a30;
-  --accent-warn: #f5b942;
+  --accent-warn: #f6b94a;
   --accent-warn-dim: #3a2e12;
-  --accent-critical: #ff5470;
+  --accent-critical: #f06464;
   --accent-critical-dim: #3a1420;
-  --accent-info: #4fb0ff;
+  --accent-info: #4ea8ff;
   --accent-info-dim: #12283a;
   --accent-interactive: #3d8bff;
   --accent-interactive-hover: #5c9dff;

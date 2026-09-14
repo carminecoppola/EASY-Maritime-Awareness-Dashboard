@@ -1,152 +1,97 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { Snapshot, SnapshotFeedInfo } from '../../api/types'
-import { formatRelativeTime } from '../../utils/formatTime'
+import { toDate } from '../../utils/formatTime'
 import { SnapshotLightbox } from './SnapshotLightbox'
+import { TabFilter } from '../common/TabFilter'
 
 interface SnapshotGalleryProps {
   items: Snapshot[]
   feeds: Record<string, SnapshotFeedInfo>
   loading: boolean
+  error?: unknown
 }
 
-type FeedFilter = 'all' | string
+type Filter = 'all' | 'rgb' | 'thermal'
 
-export function SnapshotGallery({ items, feeds, loading }: SnapshotGalleryProps) {
-  const [selectedFilter, setSelectedFilter] = useState<FeedFilter>('all')
-  const [selectedSnapshot, setSelectedSnapshot] = useState<Snapshot | null>(null)
+const FILTERS: { id: Filter; label: string }[] = [
+  { id: 'all', label: 'All media' },
+  { id: 'rgb', label: 'RGB' },
+  { id: 'thermal', label: 'Thermal' },
+]
 
-  const filteredItems = selectedFilter === 'all' ? items : items.filter((s) => s.feed === selectedFilter)
+function matches(snapshot: Snapshot, filter: Filter): boolean {
+  if (filter === 'all') return true
+  const feed = String(snapshot.feed ?? '').toLowerCase()
+  return filter === 'thermal' ? feed.includes('thermal') : feed.includes('rgb')
+}
 
-  const feedKeys = Object.keys(feeds)
+function captureSetOf(snapshot: Snapshot): string | null {
+  const meta = snapshot.meta as Record<string, unknown> | undefined
+  const id = meta?.capture_set_id
+  return typeof id === 'string' && id ? id : null
+}
+
+export function SnapshotGallery({ items, feeds, loading, error }: SnapshotGalleryProps) {
+  const [filter, setFilter] = useState<Filter>('all')
+  const [selected, setSelected] = useState<Snapshot | null>(null)
+
+  const visible = useMemo(() => items.filter((item) => matches(item, filter)), [items, filter])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
-      {/* Filtri per feed */}
-      <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
-        <button
-          onClick={() => setSelectedFilter('all')}
-          style={{
-            padding: '6px 12px',
-            borderRadius: 'var(--radius-md)',
-            border: selectedFilter === 'all' ? '1px solid var(--accent-interactive)' : '1px solid var(--border-subtle)',
-            background: selectedFilter === 'all' ? 'var(--accent-interactive)' : 'transparent',
-            color: selectedFilter === 'all' ? 'var(--bg-0)' : 'var(--text-primary)',
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: 'pointer',
-            transition: 'all 150ms ease-out',
-          }}
-          onMouseEnter={(e) => {
-            if (selectedFilter !== 'all') {
-              e.currentTarget.style.borderColor = 'var(--accent-interactive)'
-              e.currentTarget.style.color = 'var(--accent-interactive)'
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (selectedFilter !== 'all') {
-              e.currentTarget.style.borderColor = 'var(--border-subtle)'
-              e.currentTarget.style.color = 'var(--text-primary)'
-            }
-          }}
-        >
-          All ({items.length})
-        </button>
-        {feedKeys.map((feedKey) => (
-          <button
-            key={feedKey}
-            onClick={() => setSelectedFilter(feedKey)}
-            style={{
-              padding: '6px 12px',
-              borderRadius: 'var(--radius-md)',
-              border: selectedFilter === feedKey ? '1px solid var(--accent-interactive)' : '1px solid var(--border-subtle)',
-              background: selectedFilter === feedKey ? 'var(--accent-interactive)' : 'transparent',
-              color: selectedFilter === feedKey ? 'var(--bg-0)' : 'var(--text-primary)',
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'all 150ms ease-out',
-            }}
-            onMouseEnter={(e) => {
-              if (selectedFilter !== feedKey) {
-                e.currentTarget.style.borderColor = 'var(--accent-interactive)'
-                e.currentTarget.style.color = 'var(--accent-interactive)'
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (selectedFilter !== feedKey) {
-                e.currentTarget.style.borderColor = 'var(--border-subtle)'
-                e.currentTarget.style.color = 'var(--text-primary)'
-              }
-            }}
-          >
-            {feeds[feedKey].label} ({items.filter((s) => s.feed === feedKey).length})
-          </button>
-        ))}
+    <article className="easy-surface">
+      <div className="easy-filters">
+        <TabFilter options={FILTERS} value={filter} onChange={setFilter} label="Media type filter" panelId="snapshot-gallery-panel" />
+        <span className="easy-filtercount">
+          {visible.length} of {items.length} shown
+        </span>
       </div>
 
-      {/* Griglia snapshot */}
-      {loading && filteredItems.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: 'var(--space-5)', color: 'var(--text-muted)' }}>
-          Loading snapshots...
-        </div>
-      ) : filteredItems.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: 'var(--space-5)', color: 'var(--text-muted)' }}>
-          No snapshots available
-        </div>
+      <div id="snapshot-gallery-panel" role="tabpanel" aria-label="Snapshot gallery">
+      {error ? (
+        <p className="easy-error" style={{ margin: 13 }}>
+          Failed to load snapshots: {error instanceof Error ? error.message : String(error)}
+        </p>
+      ) : loading && items.length === 0 ? (
+        <p className="easy-empty" style={{ margin: 13 }}>
+          Loading saved snapshots…
+        </p>
+      ) : visible.length === 0 ? (
+        <p className="easy-empty" style={{ margin: 13 }}>
+          {items.length === 0 ? 'No snapshot saved yet.' : 'No snapshot matches this filter.'}
+        </p>
       ) : (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-            gap: 'var(--space-4)',
-          }}
-        >
-          {filteredItems.map((snapshot) => (
-            <div
-              key={`${snapshot.feed}-${snapshot.created_ts}`}
-              onClick={() => setSelectedSnapshot(snapshot)}
-              style={{
-                cursor: 'pointer',
-                borderRadius: 'var(--radius-md)',
-                overflow: 'hidden',
-                background: 'var(--bg-2)',
-                border: '1px solid var(--border-subtle)',
-                boxShadow: 'var(--shadow-panel)',
-                transition: 'all 150ms ease-out',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = 'var(--accent-interactive)'
-                e.currentTarget.style.transform = 'translateY(-2px)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = 'var(--border-subtle)'
-                e.currentTarget.style.transform = 'translateY(0)'
-              }}
-            >
-              <div style={{ aspectRatio: '1', overflow: 'hidden', background: 'var(--bg-3)' }}>
-                <img
-                  src={snapshot.url}
-                  alt={snapshot.filename}
-                  loading="lazy"
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                  }}
-                />
-              </div>
-              <div style={{ padding: 'var(--space-2)', fontSize: 11 }}>
-                <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{snapshot.feed_label || snapshot.feed}</div>
-                <div style={{ color: 'var(--text-muted)', marginTop: 2, fontSize: 10 }}>
-                  {snapshot.created || snapshot.created_ts ? formatRelativeTime(snapshot.created || snapshot.created_ts || '') : '—'}
-                </div>
-              </div>
-            </div>
-          ))}
+        <div className="easy-photos">
+          {visible.map((snapshot) => {
+            const captured = toDate(snapshot.created ?? snapshot.created_ts)
+            const setId = captureSetOf(snapshot)
+            const label = String(snapshot.feed_label ?? feeds[String(snapshot.feed)]?.label ?? snapshot.feed ?? 'Snapshot')
+            return (
+              <button
+                type="button"
+                className="easy-photo"
+                key={snapshot.filename || `${snapshot.feed}-${snapshot.created_ts}`}
+                onClick={() => setSelected(snapshot)}
+              >
+                <img src={snapshot.url} alt="" loading="lazy" />
+                <span className="easy-photo-scrim" aria-hidden />
+                <span className="easy-photometa">
+                  <b>
+                    {label.toUpperCase()}
+                    {captured ? ` · ${captured.toLocaleTimeString(undefined, { hour12: false })}` : ''}
+                  </b>
+                  <small>
+                    {captured ? captured.toLocaleDateString() : 'date unknown'}
+                    {setId ? ` · capture set ${setId}` : ''}
+                  </small>
+                </span>
+              </button>
+            )
+          })}
         </div>
       )}
 
-      {selectedSnapshot && <SnapshotLightbox snapshot={selectedSnapshot} onClose={() => setSelectedSnapshot(null)} />}
-    </div>
+      </div>
+      {selected && <SnapshotLightbox snapshot={selected} onClose={() => setSelected(null)} />}
+    </article>
   )
 }

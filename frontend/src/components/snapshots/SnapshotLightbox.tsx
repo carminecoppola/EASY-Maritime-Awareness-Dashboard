@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { toDate } from '../../utils/formatTime'
 import type { Snapshot } from '../../api/types'
 
 interface SnapshotLightboxProps {
@@ -126,7 +127,7 @@ export function SnapshotLightbox({ snapshot, onClose }: SnapshotLightboxProps) {
               Created
             </span>
             <div style={{ color: 'var(--text-primary)', fontWeight: 500, marginTop: 4 }}>
-              {new Date(snapshot.created || '').toLocaleString()}
+              {(toDate(snapshot.created ?? snapshot.created_ts)?.toLocaleString() ?? 'date unknown')}
             </div>
           </div>
 

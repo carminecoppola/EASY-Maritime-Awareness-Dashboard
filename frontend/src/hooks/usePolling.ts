@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 interface UsePollingOptions {
   intervalMs: number
@@ -10,6 +10,12 @@ interface UsePollingResult<T> {
   data: T | null
   error: unknown
   loading: boolean
+  /** Fallimenti consecutivi: 1 non è ancora un guasto, 3+ sì. */
+  failures: number
+  /** Istante dell'ultima risposta valida, per dichiarare l'età del dato. */
+  lastSuccessAt: number | null
+  /** Forza una richiesta immediata senza creare un secondo ciclo di polling. */
+  refresh: () => void
 }
 
 /** Tab in background: rallenta invece di fermarsi del tutto (vedi nota sotto). */
@@ -33,9 +39,16 @@ export function usePolling<T>(fn: () => Promise<T>, opts: UsePollingOptions): Us
   const [data, setData] = useState<T | null>(null)
   const [error, setError] = useState<unknown>(null)
   const [loading, setLoading] = useState(true)
+  const [failures, setFailures] = useState(0)
+  const [lastSuccessAt, setLastSuccessAt] = useState<number | null>(null)
   const failuresRef = useRef(0)
+  const tickRef = useRef<() => void>(() => {})
   const fnRef = useRef(fn)
-  fnRef.current = fn
+  // Assegnare un ref durante il render non è sicuro in StrictMode/concurrent:
+  // il poller condiviso potrebbe leggere il fetcher di un render scartato.
+  useEffect(() => {
+    fnRef.current = fn
+  })
 
   useEffect(() => {
     if (!enabled) {
@@ -65,13 +78,16 @@ export function usePolling<T>(fn: () => Promise<T>, opts: UsePollingOptions): Us
         setData(result)
         setError(null)
         setLoading(false)
+        setLastSuccessAt(Date.now())
         failuresRef.current = 0
+        setFailures(0)
         scheduleNext(nextDelay())
       } catch (e) {
         if (cancelled) return
         setError(e)
         setLoading(false)
         failuresRef.current += 1
+        setFailures(failuresRef.current)
         const backoff = Math.min(nextDelay() * 2 ** failuresRef.current, backoffMaxMs)
         scheduleNext(backoff)
       } finally {
@@ -87,6 +103,7 @@ export function usePolling<T>(fn: () => Promise<T>, opts: UsePollingOptions): Us
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
+    tickRef.current = tick
     tick()
     return () => {
       cancelled = true
@@ -95,5 +112,10 @@ export function usePolling<T>(fn: () => Promise<T>, opts: UsePollingOptions): Us
     }
   }, [enabled, intervalMs, backoffMaxMs])
 
-  return { data, error, loading }
+  // Un retry manuale riusa lo stesso ciclo: non ne apre un secondo.
+  const refresh = useCallback(() => {
+    tickRef.current()
+  }, [])
+
+  return { data, error, loading, failures, lastSuccessAt, refresh }
 }
