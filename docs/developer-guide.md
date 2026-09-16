@@ -6,20 +6,10 @@
 registers Flask blueprints. The orchestrator owns manager lifecycle; routes
 retrieve collaborators through `DashboardRuntime` and remain thin.
 
-The browser polls one aggregate dashboard endpoint. Page-specific JavaScript
-normalizes that state and updates stable DOM IDs. User actions use the shared
-API client so timeout and error feedback stay consistent.
-
-`dashboard_runtime.js` owns polling, shared state, payload distribution, and
-cross-page interactions. Rendering and event handlers that belong to one page
-live in `dashboard_live.js`, `dashboard_detections.js`, `dashboard_log.js`, or
-`dashboard_system.js`; they should not be copied back into the runtime module.
-
-The shared template loads four CSS layers in a fixed order:
-`foundations.css`, `runtime-layout.css`, `page-layouts.css`, then
-`operator-overrides.css`. Keep that order when changing the layout because the
-last layer contains the current operator-facing refinements. `style.css`
-remains only as a compatibility entry point for external or historical links.
+The React frontend lives in `frontend/src/`. Shared dashboard state and polling
+are owned by its hooks; page components render the results. User actions use
+`frontend/src/api/client.ts` for consistent timeouts, authentication and errors.
+Flask serves the production build from `frontend/dist/`.
 
 ## Data flow
 
@@ -114,3 +104,20 @@ focus assist (there is no autofocus actuator on these fixed-lens modules).
 - **Detection** — one model observation for a frame.
 - **Event** — an operator-relevant state derived from runtime or detections.
 - **Manifest** — session index of saved artifacts and metadata.
+
+## Snapshot archive
+
+`SnapshotStore` keeps JPEGs and JSON sidecars as the source data and a derived
+SQLite index at `data/snapshots/snapshots.sqlite3`. Startup rebuilds the index
+from the archive, including legacy filenames and offline metadata changes.
+Normal captures update the index immediately; polling does not scan image
+directories or read sidecars. Stop the service before editing archive files
+externally and restart afterward to reconcile them. If the derived index is
+damaged, remove only `snapshots.sqlite3` while the service is stopped; startup
+recreates it from the JPEGs and sidecars.
+
+`GET /api/snapshots/recent?limit=24&offset=24` supports pagination. `count` and
+`summary` cover the complete archive, independent of the page size. Images are
+ordered by modification time descending, then filename descending for ties.
+Snapshot filenames contain a UUID and are created exclusively; failed saves
+clean up their newly created files instead of advertising partial captures.

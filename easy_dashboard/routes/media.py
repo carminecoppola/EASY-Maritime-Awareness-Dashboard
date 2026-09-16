@@ -101,11 +101,18 @@ def api_snapshots_recent():
         limit = max(1, min(limit, 999))  # Clamp between 1 and 999
     except (TypeError, ValueError):
         limit = 24
+    try:
+        offset = max(0, int(request.args.get("offset", 0)))
+        offset = min(offset, 2**63 - 1)
+    except (TypeError, ValueError):
+        offset = 0
     summary = runtime.snapshot_store.summary()
     return jsonify(
         {
             "count": summary["count"],
-            "items": runtime.snapshot_store.list_recent(limit),
+            "items": runtime.snapshot_store.list_recent(limit, offset),
+            "offset": offset,
+            "limit": limit,
             "feeds": SNAPSHOT_FEED_MAP,
             "summary": summary,
         }
@@ -126,7 +133,16 @@ def serve_snapshot(feed: str, filename: str):
     return send_file(path, mimetype="image/jpeg", as_attachment=request.args.get("download") == "1", conditional=True)
 
 
-@media_bp.route("/snapshot/rgb_left", methods=["GET", "POST"])
+@media_bp.route("/snapshot/rgb_left", methods=["GET"])
+@media_bp.route("/snapshot/rgb_right", methods=["GET"])
+@media_bp.route("/snapshot/thermal", methods=["GET"])
+@media_bp.route("/thermal/snapshot", methods=["GET"])
+def snapshot_requires_post():
+    # Explicit routes also prevent the SPA catch-all from returning HTML/200.
+    return jsonify({"ok": False, "error": "Use POST to capture a snapshot"}), 405, {"Allow": "POST, OPTIONS"}
+
+
+@media_bp.route("/snapshot/rgb_left", methods=["POST"])
 def snapshot_rgb_left():
     runtime = get_runtime()
     meta = {
@@ -147,7 +163,7 @@ def snapshot_rgb_left():
     return _snapshot_success("rgb_left", snapshot_info)
 
 
-@media_bp.route("/snapshot/rgb_right", methods=["GET", "POST"])
+@media_bp.route("/snapshot/rgb_right", methods=["POST"])
 def snapshot_rgb_right():
     runtime = get_runtime()
     meta = {
@@ -206,8 +222,8 @@ def thermal_last_frame():
     )
 
 
-@media_bp.route("/thermal/snapshot", methods=["GET", "POST"])
-@media_bp.route("/snapshot/thermal", methods=["GET", "POST"])
+@media_bp.route("/thermal/snapshot", methods=["POST"])
+@media_bp.route("/snapshot/thermal", methods=["POST"])
 def thermal_snapshot():
     runtime = get_runtime()
     frame, stats = runtime.thermal.snapshot()

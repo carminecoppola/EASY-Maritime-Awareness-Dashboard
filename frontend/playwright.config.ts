@@ -15,12 +15,8 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    // Uses whatever `python3` resolves to on PATH — CI installs deps into
-    // the runner's system Python via requirements.txt, so this matches
-    // that environment. Locally, activate your venv before running
-    // `npm run test:e2e` so python3 resolves to the interpreter with Flask
-    // installed.
-    command: 'cd .. && python3 e2e_backend.py',
+    // The release validator supplies its selected Python interpreter.
+    command: 'cd .. && "${EASY_PYTHON_BIN:-python3}" e2e_backend.py',
     // /health/ready needs the orchestrator fully running, which
     // e2e_backend.py deliberately skips (run_startup_checks=False,
     // start_runtime_services=False — no hardware in CI); /api/config has no

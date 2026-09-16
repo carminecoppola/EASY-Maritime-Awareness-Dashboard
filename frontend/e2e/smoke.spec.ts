@@ -1,13 +1,13 @@
 import { test, expect, type Page } from '@playwright/test'
 
 const PAGES: { path: string; heading: string }[] = [
-  { path: '/', heading: 'Live Overview' },
-  { path: '/mission', heading: 'Mission' },
+  { path: '/', heading: 'Live Operations' },
+  { path: '/mission', heading: 'Mission Control' },
   { path: '/thermal-events', heading: 'Thermal & Events' },
-  { path: '/snapshots', heading: 'Snapshots' },
+  { path: '/snapshots', heading: 'Archive & Snapshots' },
   { path: '/system-diagnostics', heading: 'System Diagnostics' },
   { path: '/settings', heading: 'Settings' },
-  { path: '/help', heading: 'Help' },
+  { path: '/help', heading: 'Help & Onboarding' },
   { path: '/presentation', heading: 'Presentation Preview' },
 ]
 
@@ -53,9 +53,9 @@ test('GET /system stays the diagnostics JSON API, never the SPA shell (regressio
 
 test('sidebar navigation between pages works without a full reload (client-side routing)', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('link', { name: 'Mission' }).click()
-  await expect(page.getByRole('heading', { name: 'Mission', level: 1 })).toBeVisible()
-  await page.getByRole('link', { name: 'Settings' }).click()
+  await page.getByRole('navigation').getByRole('link', { name: 'Mission', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Mission Control', level: 1 })).toBeVisible()
+  await page.getByRole('navigation').getByRole('link', { name: 'Settings', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible()
 })
 
