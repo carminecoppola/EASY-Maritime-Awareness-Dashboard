@@ -6,6 +6,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 os.environ.setdefault("EASY_DASHBOARD_SKIP_GLOBAL_APP", "1")
 
@@ -116,6 +117,21 @@ class UserStoreTests(unittest.TestCase):
 
     def test_no_admin_initially(self) -> None:
         self.assertFalse(self.store.has_admin())
+
+    def test_invalid_database_never_becomes_first_run(self) -> None:
+        for content in ('{broken', 'null', '[]', '{}', '{"users": {}, "settings": {}}',
+                        '{"users": [{}], "settings": {}}',
+                        '{"users": [], "settings": {"auth_enforced": "false"}}'):
+            with self.subTest(content=content):
+                self.store.path.write_text(content)
+                with self.assertRaises(UserStoreError):
+                    UserStore(self.store.path)
+                self.assertEqual(self.store.path.read_text(), content)
+
+    def test_unreadable_database_never_becomes_first_run(self) -> None:
+        with patch.object(Path, "read_text", side_effect=PermissionError("denied")):
+            with self.assertRaises(UserStoreError):
+                UserStore(self.store.path)
 
     def test_create_admin_then_has_admin(self) -> None:
         self.store.create_user("alice", "password123", "admin")
@@ -344,6 +360,48 @@ class AuthApiFlowTests(unittest.TestCase):
         response = self.client.get("/api/auth/status")
         body = response.get_json()
         self.assertFalse(body["setup_complete"])
+
+    def test_corrupt_database_blocks_app_start_even_with_auth_override(self) -> None:
+        from app import create_app
+
+        path = Path(os.environ["EASY_DASHBOARD_AUTH_USERS_FILE"])
+        path.write_text('{broken')
+        for override in ("0", "1"):
+            with self.subTest(override=override), patch.dict(os.environ, {"EASY_DASHBOARD_ENABLE_AUTH": override}):
+                with self.assertRaises(UserStoreError):
+                    create_app(run_startup_checks=False, start_runtime_services=False)
+
+    def test_snapshot_reads_never_capture_and_viewer_cannot_post(self) -> None:
+        self._setup_admin()
+        auth = self.app.config["easy_auth"]
+        auth.user_store.create_user("viewer", "password123", "viewer")
+        self.client.post("/api/auth/logout")
+        login = self.client.post("/api/auth/login", json={"username": "viewer", "password": "password123"}).get_json()
+        runtime = self.app.easy_dashboard_runtime
+        with patch.object(runtime, "capture_snapshot") as capture, patch.object(runtime.thermal, "snapshot") as thermal:
+            for route in ("/snapshot/rgb_left", "/snapshot/rgb_right", "/snapshot/thermal", "/thermal/snapshot"):
+                with self.subTest(route=route):
+                    for method in ("GET", "HEAD"):
+                        with self.client.open(route, method=method) as response:
+                            self.assertEqual(response.status_code, 405)
+                            self.assertIn("POST", response.headers["Allow"])
+                    response = self.client.post(route, headers={"X-EASY-CSRF": login["csrf_token"]})
+                    self.assertEqual(response.status_code, 403)
+            capture.assert_not_called()
+            thermal.assert_not_called()
+
+    def test_operator_can_capture_with_csrf_only(self) -> None:
+        self._setup_admin()
+        self.app.config["easy_auth"].user_store.create_user("operator", "password123", "operator")
+        self.client.post("/api/auth/logout")
+        login = self.client.post("/api/auth/login", json={"username": "operator", "password": "password123"}).get_json()
+        runtime = self.app.easy_dashboard_runtime
+        with patch.object(runtime, "capture_snapshot", return_value=(b"", False, None, {})) as capture:
+            self.assertEqual(self.client.post("/snapshot/rgb_left").status_code, 403)
+            capture.assert_not_called()
+            response = self.client.post("/snapshot/rgb_left", headers={"X-EASY-CSRF": login["csrf_token"]})
+            self.assertEqual(response.status_code, 503)  # Mock camera offline, authorization passed.
+            capture.assert_called_once()
 
     def test_protected_get_without_identity_is_401_once_an_admin_exists(self) -> None:
         # Before any admin exists, enforcement stays off entirely (the

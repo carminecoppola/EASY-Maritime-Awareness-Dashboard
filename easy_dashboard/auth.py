@@ -132,15 +132,35 @@ class UserStore:
         self._load()
 
     def _load(self) -> None:
-        if not self.path.exists():
-            return
         try:
             data = json.loads(self.path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            LOGGER.exception("Failed to read auth users file, starting empty: %s", self.path)
+        except FileNotFoundError:
             return
-        self._users = list(data.get("users") or [])
-        self._settings.update(data.get("settings") or {})
+        except (OSError, ValueError) as exc:
+            raise UserStoreError(f"Cannot read auth users file {self.path}; restore it from backup before restarting") from exc
+        # A damaged database must never be mistaken for first-run setup.
+        if not isinstance(data, dict) or not isinstance(data.get("users"), list) or not isinstance(data.get("settings"), dict):
+            raise UserStoreError(f"Invalid auth users file: {self.path}")
+        users = data["users"]
+        ids, names = set(), set()
+        for user in users:
+            if (
+                not isinstance(user, dict)
+                or any(not isinstance(user.get(key), str) or not user[key].strip() for key in ("id", "username", "password_hash"))
+                or not isinstance(user.get("role"), str)
+                or not is_valid_role(user["role"])
+                or not isinstance(user.get("active"), bool)
+            ):
+                raise UserStoreError(f"Invalid user record in {self.path}")
+            name = user["username"].strip().lower()
+            if user["id"] in ids or name in names:
+                raise UserStoreError(f"Duplicate user record in {self.path}")
+            ids.add(user["id"])
+            names.add(name)
+        if any(not isinstance(value, bool) for key, value in data["settings"].items() if key in ("auth_enforced", "anonymous_viewer_enabled")):
+            raise UserStoreError(f"Invalid auth settings in {self.path}")
+        self._users = users
+        self._settings.update(data["settings"])
 
     def _save_locked(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)

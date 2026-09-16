@@ -39,6 +39,17 @@ journalctl -u easy-dashboard.service -n 100 --no-pager
 sudo systemctl stop easy-dashboard.service
 ```
 
+## Recovering an unreadable user database
+
+If the auth users JSON is malformed or unreadable, the application refuses to
+start instead of reopening setup. Stop the service, preserve the damaged file
+for diagnosis, and restore a known-good backup of the configured
+`EASY_DASHBOARD_AUTH_USERS_FILE` (default `data/auth_users.json`). Check ownership
+and read permissions, then
+restart the service. `EASY_DASHBOARD_ENABLE_AUTH=0` does not bypass a damaged
+database. Do not delete the database as a routine recovery step: a missing
+database is treated as first-run setup.
+
 ## Temperature policy
 
 - Start controlled hardware validation only below 70 °C.

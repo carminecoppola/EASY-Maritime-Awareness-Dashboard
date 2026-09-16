@@ -8,6 +8,21 @@ PYTHON_BIN="${ROOT_DIR}/.venv/bin/python"
 
 cd "${ROOT_DIR}"
 
+# Build before installing/enabling the service: a clean clone has no dist/.
+# A deployment may instead copy a frontend built on its build machine.
+if [[ "${EASY_FRONTEND_PREBUILT:-0}" == "1" ]]; then
+  if [[ ! -s frontend/dist/index.html ]]; then
+    echo "Missing frontend/dist/index.html. Copy the built frontend before installing." >&2
+    exit 1
+  fi
+else
+  if ! command -v npm >/dev/null 2>&1; then
+    echo "npm is required to build the frontend. Alternatively copy frontend/dist and set EASY_FRONTEND_PREBUILT=1." >&2
+    exit 1
+  fi
+  (cd frontend && npm ci --include=dev && npm run build)
+fi
+
 if [[ -x "${PYTHON_BIN}" ]]; then
   "${PYTHON_BIN}" -m pip install --upgrade pip
   "${PYTHON_BIN}" -m pip install -r requirements.txt

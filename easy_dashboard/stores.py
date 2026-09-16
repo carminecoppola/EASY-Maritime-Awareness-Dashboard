@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import json
 import logging
+import sqlite3
 import threading
 import time
+import uuid
 from collections import deque
+from contextlib import closing
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -91,6 +94,31 @@ class SnapshotStore:
         self.root.mkdir(parents=True, exist_ok=True)
         for feed_meta in SNAPSHOT_FEED_MAP.values():
             (self.root / feed_meta["folder"]).mkdir(parents=True, exist_ok=True)
+        self._index_path = self.root / "snapshots.sqlite3"
+        self.rebuild_index()
+
+    def rebuild_index(self) -> None:
+        """Reconcile legacy files and offline edits once at startup, not per poll."""
+        with self._lock, closing(sqlite3.connect(self._index_path)) as db, db:
+            db.execute("CREATE TABLE IF NOT EXISTS snapshots (feed TEXT, filename TEXT, created_ts REAL, size_bytes INTEGER, payload TEXT, PRIMARY KEY (feed, filename))")
+            db.execute("CREATE INDEX IF NOT EXISTS snapshots_recent ON snapshots(created_ts DESC, filename DESC)")
+            db.execute("CREATE INDEX IF NOT EXISTS snapshots_feed_recent ON snapshots(feed, created_ts DESC, filename DESC)")
+            db.execute("DELETE FROM snapshots")
+            for feed in SNAPSHOT_FEED_MAP:
+                for path in self._feed_dir(feed).glob("*.jpg"):
+                    try:
+                        payload = self._snapshot_payload(path, feed)
+                    except OSError:
+                        LOGGER.exception("Failed to inspect snapshot: %s", path)
+                        continue
+                    self._index_snapshot(db, payload)
+
+    @staticmethod
+    def _index_snapshot(db: sqlite3.Connection, payload: Dict[str, Any]) -> None:
+        db.execute("INSERT INTO snapshots VALUES (?, ?, ?, ?, ?)", (
+            payload["feed"], payload["filename"], payload["created_ts"],
+            payload["size_bytes"], json.dumps(payload, ensure_ascii=False),
+        ))
 
     def _feed_meta(self, feed: str) -> Dict[str, str]:
         if feed not in SNAPSHOT_FEED_MAP:
@@ -127,50 +155,55 @@ class SnapshotStore:
     def save(self, feed: str, frame: bytes, *, meta: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         feed_dir = self._feed_dir(feed)
         stamp = time.strftime("%Y%m%d_%H%M%S")
-        suffix_ms = int((time.time() % 1) * 1000)
-        filename = f"{stamp}_{suffix_ms:03d}_{feed}.jpg"
+        filename = f"{stamp}_{uuid.uuid4().hex}_{feed}.jpg"
         path = feed_dir / filename
         sidecar = path.with_suffix(".json")
-        payload_meta = meta or {}
+        payload_meta = dict(meta or {})
         payload_meta.setdefault("saved_at", utc_now_iso())
         payload_meta.setdefault("feed", feed)
         payload_meta.setdefault("feed_label", self._feed_meta(feed)["label"])
+        encoded_meta = json.dumps(payload_meta, ensure_ascii=False, indent=2)
         with self._lock:
-            path.write_bytes(frame)
-            sidecar.write_text(json.dumps(payload_meta, ensure_ascii=False, indent=2))
-        return self._snapshot_payload(path, feed, payload_meta)
-
-    def list_recent(self, limit: int = 24) -> list[Dict[str, Any]]:
-        entries: list[Dict[str, Any]] = []
-        for feed, feed_meta in SNAPSHOT_FEED_MAP.items():
-            feed_dir = self.root / feed_meta["folder"]
-            if not feed_dir.exists():
-                continue
-            for image_path in feed_dir.glob("*.jpg"):
+            # Exclusive creation protects existing data even on a UUID collision.
+            with path.open("xb") as image:
+                sidecar_created = False
                 try:
-                    entries.append(self._snapshot_payload(image_path, feed))
+                    image.write(frame)
+                    image.flush()
+                    with sidecar.open("x", encoding="utf-8") as metadata:
+                        sidecar_created = True
+                        metadata.write(encoded_meta)
+                    payload = self._snapshot_payload(path, feed, payload_meta)
+                    with closing(sqlite3.connect(self._index_path)) as db, db:
+                        self._index_snapshot(db, payload)
                 except Exception:
-                    LOGGER.exception("Failed to inspect snapshot: %s", image_path)
-        entries.sort(key=lambda item: item.get("created_ts", 0.0), reverse=True)
-        return entries[:limit]
+                    path.unlink(missing_ok=True)
+                    if sidecar_created:
+                        sidecar.unlink(missing_ok=True)
+                    raise
+        return payload
+
+    def list_recent(self, limit: int = 24, offset: int = 0) -> list[Dict[str, Any]]:
+        with self._lock, closing(sqlite3.connect(self._index_path)) as db:
+            rows = db.execute("SELECT payload FROM snapshots ORDER BY created_ts DESC, filename DESC LIMIT ? OFFSET ?", (max(0, limit), max(0, offset)))
+            return [json.loads(row[0]) for row in rows]
 
     def summary(self) -> Dict[str, Any]:
-        recent = self.list_recent(999)
         by_feed: Dict[str, Dict[str, Any]] = {}
-        for feed, feed_meta in SNAPSHOT_FEED_MAP.items():
-            items = [item for item in recent if item["feed"] == feed]
-            total_size = sum(int(item.get("size_bytes") or 0) for item in items)
-            by_feed[feed] = {
-                "label": feed_meta["label"],
-                "count": len(items),
-                "size_bytes": total_size,
-                "latest": items[0] if items else None,
-            }
+        with self._lock, closing(sqlite3.connect(self._index_path)) as db:
+            for feed, feed_meta in SNAPSHOT_FEED_MAP.items():
+                count, total_size = db.execute("SELECT COUNT(*), COALESCE(SUM(size_bytes), 0) FROM snapshots WHERE feed = ?", (feed,)).fetchone()
+                latest = db.execute("SELECT payload FROM snapshots WHERE feed = ? ORDER BY created_ts DESC, filename DESC LIMIT 1", (feed,)).fetchone()
+                by_feed[feed] = {
+                    "label": feed_meta["label"], "count": count, "size_bytes": total_size,
+                    "latest": json.loads(latest[0]) if latest else None,
+                }
+        latest_items = [item["latest"] for item in by_feed.values() if item["latest"]]
         return {
-            "count": len(recent),
-            "size_bytes": sum(int(item.get("size_bytes") or 0) for item in recent),
+            "count": sum(item["count"] for item in by_feed.values()),
+            "size_bytes": sum(item["size_bytes"] for item in by_feed.values()),
             "by_feed": by_feed,
-            "latest": recent[0] if recent else None,
+            "latest": max(latest_items, key=lambda item: (item["created_ts"], item["filename"]), default=None),
             "root": str(self.root),
         }
 

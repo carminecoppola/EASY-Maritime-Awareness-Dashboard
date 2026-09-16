@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 os.environ.setdefault("EASY_DASHBOARD_SKIP_GLOBAL_APP", "1")
 
 from app import create_app
+from easy_dashboard.stores import SnapshotStore
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -23,7 +26,8 @@ class ApiContractTests(unittest.TestCase):
     def test_primary_pages_render(self) -> None:
         for route in ("/", "/paper-preview", "/mission", "/thermal-events", "/snapshots", "/system-diagnostics", "/help"):
             with self.subTest(route=route):
-                self.assertEqual(self.client.get(route).status_code, 200)
+                with self.client.get(route) as response:
+                    self.assertEqual(response.status_code, 200)
 
     def test_health_exposes_additive_runtime_contract(self) -> None:
         payload = self.client.get("/health").get_json()
@@ -34,6 +38,21 @@ class ApiContractTests(unittest.TestCase):
             state = payload["runtime_state"][sensor]
             self.assertIn(state["availability"], {"STREAMING", "READY", "INITIALIZING", "NOT_PRESENT", "ERROR"})
             self.assertIn("service_healthy", state)
+
+    def test_snapshot_pages_keep_total_count_and_validate_offset(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = SnapshotStore(Path(directory))
+            for i in range(3):
+                store.save("rgb_left", str(i).encode())
+            with patch.object(self.app.easy_dashboard_runtime, "snapshot_store", store):
+                first = self.client.get("/api/snapshots/recent?limit=2").get_json()
+                second = self.client.get("/api/snapshots/recent?limit=2&offset=2").get_json()
+                self.assertEqual(first["count"], 3)
+                self.assertEqual(second["count"], 3)
+                self.assertEqual(len(first["items"]), 2)
+                self.assertEqual(len(second["items"]), 1)
+                for invalid in ("bad", "-1"):
+                    self.assertEqual(self.client.get(f"/api/snapshots/recent?offset={invalid}").get_json()["offset"], 0)
 
     def test_lightweight_readiness_contract(self) -> None:
         response = self.client.get("/health/ready")

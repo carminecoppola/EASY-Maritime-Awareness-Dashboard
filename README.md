@@ -21,6 +21,13 @@ and available, while `STREAMING` is only the short interval around a capture.
 
 The target runtime is Raspberry Pi OS with Python 3.9. On the Raspberry:
 
+The default installer also builds the React frontend and requires Node.js 24
+and npm. For a Raspberry without Node.js, build on the Mac with
+`cd frontend && npm ci --include=dev && npm run build`, copy the complete
+`frontend/dist/` directory from the same revision to the Raspberry, then run
+`EASY_FRONTEND_PREBUILT=1 ./install.sh` there. The installer checks that the
+frontend exists before enabling the service.
+
 ```bash
 cd ~/Desktop/carmine/easy-dashboard
 ./install.sh
@@ -103,15 +110,21 @@ snapshots belong under `data/snapshots/`.
 Local tests do not require Raspberry hardware:
 
 ```bash
+# First time (Node.js 24 and Python dependencies must be installed):
+(cd frontend && npm ci --include=dev && npx playwright install chromium)
 ./scripts/validate_local_release.sh
 ```
+
+The validator builds the frontend, runs React and Python tests, checks the
+backend and shell scripts, then runs Chromium smoke tests against Flask.
+Set `EASY_PYTHON_BIN` to select the Python interpreter for both backend tests
+and the browser test server.
 
 The same regression suite runs on every push and pull request through
 `.github/workflows/quality.yml`. Hardware tests remain separate because hosted
 CI cannot validate V4L2, libcamera, CPU temperature, or the physical sensors.
 
-The current suite contains 41 automated regression tests. The paper evaluation
-also uses scripted Raspberry and browser checks; these are reported separately
+The paper evaluation also uses scripted Raspberry checks; these are reported separately
 because they depend on physical cameras and the target device.
 
 On the Raspberry, use `scripts/validate_raspberry_runtime.sh` only during a
@@ -126,7 +139,7 @@ bounded thermal capture and confirms that the RGB process resumes afterward.
 - `*_manager.py` — sessions, acquisition, sources, devices, detections, and events.
 - `inference_config.py` / `inference_backend.py` / `inference_image.py` / `inference_results.py` — inference configuration, model execution, image processing, and stable result formatting.
 - `inference_worker.py` — inference lifecycle and frame-provider orchestration.
-- `static/` / `templates/` — operator interface; CSS is loaded as four ordered layers from foundations to operator overrides.
+- `frontend/` — React operator interface; Flask serves the production build in `frontend/dist/`.
 - `scripts/` — launch, smoke, benchmark, and Raspberry validation tools.
 - `docs/archive/` — historical implementation reports; not current operating instructions.
 
@@ -136,6 +149,11 @@ Existing HTTP routes and required JSON fields are kept stable. Internal modules
 may be reorganized behind compatibility adapters as the project is simplified.
 Hardware payloads also expose a `runtime_state` object with normalized
 availability, readiness, streaming, health, and capture-mode fields.
+
+Snapshot acquisition endpoints (`/snapshot/rgb_left`, `/snapshot/rgb_right`,
+`/snapshot/thermal`, `/thermal/snapshot`) require POST. GET and HEAD return
+405 and never capture. With role enforcement enabled, capture requires an
+Operator or Admin; cookie sessions also require `X-EASY-CSRF`.
 
 ## Reproducibility
 
