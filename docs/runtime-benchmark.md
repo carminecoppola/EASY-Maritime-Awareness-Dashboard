@@ -47,6 +47,12 @@ that does need such a sensor; this benchmark does not attempt it.
 - Confirm both RGB sources have reached their normal runtime state.
 - Select the intended inference source before the run. For reproducible
   inference timing, use the same replay source for every compared run.
+- Stop the current session (`POST /api/session/stop`) before the run if one
+  is already active. Session age is a confound: persistence latency scales
+  with how many detections/events the active session has accumulated since
+  it started, not with time since deployment — a session left running
+  unattended for hours will show inflated, non-comparable persistence
+  timing even with no code change.
 - Begin only below 70 °C. The collector aborts at 78 °C.
 - Keep the Raspberry power supply, cooling, camera configuration and network
   connection unchanged across repeated runs.
