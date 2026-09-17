@@ -24,7 +24,7 @@ STATUS_CACHE_SECONDS = 1.0
 # These caches keep each active session's detections/events in memory
 # (loaded once, appended to directly) and flush to disk at most every
 # DETECTIONS_FLUSH_INTERVAL_SECONDS instead of on every call.
-DETECTIONS_FLUSH_INTERVAL_SECONDS = 2.0
+DETECTIONS_FLUSH_INTERVAL_SECONDS = 5.0
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
