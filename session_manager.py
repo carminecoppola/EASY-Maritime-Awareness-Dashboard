@@ -17,6 +17,15 @@ from runtime_support import atomic_write_json, parse_utc_ts, read_json, utc_now_
 # repeating that disk I/O every time.
 STATUS_CACHE_SECONDS = 1.0
 
+# record_inference_result and _append_session_event used to read the whole
+# growing detections.json/events.json for the active session, append one
+# record, and rewrite the whole file, on every single inference — O(n) in
+# session length for both a read and a write, on the hot inference path.
+# These caches keep each active session's detections/events in memory
+# (loaded once, appended to directly) and flush to disk at most every
+# DETECTIONS_FLUSH_INTERVAL_SECONDS instead of on every call.
+DETECTIONS_FLUSH_INTERVAL_SECONDS = 2.0
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 RUNTIME_ROOT = PROJECT_ROOT / "runtime"
@@ -51,6 +60,10 @@ class SessionManager:
         self._index: List[Dict[str, Any]] = []
         self._current: Dict[str, Any] | None = None
         self._status_cache: tuple[float, Dict[str, Any]] | None = None
+        self._detections_cache: Dict[str, List[Dict[str, Any]]] = {}
+        self._events_cache: Dict[str, Dict[str, Any]] = {}
+        self._cache_dirty: Dict[str, bool] = {}
+        self._cache_last_flush: Dict[str, float] = {}
         self.sessions_root.mkdir(parents=True, exist_ok=True)
         self._load_session_index()
         self._restore_running_session()
@@ -287,9 +300,12 @@ class SessionManager:
             self._current = None
             self._write_metadata(metadata)
             self._refresh_metrics(metadata["session_id"])
+            self._flush_session_cache(metadata["session_id"], force=True)
+            payload = self._session_payload(metadata)
+            self._evict_session_cache(metadata["session_id"])
             self._status_cache = None
             self._emit("SESSION_STOP", f"Session {metadata['session_id']} stopped", "info", metadata)
-            return {"ok": True, "message": "Session stopped", "session": self._session_payload(metadata)}
+            return {"ok": True, "message": "Session stopped", "session": payload}
 
     def get_current_session(self) -> Dict[str, Any] | None:
         with self._lock:
@@ -401,28 +417,93 @@ class SessionManager:
                 "manifest": {**payload, "path": str(path)},
             }
 
+    def _get_detections_cache(self, session_id: str) -> List[Dict[str, Any]]:
+        cached = self._detections_cache.get(session_id)
+        if cached is None:
+            payload = read_json(self._paths(session_id)["detections"], {"detections": []})
+            existing = payload.get("detections", [])
+            cached = existing if isinstance(existing, list) else []
+            self._detections_cache[session_id] = cached
+        return cached
+
+    def _get_events_cache(self, session_id: str) -> Dict[str, Any]:
+        cached = self._events_cache.get(session_id)
+        if cached is None:
+            payload = read_json(
+                self._paths(session_id)["events"],
+                {"events": [], "current_events": [], "activity_log": []},
+            )
+            cached = {
+                "events": payload.get("events") if isinstance(payload.get("events"), list) else [],
+                "current_events": payload.get("current_events") if isinstance(payload.get("current_events"), list) else [],
+                "activity_log": payload.get("activity_log") if isinstance(payload.get("activity_log"), list) else [],
+            }
+            self._events_cache[session_id] = cached
+        return cached
+
+    def _flush_session_cache(self, session_id: str, *, force: bool = False) -> None:
+        dirty = self._cache_dirty.get(session_id, False)
+        if not dirty and not force:
+            return
+        last_flush = self._cache_last_flush.get(session_id, 0.0)
+        if not force and (time.monotonic() - last_flush) < DETECTIONS_FLUSH_INTERVAL_SECONDS:
+            return
+        paths = self._paths(session_id)
+        detections = self._detections_cache.get(session_id)
+        if detections is not None:
+            atomic_write_json(
+                paths["detections"],
+                {
+                    "ok": True,
+                    "session_id": session_id,
+                    "count": len(detections),
+                    "detections": detections,
+                    "updated_at": utc_now_iso(),
+                },
+            )
+        events = self._events_cache.get(session_id)
+        if events is not None:
+            activity_log = events["activity_log"]
+            atomic_write_json(
+                paths["events"],
+                {
+                    "ok": True,
+                    "session_id": session_id,
+                    "count": len(events["events"]),
+                    "active_count": len(events["current_events"]),
+                    "events": events["events"],
+                    "current_events": events["current_events"],
+                    "activity_log": activity_log,
+                    "updated_at": utc_now_iso(),
+                },
+            )
+        self._cache_dirty[session_id] = False
+        self._cache_last_flush[session_id] = time.monotonic()
+
+    def flush_all(self) -> None:
+        """Force-write every dirty in-memory session cache to disk. Call this
+        on graceful shutdown so buffered detections/events are never lost to
+        the flush-interval throttling in _flush_session_cache."""
+        with self._lock:
+            for session_id in list(self._detections_cache.keys() | self._events_cache.keys()):
+                self._flush_session_cache(session_id, force=True)
+
+    def _evict_session_cache(self, session_id: str) -> None:
+        self._detections_cache.pop(session_id, None)
+        self._events_cache.pop(session_id, None)
+        self._cache_dirty.pop(session_id, None)
+        self._cache_last_flush.pop(session_id, None)
+
     def record_inference_result(self, result: Dict[str, Any], detections: List[Dict[str, Any]]) -> None:
         mode = str(result.get("source") or result.get("mode") or "replay")
         session = self.ensure_session(mode=mode, operator="auto")
         session_id = str(session.get("session_id") or "")
         if not session_id:
             return
-        detections_path = self._paths(session_id)["detections"]
-        payload = read_json(detections_path, {"ok": True, "session_id": session_id, "detections": []})
-        existing = payload.get("detections", [])
-        if not isinstance(existing, list):
-            existing = []
+        existing = self._get_detections_cache(session_id)
         existing.extend(detections)
-        payload.update(
-            {
-                "ok": True,
-                "session_id": session_id,
-                "count": len(existing),
-                "detections": existing,
-                "updated_at": utc_now_iso(),
-            }
-        )
-        atomic_write_json(detections_path, payload)
+        self._cache_dirty[session_id] = True
+        self._flush_session_cache(session_id)
         self._append_session_event(
             session_id,
             "INFERENCE_RESULT",
@@ -470,18 +551,11 @@ class SessionManager:
 
     def _refresh_metrics(self, session_id: str, inference_time_ms: Any | None = None) -> Dict[str, Any]:
         paths = self._paths(session_id)
-        detections_payload = read_json(paths["detections"], {"detections": []})
-        detections = detections_payload.get("detections", [])
-        if not isinstance(detections, list):
-            detections = []
+        detections = self._get_detections_cache(session_id)
         previous = read_json(paths["metrics"], self._empty_metrics(session_id))
-        events_payload = read_json(paths["events"], {"events": [], "current_events": []})
-        stored_events = events_payload.get("events", [])
-        current_events = events_payload.get("current_events", [])
-        if not isinstance(stored_events, list):
-            stored_events = []
-        if not isinstance(current_events, list):
-            current_events = []
+        events_cache = self._get_events_cache(session_id)
+        stored_events = events_cache["events"]
+        current_events = events_cache["current_events"]
         inference_calls = int(previous.get("inference_calls") or 0)
         average = previous.get("average_inference_time")
         if inference_time_ms is not None:
@@ -529,27 +603,10 @@ class SessionManager:
         }
 
     def _append_session_event(self, session_id: str, event_type: str, meta: Dict[str, Any]) -> None:
-        path = self._paths(session_id)["events"]
-        payload = read_json(path, {"ok": True, "session_id": session_id, "events": [], "current_events": [], "activity_log": []})
-        activity_log = payload.get("activity_log", [])
-        if not isinstance(activity_log, list):
-            activity_log = []
-        activity_log.append({"timestamp": utc_now_iso(), "type": event_type, "meta": meta})
-        payload.update(
-            {
-                "ok": True,
-                "session_id": session_id,
-                "activity_log": activity_log,
-                "updated_at": utc_now_iso(),
-            }
-        )
-        if not isinstance(payload.get("events"), list):
-            payload["events"] = []
-        if not isinstance(payload.get("current_events"), list):
-            payload["current_events"] = []
-        payload["count"] = len(payload["events"])
-        payload["active_count"] = len(payload["current_events"])
-        atomic_write_json(path, payload)
+        events = self._get_events_cache(session_id)
+        events["activity_log"].append({"timestamp": utc_now_iso(), "type": event_type, "meta": meta})
+        self._cache_dirty[session_id] = True
+        self._flush_session_cache(session_id)
 
     def _emit(self, event_type: str, description: str, severity: str, meta: Dict[str, Any]) -> None:
         if not self.events:

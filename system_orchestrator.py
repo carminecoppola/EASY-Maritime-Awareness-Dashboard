@@ -476,6 +476,7 @@ class SystemOrchestrator:
             _safe_call(self.inference.stop)
             _safe_call(self._rgb_stop)
             _safe_call(self.source_manager.refresh_status)
+            _safe_call(self.session_manager.flush_all)
             self._status = "STOPPED"
             self._refresh_component_states()
             self.events.add(
