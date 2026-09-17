@@ -51,10 +51,11 @@ continuous stream. Hardware payloads retain their existing fields and add
 ## Runtime benchmark status
 
 The repeatable replay-based Raspberry Pi 4 benchmark is complete for the paper
-evaluation. Ten inference requests produced a mean ONNX backend time of
-608.17 ms and a mean end-to-end API latency of 1014.19 ms after persistence
-optimization. The earlier value of approximately 4.1 seconds belongs to the
-pre-optimization implementation and is not the current result.
+evaluation. On the currently deployed sequence-safe/ABOships model, a fresh
+50-request run (session freshly started, no prior accumulated history)
+measured a mean backend time of 593 ms and a mean end-to-end request-pipeline
+latency of 967 ms — consistent with the original paper's 574 ms / 908 ms on
+the earlier model.
 
 This replay protocol does not establish sustained inference performance on both
 live RGB views. A cooled, long-duration live-source benchmark remains future
@@ -63,3 +64,19 @@ work and must be reported separately rather than mixed with the replay results.
 Generated measurement directories are intentionally excluded from source
 history. The paper evaluation archive must preserve the complete raw run,
 environment metadata, exact dependency versions and checksums.
+
+### Session-length confound (found and fixed 17 September 2026)
+
+Re-running this benchmark against a session that had accumulated 16+ hours of
+unattended replay history showed persistence latency growing from the ~140 ms
+baseline to 280-370 ms, with the tail (P95) exceeding 800 ms. Root cause:
+`session_manager.py` rewrote the entire growing per-session detections/events
+file on every single inference request — an O(n) cost in session length, on
+the hot path. Fixed by switching to an append-only `.jsonl` journal with
+periodic compaction, the pattern `detection_manager.py` already used
+correctly for its own history file. Re-measured on a freshly stopped/started
+session after the fix: persistence back down to 189 ms (P95 225 ms).
+
+Consequence for future benchmark comparisons: **stop the current session
+(`POST /api/session/stop`) before a comparison run**, or session age becomes
+a confound indistinguishable from a real regression.

@@ -62,11 +62,22 @@ they form part of the planned thermal and multimodal extension.
 
 The Analysis page supports the stable test/replay workflow and can select the
 live RGB providers exposed by the camera runtime. Replay remains the repeatable
-validation source. The paper runtime benchmark completed ten replay-based
-inference requests with a mean backend time of 608.17 ms and a mean end-to-end
-API latency of 1014.19 ms. Sustained live-RGB inference still requires a
-dedicated cooled field test and is not claimed by those replay measurements.
-The deployed model accepts RGB input only.
+validation source. The most recent 50-request replay benchmark, run on the
+currently deployed sequence-safe/ABOships model (see "Model and dataset"
+above) on a freshly started session, measured a mean backend time of 593 ms
+and a mean end-to-end request-pipeline latency of 967 ms — in line with the
+original paper's 574 ms / 908 ms on the earlier model. Sustained live-RGB
+inference still requires a dedicated cooled field test and is not claimed by
+those replay measurements. The deployed model accepts RGB input only.
+
+An earlier re-measurement on a session that had been running unattended for
+16+ hours showed persistence latency growing from ~140 ms to 280-370 ms. The
+cause was `session_manager.py` rewriting the session's entire growing
+detections/events file on every request; fixed by switching to an
+append-only journal with periodic compaction (the same pattern
+`detection_manager.py` already used). Benchmark comparisons across sessions
+should start from a freshly stopped/started session — accumulated session
+length is a confound, not just wall-clock time since deployment.
 
 The Mission page groups one acquisition period into a session. While a mission
 is active, EASY can associate captured images, inference results, detections,
