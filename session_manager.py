@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import socket
 import threading
 import time
@@ -21,10 +22,16 @@ STATUS_CACHE_SECONDS = 1.0
 # growing detections.json/events.json for the active session, append one
 # record, and rewrite the whole file, on every single inference — O(n) in
 # session length for both a read and a write, on the hot inference path.
-# These caches keep each active session's detections/events in memory
-# (loaded once, appended to directly) and flush to disk at most every
-# DETECTIONS_FLUSH_INTERVAL_SECONDS instead of on every call.
+# Each active session now keeps its detections/events in memory (loaded
+# once) and appends new records to a small .jsonl journal (O(1) per call)
+# instead. The full detections.json/events.json snapshot is only rewritten
+# — "compacted" — when both DETECTIONS_FLUSH_INTERVAL_SECONDS have passed
+# since the last compaction AND the journal has grown past
+# DETECTIONS_COMPACTION_BYTES, or when force=True (session stop, graceful
+# shutdown). Mirrors the pattern detection_manager.py already uses for its
+# own history file.
 DETECTIONS_FLUSH_INTERVAL_SECONDS = 5.0
+DETECTIONS_COMPACTION_BYTES = 65536
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -62,7 +69,6 @@ class SessionManager:
         self._status_cache: tuple[float, Dict[str, Any]] | None = None
         self._detections_cache: Dict[str, List[Dict[str, Any]]] = {}
         self._events_cache: Dict[str, Dict[str, Any]] = {}
-        self._cache_dirty: Dict[str, bool] = {}
         self._cache_last_flush: Dict[str, float] = {}
         self.sessions_root.mkdir(parents=True, exist_ok=True)
         self._load_session_index()
@@ -117,8 +123,10 @@ class SessionManager:
             "root": root,
             "metadata": root / "metadata.json",
             "detections": root / "detections.json",
+            "detections_journal": root / "detections_journal.jsonl",
             "metrics": root / "metrics.json",
             "events": root / "events.json",
+            "events_journal": root / "events_journal.jsonl",
             "manifest": root / "manifest.json",
         }
 
@@ -417,40 +425,87 @@ class SessionManager:
                 "manifest": {**payload, "path": str(path)},
             }
 
+    @staticmethod
+    def _replay_journal(path: Path) -> List[Dict[str, Any]]:
+        if not path.exists():
+            return []
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return []
+        replayed: List[Dict[str, Any]] = []
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                replayed.append(json.loads(line))
+            except (json.JSONDecodeError, ValueError):
+                # One corrupted line (e.g. an interrupted append) must not
+                # drop every record after it.
+                continue
+        return replayed
+
     def _get_detections_cache(self, session_id: str) -> List[Dict[str, Any]]:
         cached = self._detections_cache.get(session_id)
         if cached is None:
-            payload = read_json(self._paths(session_id)["detections"], {"detections": []})
+            paths = self._paths(session_id)
+            payload = read_json(paths["detections"], {"detections": []})
             existing = payload.get("detections", [])
             cached = existing if isinstance(existing, list) else []
+            # A journal only survives an unclean shutdown (flush_all() runs
+            # on graceful stop and truncates it) — replay it on top of the
+            # last compacted snapshot so nothing between compactions is lost.
+            cached.extend(self._replay_journal(paths["detections_journal"]))
             self._detections_cache[session_id] = cached
         return cached
 
     def _get_events_cache(self, session_id: str) -> Dict[str, Any]:
         cached = self._events_cache.get(session_id)
         if cached is None:
+            paths = self._paths(session_id)
             payload = read_json(
-                self._paths(session_id)["events"],
+                paths["events"],
                 {"events": [], "current_events": [], "activity_log": []},
             )
+            activity_log = payload.get("activity_log") if isinstance(payload.get("activity_log"), list) else []
+            activity_log = list(activity_log) + self._replay_journal(paths["events_journal"])
             cached = {
                 "events": payload.get("events") if isinstance(payload.get("events"), list) else [],
                 "current_events": payload.get("current_events") if isinstance(payload.get("current_events"), list) else [],
-                "activity_log": payload.get("activity_log") if isinstance(payload.get("activity_log"), list) else [],
+                "activity_log": activity_log,
             }
             self._events_cache[session_id] = cached
         return cached
 
-    def _flush_session_cache(self, session_id: str, *, force: bool = False) -> None:
-        dirty = self._cache_dirty.get(session_id, False)
-        if not dirty and not force:
+    @staticmethod
+    def _append_journal(path: Path, records: List[Dict[str, Any]]) -> None:
+        if not records:
             return
+        with path.open("a", encoding="utf-8") as stream:
+            for record in records:
+                stream.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
+
+    def _compaction_due(self, session_id: str, journal_path: Path, *, force: bool) -> bool:
+        if force:
+            return True
         last_flush = self._cache_last_flush.get(session_id, 0.0)
-        if not force and (time.monotonic() - last_flush) < DETECTIONS_FLUSH_INTERVAL_SECONDS:
-            return
+        if (time.monotonic() - last_flush) < DETECTIONS_FLUSH_INTERVAL_SECONDS:
+            return False
+        try:
+            return journal_path.stat().st_size >= DETECTIONS_COMPACTION_BYTES
+        except OSError:
+            return False
+
+    def _flush_session_cache(self, session_id: str, *, force: bool = False) -> None:
+        """Append-only on the hot path: every call above this appends the new
+        record(s) directly to a .jsonl journal (O(1)), never rewriting the
+        whole growing file. This only compacts (rewrites detections.json /
+        events.json in full and truncates the journal) when due, or when
+        force=True (session stop, graceful shutdown)."""
         paths = self._paths(session_id)
         detections = self._detections_cache.get(session_id)
-        if detections is not None:
+        if detections is not None and self._compaction_due(session_id, paths["detections_journal"], force=force):
             atomic_write_json(
                 paths["detections"],
                 {
@@ -461,9 +516,9 @@ class SessionManager:
                     "updated_at": utc_now_iso(),
                 },
             )
+            paths["detections_journal"].write_text("", encoding="utf-8")
         events = self._events_cache.get(session_id)
-        if events is not None:
-            activity_log = events["activity_log"]
+        if events is not None and self._compaction_due(session_id, paths["events_journal"], force=force):
             atomic_write_json(
                 paths["events"],
                 {
@@ -473,17 +528,17 @@ class SessionManager:
                     "active_count": len(events["current_events"]),
                     "events": events["events"],
                     "current_events": events["current_events"],
-                    "activity_log": activity_log,
+                    "activity_log": events["activity_log"],
                     "updated_at": utc_now_iso(),
                 },
             )
-        self._cache_dirty[session_id] = False
+            paths["events_journal"].write_text("", encoding="utf-8")
         self._cache_last_flush[session_id] = time.monotonic()
 
     def flush_all(self) -> None:
-        """Force-write every dirty in-memory session cache to disk. Call this
-        on graceful shutdown so buffered detections/events are never lost to
-        the flush-interval throttling in _flush_session_cache."""
+        """Force-compact every active session's cache to disk. Call this on
+        graceful shutdown so buffered detections/events are never left only
+        in the journal."""
         with self._lock:
             for session_id in list(self._detections_cache.keys() | self._events_cache.keys()):
                 self._flush_session_cache(session_id, force=True)
@@ -491,7 +546,6 @@ class SessionManager:
     def _evict_session_cache(self, session_id: str) -> None:
         self._detections_cache.pop(session_id, None)
         self._events_cache.pop(session_id, None)
-        self._cache_dirty.pop(session_id, None)
         self._cache_last_flush.pop(session_id, None)
 
     def record_inference_result(self, result: Dict[str, Any], detections: List[Dict[str, Any]]) -> None:
@@ -502,7 +556,7 @@ class SessionManager:
             return
         existing = self._get_detections_cache(session_id)
         existing.extend(detections)
-        self._cache_dirty[session_id] = True
+        self._append_journal(self._paths(session_id)["detections_journal"], detections)
         self._flush_session_cache(session_id)
         self._append_session_event(
             session_id,
@@ -604,8 +658,9 @@ class SessionManager:
 
     def _append_session_event(self, session_id: str, event_type: str, meta: Dict[str, Any]) -> None:
         events = self._get_events_cache(session_id)
-        events["activity_log"].append({"timestamp": utc_now_iso(), "type": event_type, "meta": meta})
-        self._cache_dirty[session_id] = True
+        entry = {"timestamp": utc_now_iso(), "type": event_type, "meta": meta}
+        events["activity_log"].append(entry)
+        self._append_journal(self._paths(session_id)["events_journal"], [entry])
         self._flush_session_cache(session_id)
 
     def _emit(self, event_type: str, description: str, severity: str, meta: Dict[str, Any]) -> None:
