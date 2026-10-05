@@ -30,6 +30,9 @@ class ApiContractTests(unittest.TestCase):
         cls.client = cls.app.test_client()
 
     def test_primary_pages_render(self) -> None:
+        # The pages are served from the React production build (``npm run build``).
+        if not (PROJECT_ROOT / "frontend" / "dist" / "index.html").is_file():
+            self.skipTest("frontend/dist is not built; run `npm run build` in frontend/")
         for route in ("/", "/paper-preview", "/mission", "/thermal-events", "/snapshots", "/system-diagnostics", "/help"):
             with self.subTest(route=route):
                 with self.client.get(route) as response:
