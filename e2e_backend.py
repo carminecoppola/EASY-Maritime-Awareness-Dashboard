@@ -1,3 +1,7 @@
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+
 """Backend runner for Playwright e2e tests: replay mode, no real hardware.
 
 Serves the same built frontend/dist as production (via the catch-all route)

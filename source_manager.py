@@ -1,6 +1,20 @@
-from __future__ import annotations
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
 
-"""Registry of operator-selectable frame sources shown in the dashboard UI."""
+"""Registry of the frame sources the operator can select in the dashboard.
+
+A *source* is where frames come from (the recorded dataset, RGB left, RGB right,
+thermal). Each source mirrors a *device* from ``device_manager.py``: the device
+reports the hardware state, this module translates it into a UI-friendly
+source status and tracks which source is currently selected.
+
+Device status -> source status:
+    CONNECTED -> ONLINE        STREAMING -> STREAMING      DISCONNECTED -> OFFLINE
+    INITIALIZING -> INITIALIZING   ERROR -> ERROR   NOT_PRESENT -> NOT_AVAILABLE
+"""
+
+from __future__ import annotations
 
 import threading
 import time
@@ -14,6 +28,7 @@ from runtime_support import directory_has_frames, normalize_status, utc_now_iso
 
 
 class SourceStatus:
+    """Allowed values for a source status."""
     ONLINE = "ONLINE"
     OFFLINE = "OFFLINE"
     NOT_AVAILABLE = "NOT_AVAILABLE"
@@ -42,6 +57,7 @@ VALID_SOURCE_STATUSES = {
 
 @dataclass
 class SourceRecord:
+    """State of one registered source, convertible to the API representation."""
     id: str
     name: str
     type: str
@@ -52,6 +68,7 @@ class SourceRecord:
     capabilities: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self, *, selected: bool = False) -> dict[str, Any]:
+        """Serialise the source, deriving the ``available``/``selectable``/``streaming`` flags from its status."""
         available = self.enabled and self.status in {SourceStatus.ONLINE, SourceStatus.STREAMING}
         selectable = self.enabled and self.status not in {
             SourceStatus.NOT_AVAILABLE,
@@ -90,6 +107,7 @@ class SourceManager:
         logger: Any | None = None,
         auto_refresh: bool = True,
     ) -> None:
+        """Register the default sources, optionally refresh their status and select the replay source."""
         self.runtime_root = Path(runtime_root)
         self.replay_root = Path(replay_root)
         self.device_manager = device_manager
@@ -106,6 +124,7 @@ class SourceManager:
         self.select_source(self._selected_source_id, emit_event=False)
 
     def _log(self, level: str, message: str) -> None:
+        """Log through the optional logger."""
         if not self.logger:
             return
         log_fn = getattr(self.logger, level, None)
@@ -120,6 +139,7 @@ class SourceManager:
         severity: str = "info",
         meta: dict[str, Any] | None = None,
     ) -> None:
+        """Add an event to the event log; logging failures are ignored."""
         if not self.events:
             return
         try:
@@ -128,6 +148,7 @@ class SourceManager:
             pass
 
     def _register_default_sources(self) -> None:
+        """Register one source per endpoint of the runtime catalog."""
         for endpoint in build_runtime_endpoint_catalog(self.runtime_root, self.replay_root):
             self.register_source(
                 endpoint.endpoint_id,
@@ -148,6 +169,7 @@ class SourceManager:
         configuration: dict[str, Any] | None = None,
         capabilities: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        """Add (or replace) a source and return its serialised form."""
         with self._lock:
             record = SourceRecord(
                 id=source_id,
@@ -163,9 +185,11 @@ class SourceManager:
             return self._serialize_source(record)
 
     def _serialize_source(self, record: SourceRecord) -> dict[str, Any]:
+        """Serialise a record, flagging whether it is the selected one."""
         return record.to_dict(selected=record.id == self._selected_source_id)
 
     def _map_device_status_to_source_status(self, status: str | None) -> str:
+        """Translate a device status into the matching source status."""
         value = normalize_status(status, DeviceStatus.UNKNOWN)
         mapping = {
             DeviceStatus.CONNECTED: SourceStatus.ONLINE,
@@ -179,14 +203,17 @@ class SourceManager:
         return mapping.get(value, SourceStatus.UNKNOWN)
 
     def _get_selected_record(self) -> SourceRecord | None:
+        """Return the record of the selected source, if any."""
         return self._sources.get(self._selected_source_id)
 
     def _update_source_record(self, record: SourceRecord, status: str | None = None) -> SourceRecord:
+        """Set the record status (resolving it when not valid) and stamp ``last_update``."""
         record.status = status if status in VALID_SOURCE_STATUSES else self._resolve_source_status(record)
         record.last_update = utc_now_iso()
         return record
 
     def _replay_has_frames(self, replay_dir: Path) -> bool:
+        """Check whether the replay folder holds images, caching the answer for a short time."""
         now = time.monotonic()
         if self._replay_frames_cache is not None:
             cached_at, cached_value = self._replay_frames_cache
@@ -197,6 +224,11 @@ class SourceManager:
         return value
 
     def _resolve_source_status(self, record: SourceRecord) -> str:
+        """Compute the current status of a source.
+
+        Replay sources depend on the folder content and the replay device. Live
+        sources follow their device and also copy its ``runtime_state``.
+        """
         if not record.enabled:
             return SourceStatus.NOT_AVAILABLE
 
@@ -227,12 +259,14 @@ class SourceManager:
         return SourceStatus.UNKNOWN
 
     def list_sources(self) -> list[dict[str, Any]]:
+        """Refresh and return every source."""
         with self._lock:
             for record in self._sources.values():
                 self._update_source_record(record, self._resolve_source_status(record))
             return [self._serialize_source(record) for record in self._sources.values()]
 
     def get_source(self, source_id: str | None) -> dict[str, Any] | None:
+        """Refresh and return one source, or None when unknown."""
         if not source_id:
             return None
         with self._lock:
@@ -243,6 +277,7 @@ class SourceManager:
             return self._serialize_source(record)
 
     def get_selected_source(self) -> dict[str, Any]:
+        """Return the selected source (or an ``Unknown`` placeholder when none is registered)."""
         with self._lock:
             record = self._get_selected_record()
             if not record and self._sources:
@@ -265,6 +300,7 @@ class SourceManager:
             return self._serialize_source(record)
 
     def check_health(self, source_id: str) -> dict[str, Any]:
+        """Re-evaluate one source and return it."""
         with self._lock:
             record = self._sources.get(source_id)
             if not record:
@@ -275,6 +311,7 @@ class SourceManager:
             return {"ok": True, "source": self._serialize_source(record)}
 
     def refresh_status(self, source_id: str | None = None) -> dict[str, Any]:
+        """Ask the device manager to refresh, then re-evaluate one source or all of them."""
         with self._lock:
             if source_id:
                 if self.device_manager is not None:
@@ -299,6 +336,10 @@ class SourceManager:
             return self.get_status()
 
     def select_source(self, source_id: str, *, emit_event: bool = True) -> dict[str, Any]:
+        """Select the active source and emit the corresponding events.
+
+        Returns the overall status, or ``ok: False`` with an error for an unknown id.
+        """
         with self._lock:
             previous_id = self._selected_source_id
             record = self._sources.get(source_id)
@@ -338,6 +379,7 @@ class SourceManager:
             return payload
 
     def get_status(self, source_id: str | None = None) -> dict[str, Any]:
+        """Return the overall source status, optionally including one specific source."""
         with self._lock:
             if source_id:
                 source = self.get_source(source_id)
@@ -363,6 +405,7 @@ class SourceManager:
             }
 
     def get_selected_replay_dir(self) -> Path | None:
+        """Replay folder of the selected source, or None when it is not a replay source or the folder is missing."""
         with self._lock:
             record = self._get_selected_record()
             if not record or record.type != "replay_folder":

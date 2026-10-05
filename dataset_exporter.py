@@ -1,6 +1,24 @@
-from __future__ import annotations
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
 
-"""Validate and package session manifests for reproducible fine-tuning."""
+"""Validate session manifests and package them as reproducible fine-tuning datasets.
+
+Only *paired* samples are exported: a sample is valid when it has at least one
+usable RGB image and one usable thermal image. Samples are assigned to the
+``train`` or ``validation`` split by hashing the sample id, so the same sample
+always lands in the same split and re-exporting a mission is reproducible.
+
+An export is a folder plus a ZIP archive under ``runtime/exports/``:
+
+    images/<split>/<feed>/<hash>_<feed>.jpg
+    dataset.json            schema ``easy.dataset.export.v1`` with every sample
+    validation_report.json  what was excluded and why
+
+Labels are left empty: annotation is a separate, human step.
+"""
+
+from __future__ import annotations
 
 import hashlib
 import json
@@ -14,7 +32,9 @@ from runtime_support import atomic_write_json, utc_now_iso
 
 
 class DatasetExporter:
+    """Validates session manifests and writes dataset archives."""
     def __init__(self, *, session_manager: Any, export_root: Path | str) -> None:
+        """Create the export folder and restore the latest export from its index."""
         self.session_manager = session_manager
         self.export_root = Path(export_root)
         self.export_root.mkdir(parents=True, exist_ok=True)
@@ -22,7 +42,7 @@ class DatasetExporter:
         self._last_export: Dict[str, Any] | None = self._load_latest_export()
 
     def _load_latest_export(self) -> Dict[str, Any] | None:
-        """Restore the latest valid export after a service restart."""
+        """Return the most recent export whose archive still exists, after a service restart."""
         try:
             payload = json.loads(self.index_path.read_text(encoding="utf-8"))
             exports = payload.get("exports", []) if isinstance(payload, dict) else []
@@ -31,6 +51,7 @@ class DatasetExporter:
             return None
 
     def _read_index(self) -> list[Dict[str, Any]]:
+        """Read the export index (empty list if missing or unreadable)."""
         try:
             payload = json.loads(self.index_path.read_text(encoding="utf-8"))
             return list(payload.get("exports", [])) if isinstance(payload, dict) else []
@@ -38,27 +59,36 @@ class DatasetExporter:
             return []
 
     def _write_index(self, exports: list[Dict[str, Any]]) -> None:
+        """Atomically write the export index."""
         atomic_write_json(self.index_path, {"schema": "easy.dataset.exports.v1", "exports": exports, "updated_at": utc_now_iso()})
 
     @staticmethod
     def _path_size(path: Path) -> int:
+        """Size in bytes of a file, or of all files below a directory."""
         if path.is_file():
             return path.stat().st_size
         return sum(item.stat().st_size for item in path.rglob("*") if item.is_file()) if path.is_dir() else 0
 
     def _export_size(self, item: Dict[str, Any]) -> int:
+        """Disk usage of an export (folder and archive), counting only paths inside the export root."""
         paths = [Path(str(item.get(key))) for key in ("path", "archive_path") if item.get(key)]
         return sum(self._path_size(path) for path in paths if path.parent == self.export_root)
 
     @staticmethod
     def _split_for(sample_id: str, validation_percent: int) -> str:
+        """Deterministic split: the first 32 bits of SHA-256(sample id) modulo 100, below ``validation_percent`` means validation."""
         bucket = int(hashlib.sha256(sample_id.encode("utf-8")).hexdigest()[:8], 16) % 100
         return "validation" if bucket < validation_percent else "train"
 
     def validate(self, session_id: str | None = None) -> Dict[str, Any]:
+        """Check which samples of a session can be exported.
+
+        Items are excluded when unusable or when the file is missing. Samples missing
+        either the RGB or the thermal modality are reported as incomplete.
+        """
         manifest = self.session_manager.read_manifest(session_id)
         if not manifest.get("ok"):
-            return {"ok": False, "error": manifest.get("error") or "Manifest non disponibile", "samples": []}
+            return {"ok": False, "error": manifest.get("error") or "Manifest not available", "samples": []}
 
         grouped: Dict[str, list[Dict[str, Any]]] = {}
         excluded: list[Dict[str, Any]] = []
@@ -112,10 +142,15 @@ class DatasetExporter:
         }
 
     def export(self, session_id: str | None = None, *, validation_percent: int = 20) -> Dict[str, Any]:
+        """Copy the valid samples into a new dataset folder and ZIP archive.
+
+        ``validation_percent`` is clamped to 0-50 and at least one sample always stays
+        in the training split.
+        """
         validation_percent = max(0, min(50, int(validation_percent)))
         report = self.validate(session_id)
         if not report.get("ok") or not report.get("valid"):
-            return {**report, "ok": False, "error": report.get("error") or "Nessun campione RGB/termico valido da esportare"}
+            return {**report, "ok": False, "error": report.get("error") or "No valid RGB/thermal sample to export"}
 
         resolved_session_id = str(report["session_id"])
         export_id = f"{resolved_session_id}_{time.strftime('%Y%m%d_%H%M%S', time.gmtime())}_{uuid.uuid4().hex[:6]}"
@@ -189,6 +224,7 @@ class DatasetExporter:
         return dict(self._last_export)
 
     def status(self) -> Dict[str, Any]:
+        """Export folder, last export, disk usage and the retention plan."""
         exports = self._read_index()
         valid_exports = [item for item in exports if Path(str(item.get("archive_path") or "")).is_file()]
         usage = shutil.disk_usage(self.export_root)
@@ -204,7 +240,7 @@ class DatasetExporter:
         }
 
     def retention_plan(self, *, keep_latest: int = 5) -> Dict[str, Any]:
-        """Describe removable exports without deleting operator data."""
+        """Describe which exports would be removed by keeping only the latest ``keep_latest``; deletes nothing."""
         keep_latest = max(1, min(100, int(keep_latest)))
         exports = self._read_index()
         removable = exports[keep_latest:]
@@ -216,7 +252,7 @@ class DatasetExporter:
         }
 
     def apply_retention(self, *, keep_latest: int = 5) -> Dict[str, Any]:
-        """Delete only exports selected by the explicit keep-latest policy."""
+        """Delete the exports selected by the keep-latest policy (only inside the export root)."""
         exports = self._read_index()
         plan = self.retention_plan(keep_latest=keep_latest)
         remove_ids = set(plan["export_ids"])

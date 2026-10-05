@@ -1,5 +1,14 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Small line chart (hand-written SVG) with a numeric axis, dashed grid and hover tooltip.
+ */
+
 import { useMemo, useState } from 'react'
 
+/** One sample: a timestamp plus numeric fields addressed by `dataKey`. */
 export interface SparklineData {
   timestamp: number
   [key: string]: number | string
@@ -16,6 +25,7 @@ interface SparklineProps {
   showGrid?: boolean
 }
 
+/** Width of the SVG coordinate system; the element scales to its container. */
 const VIEW_WIDTH = 400
 const MARGIN = { top: 5, right: 10, left: 40, bottom: 5 }
 const Y_AXIS_TICKS = 5
@@ -24,6 +34,7 @@ const Y_AXIS_TICKS = 5
 // ~9MB of d3-* transitive deps for a single line + grid + tooltip. Keeps the
 // same visual layout: a left-side numeric axis, dashed gridlines, and a
 // hover tooltip showing the value + formatted time.
+/** Plot `dataKey` of each sample between `yMin` and `yMax` and show the nearest point on hover. */
 export function Sparkline({ data, dataKey, label, color = 'var(--accent-info)', height = 200, yMin = 0, yMax = 100, showGrid = true }: SparklineProps) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
 

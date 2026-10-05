@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Live thermal sensor telemetry and the configured alert thresholds (read only).
+ */
+
 import type { ThermalStatusResponse } from '../../api/types'
 
 interface SensorStatusPanelProps {
@@ -6,21 +14,24 @@ interface SensorStatusPanelProps {
   error: unknown
 }
 
+/** Short sensor name taken from the selected device candidate. */
 function sensorName(status: ThermalStatusResponse | null): string {
   const candidates = (status?.device_candidates ?? []) as { path?: string; name?: string; selected?: boolean }[]
   const selected = candidates.find((c) => c.selected) ?? candidates[0]
-  // v4l2-ctl restituisce stringhe prolisse come
-  // "PureThermal (fw:v1.3.0): PureTh (usb-0000:01:00.0-1.3):" — si tiene il
-  // nome del modulo, scartando firmware e percorso USB fra parentesi.
+  // v4l2-ctl returns verbose strings such as
+  // "PureThermal (fw:v1.3.0): PureTh (usb-0000:01:00.0-1.3):": keep the module
+  // name and drop the firmware and the USB path in parentheses.
   const raw = selected?.name
   if (!raw) return 'Thermal sensor'
   return raw.replace(/\s*\(.*$/, '').trim() || 'Thermal sensor'
 }
 
+/** The value if it is a finite number, otherwise null. */
 function number(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
+/** Device, resolution, pixel format, hotspot coverage, signal spread and the thresholds in force. */
 export function SensorStatusPanel({ status, loading, error }: SensorStatusPanelProps) {
   const availability = status?.runtime_state?.availability ?? 'NOT_PRESENT'
   const online = availability === 'READY' || availability === 'STREAMING'
@@ -83,9 +94,8 @@ export function SensorStatusPanel({ status, loading, error }: SensorStatusPanelP
           </div>
         </div>
 
-        {/* Soglie di configurazione, in sola lettura: il backend non espone un
-            endpoint per modificarle, quindi niente interruttori che non
-            cambierebbero nulla. */}
+        {/* Configured thresholds, read only: the backend exposes no endpoint to change
+            them, so there are no switches that would change nothing. */}
         <h3 className="easy-sectiontitle">Configured alert thresholds</h3>
         <div className="easy-rule" style={{ color: anomaly ? 'var(--accent-warn)' : 'var(--text-muted)' }}>
           <i aria-hidden />

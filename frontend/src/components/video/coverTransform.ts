@@ -1,8 +1,18 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Geometry of `object-fit: cover`, used to align overlays with a scaled video frame.
+ */
+
+/** Width and height in pixels. */
 export interface Size {
   width: number
   height: number
 }
 
+/** Uniform scale plus centring offsets. */
 export interface CoverTransform {
   scale: number
   offsetX: number

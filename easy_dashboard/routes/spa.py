@@ -1,3 +1,13 @@
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Serves the built React single-page application (``frontend/dist``).
+
+Any path that is not a real file falls back to ``index.html`` so client-side
+routes (``/mission``, ``/snapshots``, ...) survive a page reload.
+"""
+
 from __future__ import annotations
 
 from flask import Blueprint, abort, current_app, jsonify, send_file, send_from_directory

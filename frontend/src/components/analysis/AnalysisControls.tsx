@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Controls of the AI analysis page: source selector, model information and the run button.
+ */
+
 import type { InferenceStatus, SourceInfo } from '../../api/types'
 
 interface AnalysisControlsProps {
@@ -12,6 +20,7 @@ interface AnalysisControlsProps {
   disabledReason: string | null
 }
 
+/** One-character badge for a source (L, R, a replay arrow or its first letter). */
 function sourceInitial(source: SourceInfo): string {
   const label = String(source.name ?? source.id ?? '?')
   if (/left/i.test(label)) return 'L'
@@ -20,6 +29,7 @@ function sourceInitial(source: SourceInfo): string {
   return label.slice(0, 1).toUpperCase()
 }
 
+/** Radio list of sources (thermal is disabled: the model is RGB-only), model and runtime details, and the *Run analysis* button. */
 export function AnalysisControls({
   sources,
   selectedSourceId,
@@ -56,12 +66,12 @@ export function AnalysisControls({
             <div className="easy-sources" role="radiogroup" aria-label="Inference source">
               {sources.map((source) => {
                 const id = String(source.id)
-                // Il campo reale è `name` ("RGB LEFT"), non `label`: con
-                // `label` ogni sorgente mostrava il proprio id grezzo.
+                // The real field is `name` ("RGB LEFT"), not `label`: with `label` every
+                // source showed its raw id.
                 const label = String((source as Record<string, unknown>).name ?? id)
                 const sourceStatus = String((source as Record<string, unknown>).status ?? '')
-                // I pesi ONNX distribuiti accettano solo RGB: il termico non
-                // va offerto come sorgente compatibile.
+                // The deployed ONNX weights accept RGB only: thermal must not be offered
+                // as a compatible source.
                 const rgbIncompatible = /thermal/i.test(`${id} ${label}`)
                 return (
                   <button
@@ -111,7 +121,7 @@ export function AnalysisControls({
               className="easy-tag"
               style={{ color: loaded ? 'var(--accent-ok)' : loaded === false ? 'var(--accent-warn)' : 'var(--text-muted)' }}
             >
-              {/* undefined non è "non caricato": è "non sappiamo". */}
+              {/* undefined is not "not loaded": it means "unknown". */}
               {loaded === undefined ? 'UNKNOWN' : loaded ? 'LOADED' : 'NOT LOADED'}
             </span>
           </div>

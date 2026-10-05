@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Unit tests for UsersRolesPage.
+ */
+
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { UsersRolesPage } from './UsersRolesPage'
@@ -5,9 +13,9 @@ import { StepUpProvider } from '../components/feedback/StepUpProvider'
 import { useAuth } from '../hooks/AuthContext'
 import { api, ApiError } from '../api/client'
 
-// A differenza di UsersRolesPage.test.tsx (che mocka useStepUp), qui si
-// verifica il flusso reale: azione bloccata -> dialogo -> password corretta
-// -> l'azione originale viene ritentata e completata.
+// Unlike UsersRolesPage.test.tsx (which mocks useStepUp), this one verifies
+// the real flow: blocked action -> dialog -> correct password ->
+// the original action is retried and completed.
 
 vi.mock('../hooks/AuthContext', async () => {
   const actual = await vi.importActual<typeof import('../hooks/AuthContext')>('../hooks/AuthContext')

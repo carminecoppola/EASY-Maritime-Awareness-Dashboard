@@ -1,8 +1,16 @@
-// Tipi che rispecchiano il contratto REST del backend Flask (nessuno schema
-// OpenAPI esiste nel repo). Non inventare/rinominare campi qui: se un payload
-// nested non e' ancora stato osservato in dettaglio resta `unknown` finche'
-// non viene catturata una risposta reale in modalita' replay.
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * TypeScript types mirroring the REST contract of the Flask backend.
+ *
+ * There is no OpenAPI schema in the repository, so these types follow the real
+ * payloads. Do not invent or rename fields here: when a nested payload has not
+ * been observed in detail it stays `unknown` until a real response is captured.
+ */
 
+/** Normalised sensor availability (see `runtime_status.py` in the backend). */
 export type Availability =
   | 'STREAMING'
   | 'READY'
@@ -10,6 +18,7 @@ export type Availability =
   | 'NOT_PRESENT'
   | 'ERROR'
 
+/** State contract of one sensor. */
 export interface RuntimeState {
   availability: Availability
   service_healthy: boolean
@@ -18,6 +27,7 @@ export interface RuntimeState {
   ready: boolean
 }
 
+/** Bounding box in image pixels. */
 export interface BBox {
   x1: number
   y1: number
@@ -27,6 +37,7 @@ export interface BBox {
 
 export type DetectionStatus = 'NEW' | 'ACTIVE' | 'RESOLVED'
 
+/** One detected object with provenance and lifecycle status. */
 export interface Detection {
   id: string
   timestamp: string
@@ -120,7 +131,7 @@ export interface EventsLogResponse {
   summary: { severity?: Record<string, number>; sources?: Record<string, number> }
 }
 
-/** Wrapper reale di events_current/events_history dentro /api/dashboard/state (verificato in replay). */
+/** Real wrapper of events_current/events_history inside /api/dashboard/state (verified in replay). */
 export interface MissionEventsWrapper {
   ok: boolean
   count: number
@@ -141,6 +152,7 @@ export interface SessionEditable {
   weather?: string
 }
 
+/** One mission with its metadata, metrics and manifest summary. */
 export interface Session {
   ok: boolean
   session_id: string | null
@@ -172,6 +184,7 @@ export interface SessionStatusResponse {
   updated_at: string
 }
 
+/** Counters of a mission manifest: items, snapshots, inferences, detections and RGB/thermal pairing. */
 export interface SessionManifestCounts {
   items: number
   snapshots: number
@@ -179,6 +192,8 @@ export interface SessionManifestCounts {
   detections: number
   samples: number
   paired_items: number
+  paired_capture_sets?: number
+  within_tolerance_samples?: number
   synchronized_samples: number
   by_feed: Record<string, number>
 }
@@ -192,6 +207,7 @@ export interface SessionManifest {
   updated_at: string
 }
 
+/** Host information from `/system`. */
 export interface SystemDiagnostics {
   hostname: string
   ip_address: string
@@ -212,7 +228,7 @@ export interface RgbCamera {
   hardware_name: string
   state: string
   fps: number | null
-  /** Epoch in secondi (time.time()), non una stringa ISO. */
+  /** Epoch in seconds (time.time()), not an ISO string. */
   last_acquisition_ts: number | string | null
   error: string | null
   enabled: boolean
@@ -228,6 +244,7 @@ export interface CameraInventory {
   camera_entries?: unknown
 }
 
+/** One stored snapshot. */
 export interface Snapshot {
   filename: string
   feed: string
@@ -258,7 +275,7 @@ export interface SnapshotsRecentResponse {
 
 export interface StreamState {
   enabled: boolean
-  /** Stato completo della camera (camera_state, fps, status…), non una stringa. */
+  /** Full camera state (camera_state, fps, status...), not a string. */
   state: Record<string, unknown>
 }
 
@@ -273,6 +290,7 @@ export interface FocusResponse {
   score: number
 }
 
+/** A frame source as listed by the source manager. */
 export interface SourceInfo {
   id: string
   [key: string]: unknown
@@ -280,11 +298,12 @@ export interface SourceInfo {
 
 export interface SourcesResponse {
   sources: SourceInfo[]
-  /** Oggetto sorgente completo, non una stringa — verificato contro un payload reale. */
+  /** Full source object, not a string; verified against a real payload. */
   selected_source: SourceInfo | null
   selected_source_id: string | null
 }
 
+/** A device as listed by the device manager. */
 export interface DeviceInfo {
   device_id: string
   device_name: string
@@ -303,7 +322,7 @@ export interface AcquisitionStatus {
   [key: string]: unknown
 }
 
-/** POST /api/acquisition/capture-set — un solo capture_set_id per RGB left/right + thermal. */
+/** POST /api/acquisition/capture-set: a single capture_set_id for RGB left/right + thermal. */
 export interface CaptureSetResponse {
   ok: boolean
   complete: boolean
@@ -312,6 +331,11 @@ export interface CaptureSetResponse {
   successful_feeds: number
   total_feeds: number
   captures: Record<string, { ok: boolean; snapshot: Snapshot | null; error: string | null }>
+  pairing?: {
+    status: 'paired_unmeasured' | 'within_tolerance' | 'out_of_tolerance' | 'missing_rgb' | 'missing_thermal'
+    observed_wall_skew_ms: number | null
+    hardware_synchronized: boolean
+  }
   manifest_counts?: SessionManifestCounts
 }
 
@@ -365,11 +389,12 @@ export interface SystemComponentsPayload {
   components: SystemComponentStatus[]
 }
 
+/** Full diagnostic payload of `/health`. */
 export interface HealthResponse {
   ok: boolean
   service: string
   timestamp: string
-  /** Stesso payload di GET /system — già incluso qui, non ripollarlo a parte. */
+  /** Same payload as GET /system, already included here: do not poll it separately. */
   system?: SystemDiagnostics
   system_orchestrator?: unknown
   system_components?: SystemComponentsPayload
@@ -400,7 +425,6 @@ export interface InferenceStatus {
     error?: string
   }
   model_path?: string
-  fallback_model_path?: string
   config_path?: string
   config_error?: string
   error?: string
@@ -428,6 +452,7 @@ export interface InferenceRunResult {
   [key: string]: unknown
 }
 
+/** Compact operator status from `/api/status/summary`. */
 export interface StatusSummaryResponse {
   ok: boolean
   operator_state: string
@@ -439,9 +464,9 @@ export interface StatusSummaryResponse {
 }
 
 /**
- * Payload aggregato di /api/dashboard/state — fonte primaria di polling per
- * la Live Overview. Il backend calcola detection/session una sola volta per
- * questa risposta: NON frammentare in chiamate separate per gli stessi dati.
+ * Aggregated payload of /api/dashboard/state, the primary polling source for the
+ * Live Overview. The backend computes detections and session state once for this
+ * response: do NOT split it into separate calls for the same data.
  */
 export interface DashboardState {
   ok: boolean
@@ -466,10 +491,11 @@ export interface ConfigResponse {
   auth_required: boolean
 }
 
-// Autenticazione locale — vedi easy_dashboard/auth.py per il contratto lato
-// backend. Non confondere con Session/SessionStatusResponse sopra: quelle
-// sono le "missioni" del dominio operativo, questo è il login dell'operatore.
+// Local authentication: see easy_dashboard/auth.py for the backend contract. Do
+// not confuse it with Session/SessionStatusResponse above: those are the
+// operational "missions", this is the operator's login.
 
+/** Role ranking: viewer < operator < admin. */
 export type AuthRole = 'viewer' | 'operator' | 'admin'
 
 export interface AuthUser {
@@ -484,12 +510,12 @@ export interface AuthUser {
 export interface AuthStatusResponse {
   ok: boolean
   setup_complete: boolean
-  /** Stato effettivo, già al netto di un eventuale override dell'ambiente. */
+  /** Effective state, already accounting for any environment override. */
   enforcement_enabled: boolean
-  /** Preferenza salvata dall'Admin — può differire da enforcement_enabled
-   * se il processo la sovrascrive (vedi enforcement_forced_by_server). */
+  /** Preference stored by the Admin. It can differ from enforcement_enabled
+   * when the process overrides it (see enforcement_forced_by_server). */
   auth_enforced_setting: boolean
-  /** true/false se il server forza lo stato, null se segue la preferenza salvata. */
+  /** true/false when the server forces the state, null when it follows the stored preference. */
   enforcement_forced_by_server: boolean | null
   anonymous_viewer_enabled: boolean
   /** Nome del dispositivo, mostrato sulla schermata di login prima di autenticarsi. */
@@ -500,7 +526,7 @@ export interface AuthSessionResponse {
   ok: boolean
   user: AuthUser | null
   csrf_token?: string | null
-  /** true se l'identità viene dal token condiviso legacy, non da un vero login. */
+  /** true when the identity comes from the legacy shared token, not from a real login. */
   legacy?: boolean
   /** true nella breve finestra dopo aver ri-confermato la password (step-up). */
   elevated?: boolean
@@ -515,10 +541,12 @@ export interface StepUpRequiredError {
   step_up_window_seconds?: number
 }
 
+/** Type guard for `StepUpRequiredError` bodies. */
 export function isStepUpRequiredBody(body: unknown): body is StepUpRequiredError {
   return Boolean(body) && typeof body === 'object' && (body as { code?: unknown }).code === 'step_up_required'
 }
 
+/** One entry of the authentication audit log. */
 export interface AuditEntry {
   timestamp: string
   actor: string

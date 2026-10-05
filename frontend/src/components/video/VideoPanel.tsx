@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * One live RGB feed: MJPEG image, detection overlay, status chips and capture/expand actions.
+ */
+
 import { useRef, useState } from 'react'
 import { api } from '../../api/client'
 import { toDate } from '../../utils/formatTime'
@@ -9,22 +17,22 @@ interface VideoPanelProps {
   label: string
   availability: Availability
   /**
-   * Detection correnti da disegnare come overlay. Il backend non offre oggi
-   * un modo affidabile per attribuire una detection a rgb_left vs rgb_right
-   * (source_label riflette la sorgente del frame provider, es. "Replay
-   * Folder", non il lato fisico) — le stesse detection vengono quindi
-   * mostrate su entrambi i pannelli finché il backend non espone
-   * un'attribuzione per-lato.
+   * Current detections to draw as an overlay. The backend offers no reliable way
+   * today to attribute a detection to rgb_left or rgb_right (source_label
+   * reflects the frame provider source, e.g. "Replay Folder", not the physical
+   * side), so the same detections are shown on both panels until the backend
+   * exposes a per-side attribution.
    */
   detections?: Detection[]
-  /** FPS reale della camera (health.cameras.rgb_cameras); omesso se assente. */
+  /** Real camera FPS (health.cameras.rgb_cameras); omitted when absent. */
   fps?: number | null
-  /** Ultima acquisizione riportata dalla camera: epoch in secondi o ISO. */
+  /** Last acquisition reported by the camera: epoch seconds or ISO. */
   lastAcquisitionTs?: number | string | null
-  /** Messaggio d'errore della camera, mostrato nello stato non disponibile. */
+  /** Camera error message, shown in the unavailable state. */
   cameraError?: string | null
 }
 
+/** Operator-facing explanation of each non-streaming availability. */
 const AVAILABILITY_REASON: Record<Availability, string> = {
   STREAMING: '',
   READY: 'Camera ready but not streaming',
@@ -33,6 +41,7 @@ const AVAILABILITY_REASON: Record<Availability, string> = {
   ERROR: 'Camera reported an error',
 }
 
+/** Feed card for `rgb_left` or `rgb_right`; falls back to an explanatory placeholder when the stream is not available. */
 export function VideoPanel({
   feed,
   label,
@@ -51,10 +60,10 @@ export function VideoPanel({
 
   const handleLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     setImageError(false)
-    // Misura la risoluzione nativa direttamente dall'immagine servita,
-    // invece di assumere una risoluzione fissa: elimina il disallineamento
-    // dei bounding box quando la risoluzione reale differisce da un valore
-    // hardcoded (successo in precedenza: 640x480 assunto vs 1280x480 reale).
+    // Measure the native resolution from the served image instead of assuming a
+    // fixed one: this removes the bounding-box misalignment when the real
+    // resolution differs from a hardcoded value (it happened: 640x480 assumed vs
+    // 1280x480 real).
     const img = e.currentTarget
     if (img.naturalWidth && img.naturalHeight) {
       setNaturalSize({ width: img.naturalWidth, height: img.naturalHeight })
@@ -88,8 +97,8 @@ export function VideoPanel({
   const streaming = availability === 'STREAMING'
   const showFeed = !(imageError || availability === 'ERROR' || availability === 'NOT_PRESENT')
 
-  // last_acquisition_ts è un epoch in secondi (time.time()): passarlo a
-  // new Date() direttamente mostrava un orario del 1970 come "ultimo frame".
+  // last_acquisition_ts is an epoch in seconds (time.time()): passing it straight
+  // to new Date() showed a 1970 time as the "last frame".
   const lastFrameAt = toDate(lastAcquisitionTs)
   const frameInfo = captureMessage
     ? captureMessage

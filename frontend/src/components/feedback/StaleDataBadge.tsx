@@ -1,16 +1,24 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Badge that marks data as no longer live.
+ */
+
 import { formatStaleAge } from '../../lib/errors'
 
 interface StaleDataBadgeProps {
-  /** Istante dell'ultimo aggiornamento riuscito. */
+  /** Time of the last successful update. */
   lastSuccessfulAt: Date | number | null | undefined
-  /** Sovrapposto a un'immagine invece che in linea. */
+  /** Overlaid on an image instead of inline. */
   overlay?: boolean
   label?: string
 }
 
 /**
- * Dichiara che il dato mostrato non è più live. Serve a impedire che un
- * frame vecchio venga letto come appena acquisito.
+ * Declares that the data shown is no longer live, so an old frame is never read
+ * as freshly acquired.
  */
 export function StaleDataBadge({ lastSuccessfulAt, overlay = false, label = 'STALE' }: StaleDataBadgeProps) {
   const age = formatStaleAge(lastSuccessfulAt)

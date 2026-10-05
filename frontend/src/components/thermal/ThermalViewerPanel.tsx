@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Large thermal viewer: cached live frame, freeze, expand and evidence capture.
+ */
+
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../../api/client'
 import { useThermalLastFrame } from '../../hooks/useThermal'
@@ -9,6 +17,7 @@ interface ThermalViewerPanelProps {
   onCaptured: () => void
 }
 
+/** Shows the latest thermal frame with its resolution, capture time and frame number; the colour scale is relative, not an absolute temperature map. */
 export function ThermalViewerPanel({ status, onCaptured }: ThermalViewerPanelProps) {
   const availability = status?.runtime_state?.availability ?? 'NOT_PRESENT'
   const ready = availability === 'READY' || availability === 'STREAMING'
@@ -26,9 +35,8 @@ export function ThermalViewerPanel({ status, onCaptured }: ThermalViewerPanelPro
 
   const lastFrameAt = toDate(status?.last_frame_ts as number | string | undefined)
 
-  // Il 204 iniziale (nessun frame ancora catturato) marcava l'immagine come
-  // mancante per sempre: dopo una cattura reale il pannello restava vuoto
-  // fino a un reload.
+  // The initial 204 (no frame captured yet) used to mark the image as missing
+  // forever: after a real capture the panel stayed empty until a reload.
   useEffect(() => setImageMissing(false), [shownUrl])
 
   const handleFreeze = () => {
@@ -68,7 +76,7 @@ export function ThermalViewerPanel({ status, onCaptured }: ThermalViewerPanelPro
     <article className="easy-surface" ref={cardRef}>
       <div className="easy-panelhead">
         <h2>Latest thermal frame</h2>
-        <span className="easy-panelnote">On-demand capture · not a continuous stream</span>
+        <span className="easy-panelnote">Continuous thermal preview · independent from RGB</span>
         <div className="easy-tools">
           <button type="button" className="easy-btn mini" onClick={handleFreeze} disabled={!ready}>
             {frozen ? 'Resume live' : 'Freeze'}
@@ -103,8 +111,8 @@ export function ThermalViewerPanel({ status, onCaptured }: ThermalViewerPanelPro
         <div className="easy-palette" aria-hidden title="Relative colour scale — not an absolute temperature map" />
 
         <div className="easy-over bottom">
-          {/* L'ora è quella dichiarata dal backend per il frame, non il
-              momento in cui l'immagine è stata richiesta. */}
+          {/* The time is the one the backend declares for the frame, not the moment
+              the image was requested. */}
           <span>{lastFrameAt ? `Captured ${lastFrameAt.toLocaleString()}` : 'Capture time unknown'}</span>
           <span className="easy-mono">
             {typeof status?.frame_seq === 'number' ? `frame #${status.frame_seq}` : 'no frame'}

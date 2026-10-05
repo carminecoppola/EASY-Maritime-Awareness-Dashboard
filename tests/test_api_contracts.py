@@ -1,3 +1,9 @@
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""API contract tests: pages render, health and status payloads keep their shape, snapshot paging, token gating and inference configuration."""
+
 from __future__ import annotations
 
 import json
@@ -69,7 +75,7 @@ class ApiContractTests(unittest.TestCase):
         payload = response.get_json()
         self.assertEqual(response.status_code, 200)
         self.assertEqual(runtime.thermal.frame_seq, before)
-        self.assertEqual(payload["runtime_state"]["capture_mode"], "on_demand")
+        self.assertEqual(payload["runtime_state"]["capture_mode"], "continuous")
 
     def test_inference_configuration_matches_deployed_model_classes(self) -> None:
         config_path = PROJECT_ROOT / "runtime" / "config" / "inference_config.json"

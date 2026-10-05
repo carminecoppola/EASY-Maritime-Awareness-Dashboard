@@ -1,3 +1,9 @@
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Tests for RGB capture commands and MJPEG frame splitting."""
+
 from __future__ import annotations
 
 import io
@@ -127,6 +133,29 @@ class RgbCaptureTests(unittest.TestCase):
         self.assertEqual(right.size, (4, 4))
         self.assertGreater(left.getpixel((1, 1))[0], left.getpixel((1, 1))[2])
         self.assertGreater(right.getpixel((1, 1))[2], right.getpixel((1, 1))[0])
+
+    def test_atomic_stereo_capture_shares_sequence_and_timestamp(self) -> None:
+        source = RgbMasterSource(
+            {"rgb": {"camera_index": 0, "width": 8, "height": 4, "fps": 10, "quality": 90}},
+            events=None,  # type: ignore[arg-type]
+            probe=None,  # type: ignore[arg-type]
+        )
+        stereo = Image.new("RGB", (8, 4), "red")
+        stereo.paste(Image.new("RGB", (4, 4), "blue"), (4, 0))
+        encoded = io.BytesIO()
+        stereo.save(encoded, format="JPEG", quality=100, subsampling=0)
+        source._store_frame(encoded.getvalue())
+        source.wait_for_frame = lambda last_seq=0, timeout=2.0: (source._frame, source._frame_seq)  # type: ignore[method-assign]
+
+        sample = source.capture_stereo_frame()
+
+        self.assertIsNotNone(sample)
+        assert sample is not None
+        self.assertEqual(sample.sequence, 1)
+        self.assertGreater(sample.received_wall_ts, 0)
+        self.assertGreater(sample.received_monotonic_ns, 0)
+        self.assertEqual(Image.open(io.BytesIO(sample.left_jpeg)).size, (4, 4))
+        self.assertEqual(Image.open(io.BytesIO(sample.right_jpeg)).size, (4, 4))
 
     def test_focus_score_reports_higher_sharpness_for_a_noisy_frame(self) -> None:
         source = RgbMasterSource(

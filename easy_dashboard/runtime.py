@@ -1,11 +1,17 @@
-from __future__ import annotations
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
 
-"""Runtime context shared by Flask blueprints.
+"""Runtime context shared by the Flask blueprints.
 
 The dashboard has several long-lived collaborators: stores, hardware probes,
-stream sources, and runtime managers. Keeping them behind one context object
-lets route modules stay small without hiding the dependencies in globals.
+stream sources and the runtime managers. ``DashboardRuntime`` keeps them behind
+one object so route modules stay small without hiding dependencies in globals,
+and it builds the aggregate payloads served by ``/health``, ``/health/ready``,
+``/api/status/summary`` and ``/api/dashboard/state``.
 """
+
+from __future__ import annotations
 
 import time
 from dataclasses import dataclass
@@ -21,6 +27,7 @@ from easy_dashboard.utils import utc_now_iso
 
 @dataclass
 class DashboardRuntime:
+    """Bundle of the application's collaborators plus the API payload builders."""
     config: Dict[str, Any]
     events: Any
     snapshot_store: Any
@@ -32,40 +39,50 @@ class DashboardRuntime:
 
     @property
     def device_manager(self) -> Any:
+        """The orchestrator's device manager."""
         return self.orchestrator.device_manager
 
     @property
     def source_manager(self) -> Any:
+        """The orchestrator's source manager."""
         return self.orchestrator.source_manager
 
     @property
     def session_manager(self) -> Any:
+        """The orchestrator's session manager."""
         return self.orchestrator.session_manager
 
     @property
     def event_manager(self) -> Any:
+        """The orchestrator's event manager."""
         return self.orchestrator.event_manager
 
     @property
     def acquisition_manager(self) -> Any:
+        """The orchestrator's acquisition manager."""
         return self.orchestrator.acquisition_manager
 
     @property
     def detection_manager(self) -> Any:
+        """The orchestrator's detection manager."""
         return self.orchestrator.detection_manager
 
     @property
     def dataset_exporter(self) -> Any:
+        """The orchestrator's dataset exporter."""
         return self.orchestrator.dataset_exporter
 
     @property
     def inference(self) -> Any:
+        """The orchestrator's inference worker."""
         return self.orchestrator.inference
 
     def asset_version(self) -> str:
+        """Cache-busting token for assets (current epoch seconds)."""
         return str(int(time.time()))
 
     def events_payload(self, limit: int = 50) -> Dict[str, Any]:
+        """Return the latest ``limit`` events with severity and source counts over the whole log."""
         all_events = self.events.list(9999)
         severity_counts: Dict[str, int] = {}
         source_counts: Dict[str, int] = {}
@@ -81,6 +98,7 @@ class DashboardRuntime:
         }
 
     def inference_status_payload(self, *, detection_state: Dict[str, Any] | None = None) -> Dict[str, Any]:
+        """Inference worker status enriched with the detection manager's current state and the frame provider."""
         status_payload = self.inference.status()
         if detection_state is None:
             detection_state = self.detection_manager.get_current_detections()
@@ -102,6 +120,10 @@ class DashboardRuntime:
         return status_payload
 
     def health_payload(self, *, detection_state: Dict[str, Any] | None = None) -> Dict[str, Any]:
+        """Full diagnostic payload behind ``/health``: system, components, cameras, sensors, inference, session and operations.
+
+        ``ok`` follows the RGB and thermal service health only; the rest is informative.
+        """
         camera_inventory = build_camera_inventory(self.rgb, self.thermal)
         system_payload = build_system_payload(self.probe)
         rgb_state = self.rgb.latest_state()
@@ -150,7 +172,7 @@ class DashboardRuntime:
         }
 
     def readiness_payload(self) -> Dict[str, Any]:
-        """Return only the state needed by service and tunnel readiness checks."""
+        """Minimal payload for service and tunnel readiness checks (``/health/ready``)."""
         rgb_state = self.rgb.latest_state()
         thermal_state = self.thermal.status_payload()
         orchestrator_state = self.orchestrator.health()
@@ -162,11 +184,10 @@ class DashboardRuntime:
         }
 
     def status_summary_payload(self) -> Dict[str, Any]:
-        """Return a compact operator-facing status payload.
+        """Compact operator-facing status that answers 'can I use the dashboard right now?'.
 
-        `/health` is intentionally detailed for diagnostics. This summary is
-        designed for UI cards, smoke checks, and first-level support: it keeps
-        only the fields that answer "can I use the dashboard right now?".
+        ``/health`` is intentionally detailed; this summary keeps only what UI cards,
+        smoke checks and first-level support need.
         """
         rgb_state = self.rgb.latest_state()
         thermal_state = self.thermal.status_payload()
@@ -233,6 +254,11 @@ class DashboardRuntime:
         # and hand it to both so a single dashboard poll doesn't do that I/O
         # twice. Also reuse health_payload()'s sources/devices/session/
         # orchestrator state instead of asking each manager again.
+        """Everything the SPA polls in one request: health, events, snapshots, sources, devices, inference, session and acquisition.
+
+        The detection state is computed once and shared with the sub-payloads so a
+        single poll does not repeat that I/O.
+        """
         detection_state = self.detection_manager.get_current_detections()
         health_payload = self.health_payload(detection_state=detection_state)
         snapshots_limit = int(request.args.get("snapshots_limit", 12))
@@ -263,6 +289,12 @@ class DashboardRuntime:
         }
 
     def capture_snapshot(self, feed: str, capture_fn: Callable[[], Any], meta: Dict[str, Any]) -> tuple[Any, bool, Dict[str, Any] | None, Dict[str, Any]]:
+        """Run ``capture_fn`` and, when it produced a real frame, store and index the snapshot.
+
+        Returns ``(frame, ok, snapshot_info, meta)``. Placeholder frames (camera not
+        ready) are returned to the caller but never saved, so they cannot appear in the
+        archive as if they were photographs.
+        """
         try:
             frame, ok = capture_fn()
             meta = dict(meta)

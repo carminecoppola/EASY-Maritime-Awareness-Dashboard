@@ -1,3 +1,9 @@
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Tests for local authentication: password hashing, users, roles, sessions, step-up, rate limiting, CSRF, audit log and the HTTP endpoints."""
+
 from __future__ import annotations
 
 import json

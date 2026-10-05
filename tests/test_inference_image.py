@@ -1,3 +1,9 @@
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Tests for the image pipeline: letterboxing, NMS and YOLO output decoding."""
+
 from __future__ import annotations
 
 import unittest

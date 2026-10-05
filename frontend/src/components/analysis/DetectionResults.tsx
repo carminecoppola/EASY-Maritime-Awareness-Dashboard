@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Table of the detections of the latest inference.
+ */
+
 import { toDate } from '../../utils/formatTime'
 import type { Detection } from '../../api/types'
 
@@ -8,12 +16,14 @@ interface DetectionResultsProps {
   error: string | null
 }
 
+/** Green from 70%, amber from 40%, muted below. */
 function confidenceColor(confidence: number): string {
   if (confidence >= 0.7) return 'var(--accent-ok)'
   if (confidence >= 0.4) return 'var(--accent-warn)'
   return 'var(--text-muted)'
 }
 
+/** Class, confidence, source, time and status of each detection, with loading, error and empty states. */
 export function DetectionResults({ detections, meta, loading, error }: DetectionResultsProps) {
   return (
     <article className="easy-surface">

@@ -1,3 +1,11 @@
+/*
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Application shell: sidebar, top bar and responsive layout.
+ */
+
 /* App shell: sidebar, top bar, griglia generale e comportamento responsive. */
 
 .easy-app {
@@ -55,7 +63,7 @@
 
 .easy-navlabel {
   font-size: 12px;
-  /* #637487 su --bg-1 dava 3.95:1, sotto la soglia AA per testo piccolo. */
+  /* #637487 on --bg-1 gave 3.95:1, below the AA threshold for small text. */
   color: var(--text-muted);
   font-weight: 700;
   letter-spacing: 0.13em;
@@ -261,8 +269,8 @@
   font-size: 12px;
 }
 
-/* Sidebar a rail già in fascia tablet (1024px), prima che il contenuto
-   passi a colonna singola a 980px. */
+/* Rail sidebar already in the tablet range (1024px), before the content
+   switches to a single column at 980px. */
 @media (max-width: 1100px) {
   .easy-app {
     grid-template-columns: 72px minmax(0, 1fr);

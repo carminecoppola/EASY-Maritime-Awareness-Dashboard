@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Metric card: title, large value, optional status badge and hint.
+ */
+
 import type { ReactNode } from 'react'
 import type { Tone } from './severityColors'
 import { StatusBadge } from './StatusBadge'
@@ -8,14 +16,15 @@ interface StatusCardProps {
   tone?: Tone
   toneText?: string
   hint?: string
-  /** Colora anche il valore, non solo il badge — stesso principio già usato in System Diagnostics (CameraCard, tabella componenti). */
+  /** Also colours the value, not just the badge: the same principle used in System Diagnostics (CameraCard, components table). */
   valueTone?: Tone
 }
 
+/** Card for one headline value. */
 export function StatusCard({ title, value, tone, toneText, hint, valueTone }: StatusCardProps) {
-  // Il pallino ripete visivamente il colore del valore (mai l'unico segnale:
-  // il valore stesso resta testo) — leggibile come "stato" anche a distanza,
-  // prima che si arrivi a leggere il numero.
+  // The dot repeats the value colour visually (never the only signal: the value
+  // itself stays text), so it reads as a "state" even from a distance, before the
+  // number is read.
   const dotColor = valueTone?.color ?? tone?.color
   return (
     <div

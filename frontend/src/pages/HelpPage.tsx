@@ -1,14 +1,24 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Help & Onboarding page: the normal workflow, page guides, recovery paths and a live readiness checklist.
+ */
+
 import { Link } from 'react-router-dom'
 import { useSharedDashboardState } from '../hooks/DashboardStateContext'
 import { CHECK_COLOR, CHECK_GLYPH, preflightChecks } from '../lib/preflight'
 
+/** The four steps of a normal session. */
 const FLOW = [
   { step: 1, title: 'Verify Live', detail: 'Confirm all required feeds are current.' },
   { step: 2, title: 'Start Mission', detail: 'Create the manifest before collection.' },
-  { step: 3, title: 'Capture & Analyze', detail: 'Save synchronized sets and run RGB AI.' },
+  { step: 3, title: 'Capture & Analyze', detail: 'Save paired sensor sets and run RGB AI.' },
   { step: 4, title: 'Review & Export', detail: 'Validate evidence in the archive.' },
 ]
 
+/** One short guide card per page. */
 const GUIDES = [
   {
     to: '/',
@@ -35,14 +45,14 @@ const GUIDES = [
     to: '/thermal-events',
     tag: 'Thermal & Events',
     question: 'How does the thermal sensor behave?',
-    answer: 'It is captured on demand and releases the device between frames.',
+    answer: 'A persistent thermal worker runs concurrently with both RGB views; snapshots save the latest frame.',
     cta: 'Open Thermal',
   },
   {
     to: '/snapshots',
     tag: 'Archive',
     question: 'Where are images stored?',
-    answer: 'Review synchronized capture sets and prepare validated exports.',
+    answer: 'Review paired sensor capture sets and prepare validated exports.',
     cta: 'Open Archive',
   },
   {
@@ -54,6 +64,7 @@ const GUIDES = [
   },
 ]
 
+/** Quick recovery hints. */
 const ISSUES = [
   {
     tone: '',
@@ -72,10 +83,11 @@ const ISSUES = [
   },
 ]
 
+/** Static guidance plus the pre-flight checks computed from the live state. */
 export function HelpPage() {
   const { data } = useSharedDashboardState()
-  // La checklist di preparazione riflette lo stato reale, non una lista di
-  // spunte sempre verdi come nel mockup.
+  // The readiness checklist reflects the real state, not a list of ticks that are
+  // always green as in the mock-up.
   const checks = preflightChecks(data ?? null)
   const missionRunning = data?.session?.running ?? false
 

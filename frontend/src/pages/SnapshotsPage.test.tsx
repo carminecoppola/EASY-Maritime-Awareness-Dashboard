@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Unit tests for SnapshotsPage.
+ */
+
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { SnapshotsPage } from './SnapshotsPage'
@@ -54,18 +62,18 @@ describe('SnapshotsPage', () => {
     expect(screen.getByText('Left 1 · Right 1')).toBeInTheDocument()
   })
 
-  it('blocks the synchronized capture without an active mission', () => {
+  it('blocks paired capture without an active mission', () => {
     mockSnapshots({ items: [], feeds: {} })
     mockDashboard({ session: { running: false } })
     render(<SnapshotsPage />)
-    expect(screen.getByRole('button', { name: 'Capture synchronized set' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Capture paired set' })).toBeDisabled()
   })
 
-  it('allows the synchronized capture during a mission', () => {
+  it('allows paired capture during a mission', () => {
     mockSnapshots({ items: [], feeds: {} })
     mockDashboard({ session: { running: true } })
     render(<SnapshotsPage />)
-    expect(screen.getByRole('button', { name: 'Capture synchronized set' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Capture paired set' })).toBeEnabled()
   })
 
   it('shows the gallery error state', () => {

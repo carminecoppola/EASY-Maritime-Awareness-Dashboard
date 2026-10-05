@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Collapsible section with a toggle title.
+ */
+
 import { useState, type ReactNode } from 'react'
 
 interface CollapsibleProps {
@@ -6,6 +14,7 @@ interface CollapsibleProps {
   children: ReactNode
 }
 
+/** Shows `children` below a clickable title; closed unless `defaultOpen`. */
 export function Collapsible({ title, defaultOpen = false, children }: CollapsibleProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen)
 

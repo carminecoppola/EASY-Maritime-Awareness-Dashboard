@@ -1,12 +1,45 @@
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Thermal camera runtime: PureThermal (FLIR Lepton) capture and preview rendering.
+
+``ThermalState`` owns everything about the thermal sensor:
+
+    discovery   find the PureThermal V4L2 node by name (``thermal_discovery.py``)
+    capture     FFmpeg reads raw 16-bit (Y16) frames from the node
+    rendering   each raw frame becomes a colour-mapped JPEG preview with a hotspot
+                box and a statistics banner
+    status      a state contract (STREAMING, READY, ...) for the API
+
+Capture modes (``thermal.capture_mode`` in ``config.yaml``):
+
+    continuous  a persistent FFmpeg process feeds a worker thread (default; it
+                passed the 30-minute recovery test and the two-hour RGB+thermal
+                endurance run);
+    on_demand   one bounded single-frame FFmpeg transaction per request, so the
+                device is released between frames.
+
+There is also a ``mock`` mode that simulates a 16x12 heat map, which keeps the
+dashboard usable on a machine with no sensor.
+
+Safety: capture pauses (COOLDOWN) while the CPU is at or above 78 C, and a
+failing stream is retried with exponential back-off. Raw values are
+uncalibrated sensor counts, not temperatures: hotspot detection is relative to
+the scene (percentiles of the frame).
+"""
+
 from __future__ import annotations
 
 import io
 import logging
 import os
+import select
 import shutil
 import subprocess
 import threading
 import time
+from collections import deque
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
@@ -27,9 +60,15 @@ class ThermalState:
     """Owns thermal capture and produces dashboard-ready preview frames."""
 
     def __init__(self, config: Dict[str, Any], events: EventStore) -> None:
+        """Read the thermal settings (environment variables ``EASY_THERMAL_*`` override ``config.yaml``) and prepare the state."""
         self.config = config
         self.events = events
         self.mode = str(config["thermal"].get("mode", "mock")).lower()
+        self.capture_mode = str(config["thermal"].get("capture_mode", "continuous")).lower()
+        if self.capture_mode not in {"on_demand", "continuous"}:
+            self.capture_mode = "on_demand"
+        self.stream_fps = max(1, min(30, int(config["thermal"].get("stream_fps", 9))))
+        self.preview_fps = max(1, min(self.stream_fps, int(config["thermal"].get("preview_fps", 5))))
         self.enabled = bool(config["thermal"].get("enabled", True))
         self.configured_device = str(os.environ.get("EASY_THERMAL_DEVICE") or config["thermal"].get("device", "auto"))
         self.device = self.configured_device
@@ -44,6 +83,8 @@ class ThermalState:
         self.last_stats: Dict[str, Any] = {}
         self.last_frame_bytes: Optional[bytes] = None
         self.last_frame_ts: float = 0.0
+        self.last_frame_monotonic_ns: int = 0
+        self._last_preview_monotonic_ns: int = 0
         self.last_event_ts: float = 0.0
         self.frame_seq = 0
         self.status = "MOCK" if self.mode == "mock" else "PENDING"
@@ -63,17 +104,32 @@ class ThermalState:
         self._stop_event = threading.Event()
         self._stream_process: Optional[subprocess.Popen[bytes]] = None
         self._stream_attempt_count = 0
+        self._stream_restart_count = 0
+        self._stream_failure_count = 0
+        self._invalid_frame_count = 0
+        self._frame_times: deque[float] = deque(maxlen=max(12, self.stream_fps * 3))
+        self._raw_frames: deque[tuple[int, int, bytes]] = deque(maxlen=3)
         self._first_stream_attempt_event = threading.Event()
         self._first_frame_event = threading.Event()
         self._rgb_pause_callback: Optional[Callable[[], None]] = None
         self._rgb_resume_callback: Optional[Callable[[], None]] = None
 
     def set_rgb_coordinator(self, pause: Callable[[], None], resume: Callable[[], None]) -> None:
+        """Register callbacks that pause and resume the RGB camera around a thermal transaction.
+
+        Not needed on the current hardware (RGB and thermal use independent paths); kept
+        for setups where the two compete for the same bus.
+        """
         self._rgb_pause_callback = pause
         self._rgb_resume_callback = resume
 
     def detect_device(self) -> bool:
-        """Resolve the real PureThermal V4L2 node and update detection state."""
+        """Resolve the real PureThermal V4L2 node and update the detection state.
+
+        A configured device is accepted only if it identifies itself as PureThermal/FLIR
+        (unless ``EASY_THERMAL_ALLOW_UNVERIFIED_DEVICE=1``); with ``auto`` the device is
+        discovered through ``v4l2-ctl`` and then sysfs.
+        """
         detection_started = time.monotonic()
         LOGGER.info(
             "THERMAL detect begin enabled=%s mode=%s configured_device=%s input_format=%s video_size=%s",
@@ -151,6 +207,7 @@ class ThermalState:
         return detected
 
     def _discover_purethermal_device(self) -> str | None:
+        """Discover candidates with ``v4l2-ctl``, falling back to sysfs, and return the best node (None if none)."""
         candidates = self._discover_with_v4l2_ctl()
         if candidates:
             self.discovery_method = "v4l2-ctl"
@@ -162,40 +219,36 @@ class ThermalState:
         return None
 
     def _discover_with_v4l2_ctl(self) -> list[Dict[str, Any]]:
+        """Candidates from ``v4l2-ctl``, recorded in ``device_candidates``."""
         candidates = self._discovery.discover_with_v4l2_ctl()
         self.device_candidates.extend(candidates)
         return candidates
 
     def _discover_with_sysfs(self) -> list[Dict[str, Any]]:
+        """Candidates from sysfs, recorded in ``device_candidates``."""
         candidates = self._discovery.discover_with_sysfs()
         self.device_candidates.extend(candidates)
         return candidates
 
     def _inspect_video_candidate(self, device_path: str, name: str, source: str) -> Dict[str, Any]:
+        """Describe one candidate node (no capability probing)."""
         return self._discovery.inspect_candidate(device_path, name, source)
 
     def _select_thermal_candidate(self, candidates: list[Dict[str, Any]]) -> str:
+        """Pick the best candidate path."""
         return PureThermalDiscovery.select_candidate(candidates)
 
-    def _thermal_stream_candidates(self) -> list[str]:
-        """Return candidate video nodes, trying the selected one first and then fallbacks."""
-        ordered: list[str] = []
-        if self.device:
-            ordered.append(self.device)
-        for candidate in self.device_candidates:
-            path = str(candidate.get("path") or "").strip()
-            if path and path not in ordered:
-                ordered.append(path)
-        return ordered
-
     def _is_purethermal_device(self, device_path: str) -> bool:
+        """True when the node identifies itself as PureThermal/FLIR."""
         return self._discovery.is_purethermal_device(device_path)
 
     @staticmethod
     def _name_looks_thermal(name: str) -> bool:
+        """True when a device name mentions PureThermal, FLIR or Lepton."""
         return PureThermalDiscovery.name_looks_thermal(name)
 
     def _friendly_thermal_error(self, stderr: str, returncode: int | None = None) -> str:
+        """Turn raw FFmpeg/V4L2 error text into an operator-friendly message."""
         message = (stderr or "").strip()
         lowered = message.lower()
         if "device or resource busy" in lowered or "busy" in lowered:
@@ -213,6 +266,7 @@ class ThermalState:
         return message or f"thermal ffmpeg exited with code {returncode}"
 
     def _video_dimensions(self) -> tuple[int, int]:
+        """Configured frame size as ``(width, height)``; defaults to 160x120."""
         try:
             width_text, height_text = self.video_size.lower().split("x", 1)
             return int(width_text), int(height_text)
@@ -220,8 +274,23 @@ class ThermalState:
             return 160, 120
 
     def start(self) -> None:
-        """Prepare the device; real acquisition is deliberately on demand."""
+        """Start the persistent worker (continuous mode) or mark the on-demand backend READY."""
         if not self.enabled or self.mode != "real" or not self.detected:
+            return
+        if self.capture_mode == "continuous":
+            if self._worker_started:
+                return
+            self._stop_event.clear()
+            self._first_stream_attempt_event.clear()
+            self._worker_started = True
+            self.status = "STARTING"
+            self.error = "Waiting for first thermal frame"
+            self._worker_thread = threading.Thread(
+                target=self._continuous_worker_loop,
+                name="easy-thermal-continuous",
+                daemon=True,
+            )
+            self._worker_thread.start()
             return
         already_ready = self.status == "READY" and not self.error
         self.status = "READY"
@@ -230,7 +299,10 @@ class ThermalState:
             LOGGER.info("THERMAL on-demand backend ready device=%s", self.device)
 
     def wait_for_bootstrap_attempt(self, timeout_seconds: float) -> str:
-        """Wait until the first thermal frame arrives or the first stream attempt ends."""
+        """Wait until the first thermal frame arrives or the first stream attempt ends.
+
+        Returns ``frame_received``, ``attempt_completed`` or ``timeout``.
+        """
         if self._first_frame_event.is_set() or self.frame_seq > 0:
             return "frame_received"
         if self._first_stream_attempt_event.wait(max(0.0, timeout_seconds)):
@@ -238,6 +310,7 @@ class ThermalState:
         return "timeout"
 
     def stop(self) -> None:
+        """Stop the worker and terminate the FFmpeg process."""
         self._stop_event.set()
         process = self._stream_process
         if process and process.poll() is None:
@@ -249,14 +322,139 @@ class ThermalState:
         worker = getattr(self, "_worker_thread", None)
         if worker and worker is not threading.current_thread():
             worker.join(timeout=5.0)
+        self._worker_started = False
+
+    def _continuous_stream_command(self) -> list[str]:
+        """FFmpeg command that streams raw Y16 frames from the V4L2 node to stdout."""
+        return [
+            shutil.which("ffmpeg") or "ffmpeg",
+            "-nostdin", "-hide_banner", "-loglevel", "error",
+            "-f", "v4l2", "-framerate", str(self.stream_fps),
+            "-input_format", self.input_format, "-video_size", self.video_size,
+            "-i", self.device, "-f", "rawvideo", "-pix_fmt", "gray16le", "pipe:1",
+        ]
+
+    def _read_continuous_frame(self, process: subprocess.Popen[bytes], frame_size: int, timeout: float = 3.0) -> bytes:
+        """Read exactly one frame from the FFmpeg pipe (empty or short on timeout or exit)."""
+        if process.stdout is None:
+            return b""
+        payload = bytearray()
+        deadline = time.monotonic() + timeout
+        fd = process.stdout.fileno()
+        while len(payload) < frame_size and not self._stop_event.is_set():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or process.poll() is not None:
+                break
+            readable, _, _ = select.select([fd], [], [], min(0.25, remaining))
+            if readable:
+                chunk = os.read(fd, frame_size - len(payload))
+                if not chunk:
+                    break
+                payload.extend(chunk)
+        return bytes(payload)
+
+    def _continuous_worker_loop(self) -> None:
+        """Worker thread: keep one FFmpeg stream alive and publish every frame.
+
+        Each frame updates the preview (rate-limited to ``preview_fps``), the raw-frame
+        ring buffer, the statistics and the frame sequence. A broken stream is restarted
+        with exponential back-off (up to 30 s); status becomes DEGRADED if frames had
+        been flowing and ERROR otherwise.
+        """
+        width, height = self._video_dimensions()
+        frame_size = width * height * 2
+        saw_frame = False
+        try:
+            while not self._stop_event.is_set():
+                cpu_temperature = read_cpu_temperature()
+                # Thermal protection: pause capture while the Raspberry is too hot (checked on every cycle).
+                if cpu_temperature is not None and cpu_temperature >= self._max_cpu_temperature:
+                    self.status = "COOLDOWN"
+                    self.error = f"Thermal stream paused: CPU temperature {cpu_temperature:.1f} C"
+                    self._retry_after = time.time() + 10.0
+                    self._stop_event.wait(10.0)
+                    continue
+                self._stream_attempt_count += 1
+                if saw_frame:
+                    self._stream_restart_count += 1
+                process: subprocess.Popen[bytes] | None = None
+                try:
+                    process = subprocess.Popen(
+                        self._continuous_stream_command(),
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        bufsize=0,
+                    )
+                    self._stream_process = process
+                    self.status = "STARTING"
+                    while not self._stop_event.is_set():
+                        payload = self._read_continuous_frame(process, frame_size)
+                        if len(payload) != frame_size:
+                            self._stream_failure_count += 1
+                            if payload:
+                                self._invalid_frame_count += 1
+                            raise RuntimeError(f"thermal stream frame incomplete: {len(payload)}/{frame_size} bytes")
+                        wall_ts = time.time()
+                        monotonic_ns = time.monotonic_ns()
+                        raw_map = np.frombuffer(payload, dtype="<u2").reshape((height, width)).astype(np.float32)
+                        image, extra = self._real_thermal_palette(raw_map)
+                        preview_interval_ns = int(1_000_000_000 / self.preview_fps)
+                        preview = None
+                        if self.last_frame_bytes is None or monotonic_ns - self._last_preview_monotonic_ns >= preview_interval_ns:
+                            preview = self._encode_image(image)
+                        with self._frame_lock:
+                            self.frame_seq += 1
+                            if preview is not None:
+                                self.last_frame_bytes = preview
+                                self._last_preview_monotonic_ns = monotonic_ns
+                            self.last_frame_ts = wall_ts
+                            self.last_frame_monotonic_ns = monotonic_ns
+                            self._frame_times.append(monotonic_ns / 1_000_000_000.0)
+                            self._raw_frames.append((self.frame_seq, monotonic_ns, payload))
+                            self.last_stats = {
+                                "mode": self.mode,
+                                "status": "REAL",
+                                "detected": True,
+                                "capture_mode": self.capture_mode,
+                                "frame_seq": self.frame_seq,
+                                "received_wall_ts": wall_ts,
+                                "received_monotonic_ns": monotonic_ns,
+                                "radiometric": False,
+                                **extra,
+                            }
+                            self.status = "REAL"
+                            self.error = ""
+                        saw_frame = True
+                        self._first_frame_event.set()
+                        self._first_stream_attempt_event.set()
+                except Exception as exc:
+                    if not self._stop_event.is_set():
+                        self.status = "DEGRADED" if saw_frame else "ERROR"
+                        self.error = self._friendly_thermal_error(str(exc))
+                        self._retry_after = time.time() + min(30.0, 2.0 ** min(self._stream_attempt_count, 4))
+                        self._first_stream_attempt_event.set()
+                        self._stop_event.wait(max(0.0, self._retry_after - time.time()))
+                finally:
+                    if process and process.poll() is None:
+                        process.terminate()
+                        try:
+                            process.wait(timeout=2.0)
+                        except subprocess.TimeoutExpired:
+                            process.kill()
+                            process.wait(timeout=1.0)
+                    self._stream_process = None
+        finally:
+            self._worker_started = False
 
     def _build_base_map(self) -> np.ndarray:
+        """Smooth 16x12 temperature field around 24 C used by the simulator."""
         x = np.linspace(0, 1, 16)
         y = np.linspace(0, 1, 12)
         xx, yy = np.meshgrid(x, y)
         return 24.0 + 1.5 * np.sin(xx * np.pi * 2) + 0.7 * np.cos(yy * np.pi * 3)
 
     def _thermal_palette(self, temp_map: np.ndarray) -> Image.Image:
+        """Render a simulated temperature matrix as a labelled false-colour image with hotspot boxes."""
         min_t = float(temp_map.min())
         max_t = float(temp_map.max())
         avg_t = float(temp_map.mean())
@@ -305,13 +503,14 @@ class ThermalState:
             py = int(y * cell_h)
             draw.line((0, py, 640, py), fill=(235, 246, 255), width=1)
         draw_rounded_box(draw, (12, 12, 240, 48), radius=14, fill=(255, 122, 122) if self._anomaly_active else (38, 208, 178))
-        draw.text((24, 20), "ALLARME TERMICO" if self._anomaly_active else "TERMICO OK", fill=(8, 19, 30))
-        footer = f"min {min_t:.1f} C | avg {float(temp_map.mean()):.1f} C | max {max_t:.1f} C | soglia {self.threshold_celsius:.1f} C"
+        draw.text((24, 20), "THERMAL ALARM" if self._anomaly_active else "THERMAL OK", fill=(8, 19, 30))
+        footer = f"min {min_t:.1f} C | avg {float(temp_map.mean()):.1f} C | max {max_t:.1f} C | threshold {self.threshold_celsius:.1f} C"
         draw.rectangle((12, 308, 628, 348), fill=(0, 0, 0))
         draw.text((24, 321), footer, fill=(244, 248, 251))
         return image
 
     def _simulate_matrix(self) -> np.ndarray:
+        """Simulated matrix: base field plus noise and, with 45% probability, a Gaussian-like hot spot."""
         noise = self._rng.normal(0, 0.6, size=(12, 16))
         drift = self._rng.normal(0, 0.15)
         temp_map = self._base_map + noise + drift
@@ -326,6 +525,7 @@ class ThermalState:
         return np.clip(temp_map, 18.0, 58.0)
 
     def _single_frame_command(self) -> list[str]:
+        """FFmpeg command that captures one raw Y16 frame to stdout."""
         ffmpeg = shutil.which("ffmpeg") or "ffmpeg"
         return [
             ffmpeg, "-hide_banner", "-loglevel", "error", "-f", "v4l2", "-framerate", "9",
@@ -334,40 +534,10 @@ class ThermalState:
         ]
 
     def _single_frame_file_command(self, output_path: Path) -> list[str]:
+        """Same capture, writing to a file (a tmpfs buffer) instead of a pipe."""
         command = self._single_frame_command()
         command[-1] = str(output_path)
         return command
-
-    def _ffmpeg_stream_command(self, output_path: Path) -> list[str]:
-        width, height = self._video_dimensions()
-        return [
-            shutil.which("ffmpeg") or "ffmpeg", "-nostdin", "-y", "-hide_banner", "-loglevel", "error",
-            "-f", "v4l2", "-framerate", "9", "-input_format", self.input_format,
-            "-video_size", f"{width}x{height}", "-i", self.device,
-            "-frames:v", "90", "-f", "rawvideo", "-pix_fmt", "gray16le", str(output_path),
-        ]
-
-    @staticmethod
-    def _read_growing_file_frame(
-        stream: Any,
-        process: subprocess.Popen[bytes],
-        frame_size: int,
-        timeout_seconds: float,
-    ) -> bytes:
-        """Read one frame while FFmpeg grows a regular tmpfs file."""
-        chunks: list[bytes] = []
-        remaining = frame_size
-        deadline = time.monotonic() + timeout_seconds
-        while remaining > 0 and time.monotonic() < deadline:
-            chunk = stream.read(remaining)
-            if chunk:
-                chunks.append(chunk)
-                remaining -= len(chunk)
-                continue
-            if process.poll() is not None:
-                break
-            time.sleep(0.02)
-        return b"".join(chunks)
 
     def _capture_y16_matrix(self) -> np.ndarray:
         """Capture one frame and close V4L2 cleanly after each transaction.
@@ -414,6 +584,13 @@ class ThermalState:
         return raw.astype(np.float32)
 
     def _real_thermal_palette(self, raw_map: np.ndarray) -> tuple[Image.Image, Dict[str, Any]]:
+        """Colour-map a raw Y16 frame and detect the hotspot.
+
+        The analysis ignores a 6-pixel border (sensor edge artefacts) and normalises on
+        the 2nd-98th percentiles. The hotspot is the top 1% of pixels; an anomaly is
+        flagged when the signal spread is at least 900 counts and the hotspot covers at
+        least 0.6% of the frame. Returns the image and its statistics.
+        """
         analysis_map = raw_map[6:-6, 6:-6]
         low = float(np.percentile(analysis_map, 2))
         high = float(np.percentile(analysis_map, 98))
@@ -441,7 +618,7 @@ class ThermalState:
             bottom = int((ys.max() + 1) * 4)
             draw_rounded_box(draw, (left + 4, top + 4, right - 4, bottom - 4), radius=18, outline=(255, 96, 96) if anomaly_active else (255, 192, 96), width=4)
         draw_rounded_box(draw, (16, 16, 248, 56), radius=14, fill=(255, 96, 96) if anomaly_active else (38, 208, 178))
-        draw.text((28, 24), "ANOMALIA TERMICA" if anomaly_active else "NELLA SOGLIA", fill=(8, 19, 30))
+        draw.text((28, 24), "THERMAL ANOMALY" if anomaly_active else "WITHIN THRESHOLD", fill=(8, 19, 30))
         footer = f"signal {signal_spread} | hot {hotspot_percent:.2f}% | thr {hot_threshold:.0f} raw"
         draw.rectangle((16, 426, 624, 464), fill=(0, 0, 0))
         draw.text((28, 438), footer, fill=(244, 248, 251))
@@ -454,11 +631,13 @@ class ThermalState:
         return image, stats
 
     def _encode_image(self, image: Image.Image) -> bytes:
+        """Encode an image as JPEG (quality 88)."""
         out = io.BytesIO()
         image.save(out, format="JPEG", quality=88)
         return out.getvalue()
 
     def _mock_frame(self) -> tuple[bytes, Dict[str, Any]]:
+        """One simulated frame with min/avg/max temperatures and the anomaly flag."""
         temp_map = self._simulate_matrix()
         anomaly = bool(temp_map.max() >= max(self.threshold_celsius, float(temp_map.mean()) + self.delta_threshold))
         self._anomaly_active = anomaly
@@ -476,224 +655,13 @@ class ThermalState:
         }
         return self._encode_image(image), stats
 
-    def _real_worker_loop(self) -> None:
-        width, height = self._video_dimensions()
-        frame_size = width * height * 2
-        saw_frame = False
-        LOGGER.info(
-            "THERMAL worker begin device=%s dimensions=%sx%s expected_frame_bytes=%s candidates=%s",
-            self.device,
-            width,
-            height,
-            frame_size,
-            self._thermal_stream_candidates(),
-        )
-        while not self._stop_event.is_set():
-            stream_candidates = self._thermal_stream_candidates()
-            if not stream_candidates:
-                self.status = "STARTING"
-                self.error = "No thermal video candidates available"
-                self._retry_after = time.time() + 5.0
-                time.sleep(1.0)
-                continue
-            process: subprocess.Popen[bytes] | None = None
-            current_device = stream_candidates[0]
-            stream: Any = None
-            self._stream_attempt_count += 1
-            attempt = self._stream_attempt_count
-            attempt_started = time.monotonic()
-            buffer_root = Path("/dev/shm") if Path("/dev/shm").is_dir() else Path("/tmp")
-            buffer_path = buffer_root / f"easy-thermal-{os.getpid()}.raw"
-            try:
-                self.device = current_device
-                buffer_path.unlink(missing_ok=True)
-                command = self._ffmpeg_stream_command(buffer_path)
-                if attempt <= 5 or attempt % 10 == 0:
-                    LOGGER.info(
-                        "THERMAL FFmpeg batch attempt=%s device=%s buffer=%s command=%r",
-                        attempt,
-                        current_device,
-                        buffer_path,
-                        command,
-                    )
-                process = subprocess.Popen(
-                    command,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.PIPE,
-                )
-                self._stream_process = process
-                self.status = "STARTING" if not saw_frame else "REAL"
-                if not saw_frame:
-                    self.error = "Waiting for first thermal frame from PureThermal"
-                file_deadline = time.monotonic() + 4.0
-                while not buffer_path.exists() and process.poll() is None and time.monotonic() < file_deadline:
-                    time.sleep(0.02)
-                if not buffer_path.exists():
-                    raise RuntimeError("thermal V4L2 buffer was not created")
-                stream = buffer_path.open("rb", buffering=0)
-                while not self._stop_event.is_set():
-                    payload = self._read_growing_file_frame(stream, process, frame_size, 4.0)
-                    if len(payload) < frame_size:
-                        if not payload and process.poll() == 0:
-                            break
-                        raise RuntimeError(f"thermal V4L2 stream ended: received {len(payload)}/{frame_size} bytes")
-                    raw_map = np.frombuffer(payload, dtype="<u2").reshape((height, width)).astype(np.float32)
-                    image, extra = self._real_thermal_palette(raw_map)
-                    frame = self._encode_image(image)
-                    stats = {
-                        "mode": self.mode,
-                        "status": "REAL",
-                        "detected": True,
-                        "threshold_celsius": self.threshold_celsius,
-                        "delta_threshold": self.delta_threshold,
-                        **extra,
-                    }
-                    with self._frame_lock:
-                        self.last_frame_bytes = frame
-                        self.last_frame_ts = time.time()
-                        self.last_stats = stats
-                        self.frame_seq += 1
-                        self.status = "REAL"
-                        self.error = ""
-                    self._first_frame_event.set()
-                    self._first_stream_attempt_event.set()
-                    if not saw_frame:
-                        LOGGER.info(
-                            "THERMAL first frame received attempt=%s device=%s bytes=%s elapsed=%.3fs frame_seq=%s backend=ffmpeg",
-                            attempt,
-                            current_device,
-                            len(payload),
-                            time.monotonic() - attempt_started,
-                            self.frame_seq,
-                        )
-                    saw_frame = True
-                    self._anomaly_active = bool(extra.get("anomaly_active"))
-            except Exception as exc:
-                backoff = 1.0 if not saw_frame else 5.0
-                message = str(exc)
-                recoverable = "stream ended" in message
-                if recoverable:
-                    self.error = f"Recovering thermal stream from PureThermal on {current_device}"
-                    self.status = "STARTING"
-                elif saw_frame:
-                    self.error = self._friendly_thermal_error(message)
-                    self.status = "ERROR"
-                else:
-                    self.error = self._friendly_thermal_error(message) or "Waiting for first thermal frame from PureThermal"
-                    self.status = "STARTING"
-                self._retry_after = time.time() + backoff
-                self._first_stream_attempt_event.set()
-                if attempt <= 5 or attempt % 10 == 0 or not recoverable:
-                    LOGGER.warning(
-                        "THERMAL stream failed attempt=%s device=%s elapsed=%.3fs saw_frame=%s recoverable=%s process_returncode=%s error=%r next_retry_seconds=%.1f",
-                        attempt,
-                        current_device,
-                        time.monotonic() - attempt_started,
-                        saw_frame,
-                        recoverable,
-                        None,
-                        message,
-                        backoff,
-                    )
-                self._stop_event.wait(backoff)
-            finally:
-                if stream is not None:
-                    stream.close()
-                if process and process.poll() is None:
-                    process.terminate()
-                    try:
-                        process.wait(timeout=1.0)
-                    except subprocess.TimeoutExpired:
-                        process.kill()
-                if process:
-                    try:
-                        _, stderr = process.communicate(timeout=1.0)
-                    except subprocess.TimeoutExpired:
-                        process.kill()
-                        _, stderr = process.communicate()
-                    LOGGER.info(
-                        "THERMAL FFmpeg batch exit attempt=%s returncode=%s stderr=%r",
-                        attempt, process.returncode,
-                        stderr.decode("utf-8", errors="replace").strip()[-500:],
-                    )
-                self._stream_process = None
-                buffer_path.unlink(missing_ok=True)
-        self._worker_started = False
-        LOGGER.info("THERMAL worker stopped attempts=%s frame_seq=%s last_error=%r", self._stream_attempt_count, self.frame_seq, self.error)
-
-    def _real_worker_single_frame_loop(self) -> None:
-        """Capture real frames as bounded one-frame FFmpeg transactions.
-
-        PureThermal exposes the device and accepts single-frame V4L2 captures,
-        but its continuous streaming path can remain open without delivering
-        any buffers. A short-lived transaction also guarantees that the device
-        is released before the next attempt and while RGB is active.
-        """
-        width, height = self._video_dimensions()
-        expected_bytes = width * height * 2
-        saw_frame = False
-        LOGGER.info(
-            "THERMAL single-frame worker begin device=%s dimensions=%sx%s expected_frame_bytes=%s",
-            self.device, width, height, expected_bytes,
-        )
-        while not self._stop_event.is_set():
-            self._stream_attempt_count += 1
-            attempt = self._stream_attempt_count
-            started = time.monotonic()
-            rgb_paused = False
-            try:
-                if self._rgb_pause_callback is not None:
-                    self._rgb_pause_callback()
-                    rgb_paused = True
-                raw_map = self._capture_y16_matrix()
-                image, extra = self._real_thermal_palette(raw_map)
-                frame = self._encode_image(image)
-                with self._frame_lock:
-                    self.last_frame_bytes = frame
-                    self.last_frame_ts = time.time()
-                    self.last_stats = {
-                        "mode": self.mode, "status": "REAL", "detected": True,
-                        "threshold_celsius": self.threshold_celsius,
-                        "delta_threshold": self.delta_threshold, **extra,
-                    }
-                    self.frame_seq += 1
-                    self.status = "REAL"
-                    self.error = ""
-                    seq = self.frame_seq
-                self._first_frame_event.set()
-                self._first_stream_attempt_event.set()
-                self._anomaly_active = bool(extra.get("anomaly_active"))
-                if not saw_frame:
-                    LOGGER.info(
-                        "THERMAL first frame received attempt=%s device=%s bytes=%s elapsed=%.3fs frame_seq=%s backend=ffmpeg-single",
-                        attempt, self.device, expected_bytes, time.monotonic() - started, seq,
-                    )
-                saw_frame = True
-                self._stop_event.wait(5.0)
-            except Exception as exc:
-                self._first_stream_attempt_event.set()
-                self.status = "STARTING" if not saw_frame else "ERROR"
-                self.error = self._friendly_thermal_error(str(exc))
-                self._retry_after = time.time() + (1.0 if not saw_frame else 5.0)
-                LOGGER.warning(
-                    "THERMAL single-frame failed attempt=%s elapsed=%.3fs error=%r next_retry_seconds=%.1f",
-                    attempt, time.monotonic() - started, str(exc),
-                    1.0 if not saw_frame else 5.0,
-                )
-                self._stop_event.wait(1.0 if not saw_frame else 5.0)
-            finally:
-                if rgb_paused and not self._stop_event.is_set() and self._rgb_resume_callback is not None:
-                    try:
-                        self._rgb_resume_callback()
-                    except Exception:
-                        LOGGER.exception("THERMAL failed to resume RGB after thermal capture")
-        self._worker_started = False
-        LOGGER.info(
-            "THERMAL single-frame worker stopped attempts=%s frame_seq=%s last_error=%r",
-            self._stream_attempt_count, self.frame_seq, self.error,
-        )
-
     def frame(self) -> tuple[bytes, Dict[str, Any]]:
+        """Return ``(jpeg, stats)`` for the current thermal view.
+
+        In continuous mode it returns the latest cached frame (waiting up to 3 s for the
+        first one). Otherwise it captures on demand. When nothing is available it
+        returns an explanatory placeholder image instead of raising.
+        """
         if not self.enabled:
             stats = {"status": "DISABLED", "mode": self.mode, "detected": False}
             return make_placeholder_jpeg("THERMAL DISABLED", "Thermal feed disabled", "#ffbc56"), stats
@@ -707,6 +675,13 @@ class ThermalState:
         if not self.detected:
             self.refresh_device()
         self.start()
+        if self.capture_mode == "continuous":
+            self._first_frame_event.wait(3.0)
+            with self._frame_lock:
+                if self.last_frame_bytes is not None:
+                    return self.last_frame_bytes, dict(self.last_stats)
+            stats = self.status_payload(refresh=False)
+            return make_placeholder_jpeg("THERMAL STARTING", self.error or "Waiting for thermal stream", "#ffbc56"), stats
         try:
             return self._capture_on_demand()
         except Exception as exc:
@@ -752,7 +727,7 @@ class ThermalState:
         return frame, stats
 
     def _capture_on_demand(self) -> tuple[bytes, Dict[str, Any]]:
-        """Capture exactly one real frame while RGB owns no camera handle."""
+        """Capture exactly one real frame, refusing when the CPU is too hot."""
         with self._capture_lock:
             cpu_temperature = read_cpu_temperature()
             if cpu_temperature is not None and cpu_temperature >= self._max_cpu_temperature:
@@ -788,15 +763,27 @@ class ThermalState:
                     self._rgb_resume_callback()
 
     def snapshot(self) -> tuple[bytes, Dict[str, Any]]:
+        """Return the current frame with the snapshot timestamp and frame sequence added to its statistics."""
         frame, stats = self.frame()
         snapshot_stats = dict(stats)
         snapshot_stats["snapshot_ts"] = time.time()
+        snapshot_stats["frame_seq"] = self.frame_seq
         return frame, snapshot_stats
 
     def status_payload(self, *, refresh: bool = True) -> Dict[str, Any]:
+        """Full thermal status for the API: detection, device, capture mode, fps, restart and failure counters, errors and the normalised ``runtime_state``.
+
+        Pass ``refresh=False`` to avoid triggering device discovery.
+        """
         if refresh and self.enabled and self.mode == "real" and not self.detected:
             self.refresh_device()
         streaming = bool(self.last_frame_ts and time.time() - self.last_frame_ts <= 5.0)
+        actual_fps = 0.0
+        with self._frame_lock:
+            if len(self._frame_times) > 1:
+                elapsed = self._frame_times[-1] - self._frame_times[0]
+                if elapsed > 0:
+                    actual_fps = (len(self._frame_times) - 1) / elapsed
         effective_status = "REAL" if streaming else self.status
         payload = {
             "status": effective_status,
@@ -813,6 +800,16 @@ class ThermalState:
             "delta_threshold": self.delta_threshold,
             "last_frame_ts": self.last_frame_ts,
             "frame_seq": self.frame_seq,
+            "last_frame_monotonic_ns": self.last_frame_monotonic_ns,
+            "capture_mode": self.capture_mode,
+            "stream_fps_target": self.stream_fps,
+            "preview_fps_target": self.preview_fps,
+            "actual_fps": round(actual_fps, 2),
+            "stream_attempts": self._stream_attempt_count,
+            "stream_restarts": self._stream_restart_count,
+            "stream_failures": self._stream_failure_count,
+            "invalid_frames": self._invalid_frame_count,
+            "raw_ring_size": len(self._raw_frames),
             "streaming": streaming,
             "retry_after_ts": self._retry_after,
             "cpu_temperature_limit": self._max_cpu_temperature,

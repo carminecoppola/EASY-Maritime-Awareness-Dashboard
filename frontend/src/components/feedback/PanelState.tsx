@@ -1,9 +1,19 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Placeholder for a panel that cannot show data (loading, empty, error or unavailable).
+ */
+
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { TechnicalDetails } from './TechnicalDetails'
 
+/** Reason a panel has nothing to show. */
 type StateKind = 'loading' | 'empty' | 'error' | 'unavailable'
 
+/** Glyph, colour and ARIA role of each state. */
 const PRESENTATION: Record<StateKind, { glyph: string; color: string; role: 'status' | 'alert' }> = {
   loading: { glyph: '…', color: 'var(--text-muted)', role: 'status' },
   empty: { glyph: '·', color: 'var(--text-muted)', role: 'status' },
@@ -23,8 +33,8 @@ interface PanelStateProps {
 }
 
 /**
- * Stato di un pannello che non può mostrare i dati. Non lascia mai un
- * riquadro vuoto: dice cosa manca e quale azione è disponibile.
+ * State of a panel that cannot show data. It never leaves an empty box: it says
+ * what is missing and which action is available.
  */
 export function PanelState({
   kind,

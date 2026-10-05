@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Mission Control page: pre-flight, start form or active mission panel, history and acquisition details.
+ */
+
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { api } from '../api/client'
 import { useSharedDashboardState } from '../hooks/DashboardStateContext'
@@ -13,6 +21,7 @@ import { sensorReadiness } from '../lib/readiness'
 import { formatRelativeTime, toDate } from '../utils/formatTime'
 import type { SessionManifestCounts } from '../api/types'
 
+/** `model.onnx · backend` label from the inference status. */
 function modelLabelFrom(inference: unknown): string {
   const payload = inference as { model_path?: string; backend?: string } | undefined
   const path = payload?.model_path
@@ -21,14 +30,15 @@ function modelLabelFrom(inference: unknown): string {
   return payload?.backend ? `${name} · ${payload.backend}` : name
 }
 
+/** Prepare, start and monitor a coordinated acquisition session. */
 export function MissionPage(): ReactNode {
   const dashboard = useSharedDashboardState()
   const { sessions, loading: sessionListLoading, refresh: refreshSessionList, error: sessionListError } = useSessionList()
   const [currentManifest, setCurrentManifest] = useState<SessionManifestCounts | null>(null)
   const [now, setNow] = useState(() => Date.now())
-  // Una risposta di polling partita PRIMA dello stop può arrivare dopo e
-  // rimettere running=true: il pannello sarebbe tornato indietro, perdendo i
-  // propri messaggi. Si tiene lo stato locale finché il backend concorda.
+  // A polling response sent BEFORE the stop can arrive afterwards and set
+  // running=true again: the panel would flip back and lose its messages. The
+  // local state is kept until the backend agrees.
   const [pendingStop, setPendingStop] = useState(false)
 
   const data = dashboard.data
@@ -56,8 +66,8 @@ export function MissionPage(): ReactNode {
     }
   }, [sessionId])
 
-  // Carica il manifest anche all'apertura della pagina se una missione è già
-  // attiva, non solo dopo uno start/stop.
+  // Load the manifest also when the page opens with a mission already running,
+  // not only after a start/stop.
   useEffect(() => {
     loadCurrentManifest()
   }, [loadCurrentManifest])
@@ -71,7 +81,7 @@ export function MissionPage(): ReactNode {
     await handleSessionChanged()
   }, [handleSessionChanged])
 
-  // Appena il backend conferma, l'override locale si azzera.
+  // As soon as the backend confirms, the local override is cleared.
   useEffect(() => {
     if (!backendRunning) setPendingStop(false)
   }, [backendRunning])
@@ -84,9 +94,9 @@ export function MissionPage(): ReactNode {
   const disk = data?.health?.system?.disk
   const lastUpdate = toDate(data?.timestamp)
 
-  // Il manifest live del backend è la fonte per i contatori durante la
-  // missione; il manifest caricato a parte copre il caso in cui il payload
-  // aggregato non lo includa ancora.
+  // The backend's live manifest is the source of the counters during the
+  // mission; the separately loaded manifest covers the case where the aggregated
+  // payload does not include it yet.
   const liveCounts = (data?.acquisition?.manifest_counts as SessionManifestCounts | undefined) ?? currentManifest
 
   const blockedReason =
@@ -133,7 +143,7 @@ export function MissionPage(): ReactNode {
         <div className="easy-readycell">
           <div className="easy-kicker">Thermal</div>
           <div className="easy-value">{thermal.ready ? 'Ready' : thermal.availability.replace('_', ' ')}</div>
-          <div className="easy-sub">On-demand capture</div>
+          <div className="easy-sub">Continuous feed · snapshots available</div>
         </div>
         <div className="easy-readycell">
           <div className="easy-kicker">Available storage</div>

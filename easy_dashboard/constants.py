@@ -1,3 +1,14 @@
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Filesystem layout and default configuration of the dashboard.
+
+All runtime data lives under ``data/`` (logs, reports, captures, snapshots).
+Importing this module creates the folders, so the application can always write
+to them. Mission data (sessions, exports) lives separately under ``runtime/``.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -13,12 +24,12 @@ SNAPSHOTS_DIR = DATA_DIR / "snapshots"
 RGB_LEFT_DIR = CAPTURES_DIR / "rgb_left"
 RGB_RIGHT_DIR = CAPTURES_DIR / "rgb_right"
 THERMAL_DIR = CAPTURES_DIR / "thermal"
-PRELIGHT_REPORT = REPORT_DIR / "preflight_report.txt"
+PREFLIGHT_REPORT = REPORT_DIR / "preflight_report.txt"
 EVENTS_LOG = LOG_DIR / "events.jsonl"
 CONFIG_PATH = PROJECT_ROOT / "config.yaml"
-# Utenti/ruoli e log di audit dell'autenticazione (vedi easy_dashboard/auth.py).
-# File separati dagli altri store: contengono credenziali, quindi restano
-# fuori da EVENTS_LOG e dal resto dei dati operativi.
+# Users/roles and the authentication audit log (see easy_dashboard/auth.py).
+# Kept apart from the other stores: they hold credentials, so they stay out of
+# EVENTS_LOG and the rest of the operational data.
 AUTH_USERS_FILE = DATA_DIR / "auth_users.json"
 AUDIT_LOG = LOG_DIR / "audit.jsonl"
 
@@ -43,6 +54,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "thermal": {
         "enabled": True,
         "mode": "real",
+        "capture_mode": "continuous",
+        "stream_fps": 9,
+        "preview_fps": 5,
         "threshold_celsius": 35.0,
         "delta_threshold": 8.0,
         "device": "auto",
@@ -54,6 +68,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # the EASY_DASHBOARD_TOKEN env var (see app.py's before_request hook).
     "security": {"shared_token": ""},
 }
+
 
 def ensure_runtime_directories() -> None:
     """Create the local runtime folders expected by the dashboard."""

@@ -1,4 +1,12 @@
-/* Sezioni specifiche della pagina Thermal & Events. */
+/*
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Styles of the Thermal & Events page.
+ */
+
+/* Styles specific to the Thermal & Events page. */
 
 .easy-viewer {
   height: 337px;
@@ -11,7 +19,7 @@
   display: block;
   width: 100%;
   height: 100%;
-  /* contain: il frame termico è la prova, non deve essere ritagliato. */
+  /* contain: the thermal frame is the evidence and must not be cropped. */
   object-fit: contain;
 }
 
@@ -45,7 +53,7 @@
   color: var(--text-primary);
 }
 
-/* Barra colore: solo scala relativa, non una mappa di temperature assolute. */
+/* Colour bar: a relative scale only, not a map of absolute temperatures. */
 .easy-palette {
   height: 5px;
   position: absolute;

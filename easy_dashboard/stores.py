@@ -1,3 +1,15 @@
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Persistent stores: the event log and the snapshot archive.
+
+* ``EventStore`` keeps the operator activity log, appended to
+  ``data/logs/events.jsonl`` and mirrored in a bounded in-memory deque.
+* ``SnapshotStore`` keeps JPEG snapshots per feed with a small JSON sidecar
+  each, indexed in SQLite so listing and paging stay fast with thousands of files.
+"""
+
 from __future__ import annotations
 
 import json
@@ -22,6 +34,7 @@ class EventStore:
     """Append-only event log mirrored in memory for the dashboard UI."""
 
     def __init__(self, path: Path, limit: int = 200) -> None:
+        """Open the log and load the most recent ``limit`` events."""
         self.path = path
         self.limit = limit
         self._lock = threading.Lock()
@@ -29,6 +42,7 @@ class EventStore:
         self._load_existing()
 
     def _load_existing(self) -> None:
+        """Load existing events, skipping malformed or NUL-corrupted lines."""
         if not self.path.exists():
             return
         try:
@@ -47,21 +61,26 @@ class EventStore:
                 LOGGER.warning("Skipping malformed events log line %d in %s", line_no, self.path)
 
     def add(self, source: str, event_type: str, description: str, severity: str = "info", meta: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Record an event and return it.
+
+        Every event carries an ``action`` hint for the operator, taken from ``meta`` or
+        from a built-in table keyed by event type.
+        """
         meta = meta or {}
         action_map = {
-            "STREAM_ERROR": "Controlla processo camera e riavvia lo stream se resta fermo.",
-            "SNAPSHOT_ERROR": "Ripeti lo snapshot; se ricapita controlla spazio disco e stato feed.",
-            "NOT_DETECTED": "Controlla cavo, alimentazione e device video.",
-            "THERMAL_HOTSPOT": "Verifica la scena termica e confronta con RGB.",
-            "INFERENCE_START": "Verifica runtime/replay e attendi i primi risultati AI.",
-            "INFERENCE_STOP": "Riattiva il worker se la demo AI deve continuare.",
+            "STREAM_ERROR": "Check the camera process and restart the stream if it stays stopped.",
+            "SNAPSHOT_ERROR": "Retry the snapshot; if it fails again, check free disk space and the feed status.",
+            "NOT_DETECTED": "Check the cable, the power supply and the video device.",
+            "THERMAL_HOTSPOT": "Inspect the thermal scene and compare it with the RGB view.",
+            "INFERENCE_START": "Check runtime/replay and wait for the first detection results.",
+            "INFERENCE_STOP": "Restart the worker if inference should keep running.",
             "INFERENCE_ERROR": "Check runtime/models, runtime/config and onnxruntime availability.",
-            "DETECTED": "Apri runtime/sessions e verifica le rilevazioni AI annotate.",
+            "DETECTED": "Open runtime/sessions to review the annotated detections.",
             "SESSION_START": "The session is active: captures and detections will be archived.",
             "SESSION_STOP": "Session stopped. You can review its archive in runtime/sessions.",
-            "DETECTION_NEW": "Detection registrata nel manager e nella sessione corrente.",
+            "DETECTION_NEW": "Detection recorded in the detection manager and in the current session.",
             "SOURCE_SELECT": "The source was updated in Source Manager.",
-            "SOURCE_SELECT_FAILED": "Verifica che la sorgente richiesta esista ancora.",
+            "SOURCE_SELECT_FAILED": "Check that the requested source still exists.",
             "SOURCE_REFRESH": "The source registry was updated.",
         }
         event = {
@@ -81,6 +100,7 @@ class EventStore:
         return event
 
     def list(self, limit: int = 50) -> list[Dict[str, Any]]:
+        """Return the most recent ``limit`` events, oldest first."""
         with self._lock:
             return list(self._events)[-limit:]
 
@@ -89,6 +109,7 @@ class SnapshotStore:
     """Keeps snapshots grouped by feed with tiny JSON sidecars for metadata."""
 
     def __init__(self, root: Path) -> None:
+        """Create the folders and build the SQLite index."""
         self.root = root
         self._lock = threading.Lock()
         self.root.mkdir(parents=True, exist_ok=True)
@@ -98,7 +119,11 @@ class SnapshotStore:
         self.rebuild_index()
 
     def rebuild_index(self) -> None:
-        """Reconcile legacy files and offline edits once at startup, not per poll."""
+        """Rebuild the SQLite index from the files on disk.
+
+        Run once at start-up so legacy files and manual edits are picked up, instead of
+        scanning the folders on every poll.
+        """
         with self._lock, closing(sqlite3.connect(self._index_path)) as db, db:
             db.execute("CREATE TABLE IF NOT EXISTS snapshots (feed TEXT, filename TEXT, created_ts REAL, size_bytes INTEGER, payload TEXT, PRIMARY KEY (feed, filename))")
             db.execute("CREATE INDEX IF NOT EXISTS snapshots_recent ON snapshots(created_ts DESC, filename DESC)")
@@ -115,20 +140,24 @@ class SnapshotStore:
 
     @staticmethod
     def _index_snapshot(db: sqlite3.Connection, payload: Dict[str, Any]) -> None:
+        """Insert one snapshot payload into the index."""
         db.execute("INSERT INTO snapshots VALUES (?, ?, ?, ?, ?)", (
             payload["feed"], payload["filename"], payload["created_ts"],
             payload["size_bytes"], json.dumps(payload, ensure_ascii=False),
         ))
 
     def _feed_meta(self, feed: str) -> Dict[str, str]:
+        """Static metadata of a feed (label, source, folder); ``KeyError`` for unknown feeds."""
         if feed not in SNAPSHOT_FEED_MAP:
             raise KeyError(feed)
         return SNAPSHOT_FEED_MAP[feed]
 
     def _feed_dir(self, feed: str) -> Path:
+        """Folder holding the snapshots of a feed."""
         return self.root / self._feed_meta(feed)["folder"]
 
     def _snapshot_payload(self, path: Path, feed: str, meta: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Describe a snapshot file: URLs, creation time, size and the sidecar metadata."""
         stat = path.stat()
         feed_meta = self._feed_meta(feed)
         payload = {
@@ -153,6 +182,11 @@ class SnapshotStore:
         return payload
 
     def save(self, feed: str, frame: bytes, *, meta: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Store a JPEG with its sidecar and index it; return its payload.
+
+        Files are created exclusively (never overwritten) and removed again if any
+        step fails, so no orphan image or sidecar is left behind.
+        """
         feed_dir = self._feed_dir(feed)
         stamp = time.strftime("%Y%m%d_%H%M%S")
         filename = f"{stamp}_{uuid.uuid4().hex}_{feed}.jpg"
@@ -184,11 +218,13 @@ class SnapshotStore:
         return payload
 
     def list_recent(self, limit: int = 24, offset: int = 0) -> list[Dict[str, Any]]:
+        """Return one page of snapshots, newest first."""
         with self._lock, closing(sqlite3.connect(self._index_path)) as db:
             rows = db.execute("SELECT payload FROM snapshots ORDER BY created_ts DESC, filename DESC LIMIT ? OFFSET ?", (max(0, limit), max(0, offset)))
             return [json.loads(row[0]) for row in rows]
 
     def summary(self) -> Dict[str, Any]:
+        """Counts, sizes and the latest snapshot per feed and overall."""
         by_feed: Dict[str, Dict[str, Any]] = {}
         with self._lock, closing(sqlite3.connect(self._index_path)) as db:
             for feed, feed_meta in SNAPSHOT_FEED_MAP.items():
@@ -208,6 +244,7 @@ class SnapshotStore:
         }
 
     def get_path(self, feed: str, filename: str) -> Path:
+        """Resolve a snapshot file, rejecting names that would escape its feed folder (path traversal)."""
         feed_dir = self._feed_dir(feed)
         candidate = (feed_dir / filename).resolve()
         if feed_dir.resolve() not in candidate.parents and candidate != feed_dir.resolve():

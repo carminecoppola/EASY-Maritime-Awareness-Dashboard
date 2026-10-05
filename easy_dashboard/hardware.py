@@ -1,12 +1,15 @@
-from __future__ import annotations
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
 
-"""Backward-compatible re-export shim.
+"""Backward-compatible re-export of the hardware adapters.
 
-RgbMasterSource and ThermalState used to live together in this single file.
-They now live in rgb_hardware.py and thermal_hardware.py respectively (split
-apart once their RGB/thermal coordination was removed, see app.py), but every
-existing `from easy_dashboard.hardware import ...` keeps working unchanged.
+``RgbMasterSource`` and ``ThermalState`` live in ``rgb_hardware.py`` and
+``thermal_hardware.py``; ``SystemProbe`` lives in ``system_probe.py``. Importing
+them from here keeps ``from easy_dashboard.hardware import ...`` working.
 """
+
+from __future__ import annotations
 
 from .rgb_hardware import RgbMasterSource
 from .system_probe import SystemProbe

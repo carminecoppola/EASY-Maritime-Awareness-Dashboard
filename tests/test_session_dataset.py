@@ -1,3 +1,9 @@
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Tests for session manifests, RGB/thermal pairing and dataset validation and export."""
+
 from __future__ import annotations
 
 import json
@@ -44,7 +50,7 @@ class SessionDatasetTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertFalse(result["recorded"])
 
-    def test_synchronized_capture_validates_and_exports(self) -> None:
+    def test_paired_unmeasured_capture_validates_and_exports(self) -> None:
         started = self.session_manager.start_session(mode="capture", operator="test")
         session = started["session"]
         session_id = session["session_id"]
@@ -66,7 +72,8 @@ class SessionDatasetTests(unittest.TestCase):
         manifest = self.session_manager.read_manifest(session_id)
         self.assertEqual(manifest["counts"]["items"], 2)
         self.assertEqual(manifest["counts"]["samples"], 1)
-        self.assertEqual(manifest["counts"]["synchronized_samples"], 1)
+        self.assertEqual(manifest["counts"]["paired_capture_sets"], 1)
+        self.assertEqual(manifest["counts"]["synchronized_samples"], 0)
 
         validation = self.exporter.validate(session_id)
         self.assertTrue(validation["valid"])

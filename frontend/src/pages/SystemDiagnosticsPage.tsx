@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * System Diagnostics page: CPU/memory history, cameras, supervised components and the admin restart action.
+ */
+
 import { useCallback, useEffect, useState } from 'react'
 import { useSystemStatus } from '../hooks/useSystemStatus'
 import { useSharedDashboardState } from '../hooks/DashboardStateContext'
@@ -12,15 +20,16 @@ import { useStepUp } from '../components/feedback/StepUpProvider'
 import { isStepUpRequiredBody } from '../api/types'
 import type { CameraInventory } from '../api/types'
 
+/** Restart of the camera and thermal services, behind step-up authentication. */
 function RestartServicesPanel() {
   const auth = useAuth()
   const { runElevated } = useStepUp()
   const [restarting, setRestarting] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
-  // Fuori dall'enforcement (auth.user è nullo/nessun ruolo se non attivo)
-  // il pulsante resta disponibile: il gate reale è il backend. Quando
-  // l'enforcement è attivo, un non-admin lo vede disabilitato con motivo.
+  // Outside enforcement (auth.user is null, or has no role, when it is off) the
+  // button stays available: the real gate is the backend. When enforcement is
+  // on, a non-admin sees it disabled with the reason.
   const canAttempt = !auth.enforcementEnabled || roleAtLeast(auth.user?.role, 'admin')
 
   const handleRestart = async () => {
@@ -34,8 +43,8 @@ function RestartServicesPanel() {
       )
       setMessage('Hardware services restarted.')
     } catch (e) {
-      // L'operatore ha semplicemente annullato il dialogo di conferma: non
-      // è un errore da mostrare, solo un'azione non completata.
+      // The operator simply cancelled the confirmation dialog: it is not an error
+      // to show, just an action that did not complete.
       const cancelled = e instanceof ApiError && e.status === 403 && isStepUpRequiredBody(e.body)
       if (!cancelled) {
         setMessage(authErrorMessage(e))
@@ -70,6 +79,7 @@ function RestartServicesPanel() {
   )
 }
 
+/** One CPU/RAM sample kept for the sparkline. */
 interface HistoryItem {
   timestamp: number
   cpu_percent: number
@@ -77,13 +87,17 @@ interface HistoryItem {
   [key: string]: number | string
 }
 
+/** Length of the CPU/RAM history. */
 const HISTORY_MAX_SAMPLES = 60
+/** Camera inventory refresh interval. */
 const CAMERA_REFRESH_MS = 30000
 
+/** MB or GB text. */
 function formatBytes(mb: number): string {
   return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb.toFixed(1)} MB`
 }
 
+/** Uptime as days/hours or hours/minutes. */
 function formatUptime(seconds: number): string {
   const days = Math.floor(seconds / 86400)
   const hours = Math.floor((seconds % 86400) / 3600)
@@ -93,6 +107,7 @@ function formatUptime(seconds: number): string {
   return `${minutes}m`
 }
 
+/** Card for one camera or sensor with its state, metadata and last error. */
 function CameraCard({
   primaryName,
   secondaryName,
@@ -137,6 +152,7 @@ function CameraCard({
   )
 }
 
+/** Host resources, hardware inventory and component status for first-level support. */
 export function SystemDiagnosticsPage() {
   const systemData = useSystemStatus(10000)
   const { data: dashboardState } = useSharedDashboardState()
@@ -161,9 +177,9 @@ export function SystemDiagnosticsPage() {
     return () => clearInterval(id)
   }, [loadCameras])
 
-  // Ring buffer della cronologia in state (non in un ref) così un nuovo
-  // campione ridisegna subito: con un ref lo sparkline restava un campione
-  // indietro rispetto ai numeri mostrati accanto.
+  // History ring buffer kept in state (not in a ref) so a new sample redraws
+  // immediately: with a ref the sparkline stayed one sample behind the numbers
+  // shown next to it.
   useEffect(() => {
     if (!systemData.data) return
     setHistory((prev) =>
@@ -295,9 +311,9 @@ export function SystemDiagnosticsPage() {
 
         <article className="easy-surface easy-resource">
           <h2 className="easy-resourcetitle">Memory</h2>
-          {/* diag.ram.percent tiene conto di cache/buffer e può differire
-              molto dal rapporto used/total: gauge e cronologia usano lo
-              stesso campo per non mostrare due verità diverse. */}
+          {/* diag.ram.percent accounts for caches and buffers and can differ a lot from
+              the used/total ratio: the gauge and the history use the same field so two
+              different truths are never shown. */}
           <div style={{ width: 120, margin: '12px auto 0' }}>
             <CpuRamGauge value={diag.ram.percent} max={100} label="Memory" color="var(--accent-warn)" height={110} />
           </div>
@@ -394,7 +410,7 @@ export function SystemDiagnosticsPage() {
                     state={String(thermal?.state ?? 'NOT_PRESENT')}
                     meta={[
                       ['Device', String(status.device ?? '—')],
-                      ['Capture', runtimeState.capture_mode === 'on_demand' ? 'On demand' : String(runtimeState.capture_mode ?? '—')],
+                      ['Capture', runtimeState.capture_mode === 'continuous' ? 'Continuous' : String(runtimeState.capture_mode ?? '—')],
                     ]}
                     error={String(status.error || '') || null}
                     message={runtimeState.health && runtimeState.health !== 'GOOD' ? `Health: ${runtimeState.health}` : null}
@@ -432,9 +448,8 @@ export function SystemDiagnosticsPage() {
                           <td className="easy-cell-strong" style={anomalous ? { color: tone.color } : undefined}>
                             {c.label}
                             {c.critical && (
-                              // "CORE" e non "CRITICAL": classifica il
-                              // componente come essenziale, non segnala un
-                              // problema in corso.
+                              // "CORE" and not "CRITICAL": it classifies the component as
+                              // essential, it does not signal an ongoing problem.
                               <span className="mono" style={{ marginLeft: 6, fontSize: 9, color: 'var(--text-muted)' }}>
                                 CORE
                               </span>

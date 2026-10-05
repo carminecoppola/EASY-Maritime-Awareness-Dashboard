@@ -1,10 +1,17 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Full-screen login shown instead of the application when enforcement is on and nobody is signed in.
+ */
+
 import { LoginForm } from '../components/auth/LoginForm'
 import { authErrorMessage, useAuth } from '../hooks/AuthContext'
 
 /**
- * Sostituisce l'intera app (niente sidebar, niente dati) quando
- * l'enforcement è attivo e nessuna identità è nota: "Non mostrerei
- * informazioni operative sensibili prima dell'accesso."
+ * Replaces the whole app (no sidebar, no data) when enforcement is on and no
+ * identity is known: no sensitive operational information is shown before sign-in.
  */
 export function LoginGatePage() {
   const auth = useAuth()

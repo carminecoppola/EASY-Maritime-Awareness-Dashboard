@@ -1,8 +1,16 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Collapsible technical detail with a copy button.
+ */
+
 import { useState } from 'react'
 
 /**
- * Dettaglio tecnico: disponibile ma chiuso di default. Il messaggio
- * principale resta operativo; qui finiscono status, endpoint ed eccezioni.
+ * Technical detail: available but closed by default. The main message stays
+ * operational; status codes, endpoints and exceptions go here.
  */
 export function TechnicalDetails({ detail, label = 'Technical details' }: { detail: string; label?: string }) {
   const [copied, setCopied] = useState(false)
@@ -13,8 +21,7 @@ export function TechnicalDetails({ detail, label = 'Technical details' }: { deta
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      // Clipboard non disponibile (contesto non sicuro): il testo resta
-      // comunque selezionabile a mano.
+      // Clipboard unavailable (insecure context): the text can still be selected by hand.
     }
   }
 

@@ -1,11 +1,21 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Settings page: shared token, browser-side safety preferences and device identity.
+ */
+
 import { useEffect, useId, useRef, useState } from 'react'
 import { api } from '../api/client'
 import { getAuthToken, setAuthToken } from '../api/config'
 import { useSharedDashboardState } from '../hooks/DashboardStateContext'
 import { PREFERENCES, usePreference } from '../lib/preferences'
 
+/** Settings sections. */
 type SectionId = 'security' | 'safety' | 'about'
 
+/** Section list with titles and descriptions. */
 const SECTIONS: { id: SectionId; group: string; label: string; title: string; description: string }[] = [
   {
     id: 'security',
@@ -30,9 +40,10 @@ const SECTIONS: { id: SectionId; group: string; label: string; title: string; de
   },
 ]
 
+/** Tag stating whether the device requires the shared token. */
 function AuthStatusTag({ authRequired }: { authRequired: boolean | null }) {
-  // null non è "accesso aperto": è "non è stato possibile leggere la
-  // configurazione", e va detto esplicitamente.
+  // null is not "open access": it means "the configuration could not be read",
+  // and that must be said explicitly.
   if (authRequired === null) {
     return (
       <span className="easy-tag" style={{ color: 'var(--accent-warn)' }}>
@@ -47,6 +58,7 @@ function AuthStatusTag({ authRequired }: { authRequired: boolean | null }) {
   )
 }
 
+/** Tabbed settings. */
 export function SettingsPage() {
   const [section, setSection] = useState<SectionId>('security')
   const [tokenInput, setTokenInput] = useState('')

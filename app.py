@@ -1,4 +1,30 @@
 #!/usr/bin/env python3
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""EASY dashboard: Flask entry point.
+
+``create_app()`` assembles the application:
+
+  1. ``build_runtime`` creates the hardware adapters, stores and the
+     ``SystemOrchestrator`` (see ``system_orchestrator.py``);
+  2. the page and API blueprints are registered (``easy_dashboard/routes``);
+  3. a ``before_request`` hook authenticates the caller and enforces roles;
+  4. slow start-up work (pre-flight checks, sensor detection, starting the
+     camera runtime) runs in a background thread so Flask can bind its port
+     immediately and ``/health`` answers while the sensors come up.
+
+Run it directly (``python app.py``) or through ``scripts/run_service.sh``, which is
+what the systemd unit uses. Host and port come from ``config.yaml``.
+
+Authentication, in order of precedence:
+  * a valid ``X-EASY-Token`` header (legacy shared secret, grants ``operator``);
+  * a session cookie (``easy_session``) with CSRF protection on mutations;
+  * an anonymous ``viewer`` when the Admin allows it.
+Role enforcement itself is opt-in; see ``easy_dashboard/auth.py``.
+"""
+
 from __future__ import annotations
 
 import atexit
@@ -36,7 +62,12 @@ LOGGER = logging.getLogger("easy-dashboard")
 
 
 def build_runtime(*, run_startup_checks: bool = True, start_runtime_services: bool = True) -> DashboardRuntime:
-    """Create hardware/store/runtime collaborators for the dashboard app."""
+    """Create the hardware, stores and orchestrator and wrap them in a ``DashboardRuntime``.
+
+    ``run_startup_checks`` runs the pre-flight script and detects the thermal sensor;
+    ``start_runtime_services`` starts the orchestrator and the RGB keep-alive thread.
+    Tests pass ``False`` for both to get an inert runtime.
+    """
     config = load_config()
     events = EventStore(EVENTS_LOG, int(config["events"].get("max_events", 200)))
     snapshot_store = SnapshotStore(SNAPSHOTS_DIR)
@@ -114,7 +145,11 @@ def build_runtime(*, run_startup_checks: bool = True, start_runtime_services: bo
 
 
 def _bootstrap_runtime(runtime: DashboardRuntime, *, run_startup_checks: bool, start_runtime_services: bool) -> None:
-    """Finish expensive startup work without blocking Flask from binding the port."""
+    """Finish the expensive start-up work without blocking Flask from binding its port.
+
+    Runs pre-flight, thermal detection, RGB detection and the orchestrator start,
+    logging the duration of every phase. Failures are logged and never crash the app.
+    """
     bootstrap_started = time.monotonic()
     LOGGER.info(
         "BOOTSTRAP begin startup_checks=%s runtime_services=%s thermal_mode=%s thermal_configured_device=%s",
@@ -184,7 +219,7 @@ def _bootstrap_runtime(runtime: DashboardRuntime, *, run_startup_checks: bool, s
                 LOGGER.info("BOOTSTRAP thermal detection required before runtime services")
                 runtime.thermal.detect_device()
 
-            thermal_wait_result = "on_demand"
+            thermal_wait_result = runtime.thermal.capture_mode
 
             LOGGER.info(
                 "BOOTSTRAP RGB/orchestrator phase begin thermal_mode=%s thermal_detected=%s elapsed=%.3fs",
@@ -221,6 +256,7 @@ def _bootstrap_runtime(runtime: DashboardRuntime, *, run_startup_checks: bool, s
 
 
 def _rgb_keepalive(orchestrator: SystemOrchestrator) -> None:
+    """Every five seconds make sure RGB and thermal are still running (restarts them if they died)."""
     while True:
         time.sleep(5.0)
         orchestrator.ensure_running()
@@ -232,7 +268,7 @@ def create_app(
     start_runtime_services: bool = True,
     bootstrap_async: bool = True,
 ) -> Flask:
-    """Build the Flask app and register page/API blueprints."""
+    """Build the Flask app, its blueprints, authentication hook and background bootstrap."""
     runtime = build_runtime(run_startup_checks=False, start_runtime_services=False)
     app = Flask(__name__)
     register_blueprints(app, runtime)
@@ -270,13 +306,19 @@ def create_app(
     app.config["easy_auth"] = auth
 
     def _client_ip() -> str:
+        """Client address, honouring the first ``X-Forwarded-For`` entry set by the SSH tunnel/proxy."""
         return request.headers.get("X-Forwarded-For", request.remote_addr or "unknown").split(",")[0].strip()
 
     @app.before_request
     def _authenticate_and_authorize() -> Any:
+        """Resolve the caller's identity and authorise the request.
+
+        Returns None to let the request through, or a JSON error response (401, 403).
+        """
         if request.method == "OPTIONS":
             return None
 
+        # # Identity resolution: legacy token, then session cookie, then anonymous viewer.
         g.current_user = None
         g.current_session = None
 
@@ -321,6 +363,7 @@ def create_app(
             if not csrf_header or csrf_header != g.current_session.csrf_token:
                 return jsonify({"ok": False, "error": "Missing or invalid CSRF token"}), 403
 
+        # # Enforcement off: only the legacy shared-token gate applies to mutating requests.
         if not auth.enforcing():
             # Enforcement off: behave like the legacy hook — only the shared
             # token gate applies to mutating requests, and only when no
@@ -331,6 +374,7 @@ def create_app(
                 return jsonify({"ok": False, "error": "Missing or invalid X-EASY-Token header"}), 401
             return None
 
+        # # Enforcement on: check the minimum role for this route, then step-up (re-entered password) for sensitive actions.
         required = required_role_for(request.method, request.path)
         if required is None:
             return None
@@ -387,6 +431,7 @@ def create_app(
 
     @app.teardown_appcontext
     def _shutdown(_exc: BaseException | None) -> None:
+        """Application-context teardown hook (nothing to release; runtime cleanup is registered with ``atexit``)."""
         pass
 
     return app
@@ -397,8 +442,10 @@ app = None if os.environ.get("EASY_DASHBOARD_SKIP_GLOBAL_APP") == "1" else creat
 
 if __name__ == "__main__":
     cfg = load_config()
-    host = str(cfg["app"].get("host", "0.0.0.0"))
-    port = int(cfg["app"].get("port", 5000))
+    # EASY_DASHBOARD_HOST / EASY_DASHBOARD_PORT override config.yaml (handy on a Mac,
+    # where port 5000 is taken by the AirPlay Receiver).
+    host = str(os.environ.get("EASY_DASHBOARD_HOST") or cfg["app"].get("host", "0.0.0.0"))
+    port = int(os.environ.get("EASY_DASHBOARD_PORT") or cfg["app"].get("port", 5000))
     probe = SystemProbe()
     LOGGER.info("Starting EASY dashboard on %s:%s", host, port)
     LOGGER.info("Open in Mac browser via tunnel: http://127.0.0.1:%s", port)

@@ -1,9 +1,18 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Notification bell: current system failures and unresolved high-severity mission events.
+ */
+
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSharedDashboardState } from '../../hooks/DashboardStateContext'
 import { dedupeNotificationKey, formatStaleAge } from '../../lib/errors'
 import { toDate } from '../../utils/formatTime'
 import type { MissionEvent } from '../../api/types'
 
+/** One grouped notification (the same problem repeated is a single entry with a count). */
 interface Notification {
   key: string
   severity: 'critical' | 'warning' | 'info'
@@ -14,6 +23,7 @@ interface Notification {
   resolved: boolean
 }
 
+/** Colour token per severity. */
 const SEVERITY_COLOR = {
   critical: 'var(--accent-critical)',
   warning: 'var(--accent-warn)',
@@ -21,10 +31,9 @@ const SEVERITY_COLOR = {
 } as const
 
 /**
- * Il badge conta guasti di sistema correnti ed eventi di missione HIGH o
- * CRITICAL non risolti — non i messaggi informativi storici. Le occorrenze
- * ripetute dello stesso problema aggiornano un contatore invece di
- * accumularsi.
+ * The badge counts current system failures and unresolved HIGH or CRITICAL
+ * mission events, not historical informational messages. Repeated occurrences
+ * of the same problem update a counter instead of piling up.
  */
 function buildNotifications(
   events: MissionEvent[],
@@ -71,11 +80,12 @@ function buildNotifications(
   return Array.from(grouped.values()).sort((a, b) => (b.at ?? 0) - (a.at ?? 0))
 }
 
+/** Bell button with a badge and a dialog listing what needs attention, what was acknowledged and what is resolved. */
 export function NotificationCenter() {
   const { data, failures, lastSuccessAt } = useSharedDashboardState()
   const [open, setOpen] = useState(false)
-  // Riconoscere nasconde il badge lato browser; non tocca lo stato backend
-  // degli eventi, perché non esiste un endpoint di acknowledgement.
+  // Acknowledging hides the badge in the browser only; it does not touch the
+  // backend state of the events, because there is no acknowledgement endpoint.
   const [acknowledged, setAcknowledged] = useState<string[]>([])
   const panelRef = useRef<HTMLDivElement>(null)
 

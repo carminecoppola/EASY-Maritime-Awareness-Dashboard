@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Generic polling hook with exponential back-off, tab-visibility awareness and manual refresh.
+ */
+
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 interface UsePollingOptions {
@@ -10,29 +18,28 @@ interface UsePollingResult<T> {
   data: T | null
   error: unknown
   loading: boolean
-  /** Fallimenti consecutivi: 1 non è ancora un guasto, 3+ sì. */
+  /** Consecutive failures: 1 is not an outage yet, 3 or more is. */
   failures: number
-  /** Istante dell'ultima risposta valida, per dichiarare l'età del dato. */
+  /** Time of the last valid response, to state the age of the data. */
   lastSuccessAt: number | null
-  /** Forza una richiesta immediata senza creare un secondo ciclo di polling. */
+  /** Forces an immediate request without starting a second polling loop. */
   refresh: () => void
 }
 
-/** Tab in background: rallenta invece di fermarsi del tutto (vedi nota sotto). */
+/** Background tab: slow down instead of stopping altogether (see the note below). */
 const HIDDEN_TAB_SLOWDOWN = 4
 
 /**
- * Polling generico con backoff esponenziale sugli errori.
+ * Generic polling with exponential back-off on errors.
  *
- * Quando la tab è in background rallenta di HIDDEN_TAB_SLOWDOWN× invece di
- * fermarsi: un'implementazione precedente smetteva del tutto di fare fetch
- * mentre `document.hidden` era true, ma un ambiente in cui la tab risulta
- * permanentemente "hidden" (kiosk display, wrapper embedded, o semplicemente
- * un browser headless) non emette mai `visibilitychange` per farla ripartire
- * — la dashboard restava bloccata sui dati dell'ultimo fetch per sempre.
- * Rallentare anziché fermarsi garantisce progresso in ogni circostanza,
- * mantenendo comunque il risparmio di CPU/rete quando non serve reattività
- * al secondo.
+ * When the tab is in the background it slows down by HIDDEN_TAB_SLOWDOWN times
+ * instead of stopping: an earlier implementation stopped fetching entirely
+ * while `document.hidden` was true, but an environment where the tab is
+ * permanently "hidden" (a kiosk display, an embedded wrapper, or simply a
+ * headless browser) never emits `visibilitychange` to restart it, and the
+ * dashboard stayed stuck on the data of the last fetch forever. Slowing down
+ * instead of stopping guarantees progress in every circumstance while still
+ * saving CPU and network when second-by-second reactivity is not needed.
  */
 export function usePolling<T>(fn: () => Promise<T>, opts: UsePollingOptions): UsePollingResult<T> {
   const { intervalMs, enabled = true, backoffMaxMs = 30000 } = opts
@@ -44,17 +51,17 @@ export function usePolling<T>(fn: () => Promise<T>, opts: UsePollingOptions): Us
   const failuresRef = useRef(0)
   const tickRef = useRef<() => void>(() => {})
   const fnRef = useRef(fn)
-  // Assegnare un ref durante il render non è sicuro in StrictMode/concurrent:
-  // il poller condiviso potrebbe leggere il fetcher di un render scartato.
+  // Assigning a ref during render is not safe in StrictMode/concurrent mode:
+  // the shared poller could read the fetcher of a discarded render.
   useEffect(() => {
     fnRef.current = fn
   })
 
   useEffect(() => {
     if (!enabled) {
-      // Senza questo, un consumer che monta l'hook con enabled=false (es.
-      // per attivarlo più tardi su interazione dell'utente) resta bloccato
-      // su loading=true per sempre, perché nessun tick lo aggiorna mai.
+      // Without this, a consumer that mounts the hook with enabled=false (e.g. to
+      // enable it later on user interaction) stays stuck on loading=true forever,
+      // because no tick ever updates it.
       setLoading(false)
       return
     }
@@ -95,9 +102,9 @@ export function usePolling<T>(fn: () => Promise<T>, opts: UsePollingOptions): Us
       }
     }
 
-    // Al ritorno in primo piano, forza subito un fetch invece di aspettare
-    // il prossimo tick rallentato — evita dati stantii percepibili quando
-    // l'operatore torna sulla tab.
+    // When the tab returns to the foreground, fetch immediately instead of
+    // waiting for the next slowed-down tick, so the operator never sees stale
+    // data on coming back.
     const handleVisibilityChange = () => {
       if (!document.hidden) tick()
     }
@@ -112,7 +119,7 @@ export function usePolling<T>(fn: () => Promise<T>, opts: UsePollingOptions): Us
     }
   }, [enabled, intervalMs, backoffMaxMs])
 
-  // Un retry manuale riusa lo stesso ciclo: non ne apre un secondo.
+  // A manual retry reuses the same loop: it does not open a second one.
   const refresh = useCallback(() => {
     tickRef.current()
   }, [])

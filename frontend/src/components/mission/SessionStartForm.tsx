@@ -1,15 +1,24 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Form that starts a mission (operator, acquisition mode, notes).
+ */
+
 import { useId, useState } from 'react'
 import { api } from '../../api/client'
 import { normalizeApiError } from '../../lib/errors'
 
 interface SessionStartFormProps {
   onSessionChanged: () => void
-  /** Modello di inferenza registrato nel manifest della sessione. */
+  /** Inference model recorded in the session manifest. */
   modelLabel: string
-  /** Impedisce l'avvio quando un controllo di preflight è bloccante. */
+  /** Prevents starting when a pre-flight check is blocking. */
   blockedReason?: string | null
 }
 
+/** Acquisition modes: live sensors, single-image replay, folder replay. */
 const MODES: { value: string; title: string; description: string }[] = [
   {
     value: 'live',
@@ -28,6 +37,7 @@ const MODES: { value: string; title: string; description: string }[] = [
   },
 ]
 
+/** Collects the start parameters and calls the backend; disabled while a blocking pre-flight check fails. */
 export function SessionStartForm({ onSessionChanged, modelLabel, blockedReason }: SessionStartFormProps) {
   const [mode, setMode] = useState('live')
   const [operator, setOperator] = useState('')
@@ -86,8 +96,8 @@ export function SessionStartForm({ onSessionChanged, modelLabel, blockedReason }
         </div>
 
         <div className="easy-field">
-          {/* Il nome missione non esiste nel contratto backend: l'identificativo
-              è generato all'avvio. Qui si mostra il modello realmente registrato. */}
+          {/* The mission name does not exist in the backend contract: the identifier is
+              generated at start. The model actually recorded is shown here. */}
           <span className="easy-fieldlabel">Detection model</span>
           <div className="easy-readonly" title={modelLabel}>
             {modelLabel}
@@ -137,7 +147,7 @@ export function SessionStartForm({ onSessionChanged, modelLabel, blockedReason }
 
       <div className="easy-formfooter">
         <span className="easy-note">
-          Starting a mission does not automatically save frames. Use synchronized capture during the session.
+          Starting a mission does not automatically save frames. Use paired capture during the session.
         </span>
         <button
           type="button"

@@ -1,10 +1,18 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Mission state and the stop action, shared by the top bar and the mission bar.
+ */
+
 import { useCallback, useState } from 'react'
 import { api } from '../api/client'
 import { normalizeApiError } from '../lib/errors'
 import { getPreference } from '../lib/preferences'
 import { useSharedDashboardState } from './DashboardStateContext'
 
-/** Conferma di fine missione, disattivabile dalle impostazioni del browser. */
+/** End-of-mission confirmation, which can be turned off in the browser settings. */
 export function confirmEndMission(sessionId: string | null | undefined): boolean {
   if (!getPreference('confirmEndMission')) return true
   const label = sessionId ? `mission "${sessionId}"` : 'the current mission'
@@ -12,9 +20,9 @@ export function confirmEndMission(sessionId: string | null | undefined): boolean
 }
 
 /**
- * Stato missione + arresto condivisi da top bar e barra missione. L'avvio
- * richiede operatore/modo/note e resta sulla pagina Mission: qui si espone
- * solo lo stop, che è distruttivo e quindi chiede conferma.
+ * Mission state and stop action shared by the top bar and the mission bar.
+ * Starting needs operator, mode and notes and stays on the Mission page: only
+ * stopping is exposed here, and it asks for confirmation because it is destructive.
  */
 export function useMissionControl() {
   const { data } = useSharedDashboardState()
@@ -41,7 +49,7 @@ export function useMissionControl() {
   return { session, running, stop, stopping, error }
 }
 
-/** Durata in corso derivata da start_time reale, mai da un timer fittizio. */
+/** Elapsed time derived from the real start_time, never from a fake timer. Format HH:MM:SS. */
 export function elapsedSince(startTime: string | null | undefined, now: number): string | null {
   if (!startTime) return null
   const started = new Date(startTime).getTime()

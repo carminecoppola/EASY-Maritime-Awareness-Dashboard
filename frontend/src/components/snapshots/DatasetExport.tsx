@@ -1,3 +1,14 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Dataset export workflow: validate a mission, choose the validation split, export and download.
+ *
+ * Only paired RGB+thermal samples are exportable; the backend caps the validation
+ * share at 50%, hence the slider range.
+ */
+
 import { useCallback, useState } from 'react'
 import { api } from '../../api/client'
 import { Panel } from '../common/Panel'
@@ -5,13 +16,15 @@ import type { DatasetValidationResult } from '../../api/types'
 
 interface DatasetExportProps {}
 
+/** Steps of the workflow. */
 type ExportPhase = 'idle' | 'validating' | 'validation-done' | 'exporting' | 'export-done'
 
+/** Two-step panel: validate, then export and download the archive. */
 export function DatasetExport({}: DatasetExportProps) {
   const [phase, setPhase] = useState<ExportPhase>('idle')
   const [validationResult, setValidationResult] = useState<DatasetValidationResult | null>(null)
   const [sessionId, setSessionId] = useState('')
-  const [validationPercent, setValidationPercent] = useState(100)
+  const [validationPercent, setValidationPercent] = useState(20)
   const [exportError, setExportError] = useState<string | null>(null)
   const [exportStatusUrl, setExportStatusUrl] = useState<string | null>(null)
 
@@ -33,16 +46,12 @@ export function DatasetExport({}: DatasetExportProps) {
     setPhase('exporting')
     setExportError(null)
     try {
-      // POST /api/dataset/export is synchronous (verified against
-      // easy_dashboard/routes/api_inference.py + dataset_exporter.py: it
-      // copies every file and builds the archive before responding) — by
-      // the time this resolves the export already exists on disk. The
-      // previous code polled /api/dataset/export/status afterwards to
-      // "wait" for completion, but that endpoint always returns 200
-      // regardless of state, so it looked like it worked while actually
-      // just declaring success on the very first tick; it also never
-      // cleared its interval on unmount, leaking a timer + a post-unmount
-      // setState whenever the operator navigated away mid-export.
+      // POST /api/dataset/export is synchronous (see
+      // easy_dashboard/routes/api_inference.py and dataset_exporter.py: it copies
+      // every file and builds the archive before responding), so by the time this
+      // resolves the export already exists on disk. Polling the status endpoint to
+      // "wait" for completion would be wrong: it always answers 200 regardless of
+      // state.
       await api.exportDataset({
         session_id: sessionId || undefined,
         validation_percent: validationPercent,
@@ -59,7 +68,7 @@ export function DatasetExport({}: DatasetExportProps) {
     <Panel gap="space-4" variant="flat">
       <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Dataset Export</div>
 
-      {/* Sezione Validazione */}
+      {/* Validation section */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
         <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>1. Validate Dataset</div>
         <button
@@ -137,7 +146,7 @@ export function DatasetExport({}: DatasetExportProps) {
         ) : null}
       </div>
 
-      {/* Sezione Export */}
+      {/* Export section */}
       {phase !== 'idle' && phase !== 'validating' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
           <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>2. Export Dataset</div>
@@ -173,7 +182,7 @@ export function DatasetExport({}: DatasetExportProps) {
               <input
                 type="range"
                 min="0"
-                max="100"
+                max="50"
                 value={validationPercent}
                 onChange={(e) => setValidationPercent(parseInt(e.target.value))}
                 disabled={phase === 'exporting' || phase === 'export-done'}

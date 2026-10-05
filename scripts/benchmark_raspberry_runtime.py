@@ -1,7 +1,17 @@
 #!/usr/bin/env python3
-from __future__ import annotations
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
 
-"""Run the reproducible EASY Raspberry Pi runtime characterization."""
+"""Command line for the reproducible EASY Raspberry Pi runtime characterization.
+
+Runs ``easy_dashboard.runtime_benchmark.BenchmarkRunner`` against a running
+service and prints the path of the generated reports. See
+``docs/runtime-benchmark.md`` for the protocol and ``scripts/run_raspberry_benchmark.sh``
+for the wrapper used on the device.
+"""
+
+from __future__ import annotations
 
 import argparse
 import json
@@ -17,6 +27,7 @@ from easy_dashboard.runtime_benchmark import BenchmarkRunner, DEFAULT_API_PATHS
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse the benchmark options (target URL, phases, durations, safety limits)."""
     parser = argparse.ArgumentParser(
         description="Measure EASY runtime resources, startup, API latency, inference timing and source FPS."
     )
@@ -71,6 +82,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    """Run the benchmark and print the generated report paths; exit code 1 on failure."""
     args = parse_args()
     try:
         runner = BenchmarkRunner(args, PROJECT_ROOT)

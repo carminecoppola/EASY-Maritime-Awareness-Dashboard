@@ -1,10 +1,19 @@
-// Gestione del token condiviso opzionale (X-EASY-Token). Riproduce lo stesso
-// livello di fiducia del meccanismo attuale (chi ha accesso alla pagina ha il
-// token): l'operatore lo incolla una volta nelle Impostazioni della SPA e
-// viene conservato in localStorage. Non è un vero sistema di login.
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Client-side storage of the optional shared token and of the session CSRF token.
+ *
+ * The shared token (`X-EASY-Token`) is pasted once in Settings and kept in
+ * `localStorage`; whoever can open the page effectively has it, so it is not a
+ * login system. The CSRF token of a login session lives in memory only, exactly as
+ * long as the browser tab, like the HttpOnly session cookie it is tied to.
+ */
 
 const STORAGE_KEY = 'easy.dashboard.token'
 
+/** Stored shared token, or null. */
 export function getAuthToken(): string | null {
   try {
     return window.localStorage.getItem(STORAGE_KEY)
@@ -13,6 +22,7 @@ export function getAuthToken(): string | null {
   }
 }
 
+/** Store the shared token (null removes it); silently ignores unavailable storage. */
 export function setAuthToken(token: string | null): void {
   try {
     if (token) {
@@ -21,20 +31,22 @@ export function setAuthToken(token: string | null): void {
       window.localStorage.removeItem(STORAGE_KEY)
     }
   } catch {
-    // localStorage non disponibile (es. modalità privata): il token resta
-    // solo per la sessione corrente, nessun crash.
+    // localStorage unavailable (e.g. private mode): the token only lasts for
+    // the current session, without crashing.
   }
 }
 
-// Token CSRF della sessione di login — solo in memoria, mai in localStorage:
-// vive quanto la scheda del browser, esattamente come il cookie di sessione
-// HttpOnly a cui è associato. Un reload lo riottiene da GET /api/auth/session.
+// CSRF token of the login session: memory only, never localStorage. It lives as
+// long as the browser tab, like the HttpOnly session cookie it belongs to. A
+// reload gets it back from GET /api/auth/session.
 let csrfToken: string | null = null
 
+/** CSRF token of the current login session, or null. */
 export function getCsrfToken(): string | null {
   return csrfToken
 }
 
+/** Keep the CSRF token in memory. */
 export function setCsrfToken(token: string | null): void {
   csrfToken = token
 }

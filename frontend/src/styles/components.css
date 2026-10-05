@@ -1,3 +1,11 @@
+/*
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Shared component styles: panels, buttons, tables, forms and tags.
+ */
+
 /* Primitive condivise tra le pagine: intestazione, striscia di readiness,
    superfici, intestazioni di sezione e stati vuoti. Le sezioni specifiche di
    una pagina vivono in live.css / mission.css. */
@@ -177,8 +185,8 @@
   color: var(--text-primary);
 }
 
-/* Variante per pannelli già con padding proprio (.easy-panel): niente bordo
-   inferiore a tutta larghezza, solo spazio sotto l'intestazione. */
+/* Variant for panels that already have their own padding (.easy-panel): no full-width bottom border,
+   only spacing under the heading. */
 .easy-panelhead.plain {
   min-height: 0;
   padding: 0;

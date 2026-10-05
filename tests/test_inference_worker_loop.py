@@ -1,3 +1,9 @@
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Tests that the inference loop survives a transient frame failure and gives up after too many consecutive ones."""
+
 from __future__ import annotations
 
 import threading
@@ -10,7 +16,7 @@ class InferenceLoopResilienceTests(unittest.TestCase):
     def _make_worker(self) -> InferenceWorker:
         worker = InferenceWorker(events=None, detection_manager=None, source_manager=None)
         worker.frame_provider.status = lambda: {"error": None, "total_frames": 1}
-        worker._selected_source = lambda: {"type": "replay_folder", "name": "Replay Folder"}
+        worker._selected_source = lambda: {"type": "replay_folder", "name": "Recorded Dataset"}
         worker._selected_source_status = lambda: "ONLINE"
         worker._write_current_state = lambda: None
         return worker

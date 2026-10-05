@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Modal viewer for one snapshot, with a focus trap, Escape to close and focus restore.
+ */
+
 import { useEffect, useRef } from 'react'
 import { toDate } from '../../utils/formatTime'
 import type { Snapshot } from '../../api/types'
@@ -7,6 +15,7 @@ interface SnapshotLightboxProps {
   onClose: () => void
 }
 
+/** Human-readable size (B, KB, MB, GB). */
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B'
   const k = 1024
@@ -15,6 +24,7 @@ function formatBytes(bytes: number): string {
   return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
 }
 
+/** Focusable elements inside a container, in DOM order. */
 function getFocusable(container: HTMLElement): HTMLElement[] {
   return Array.from(
     container.querySelectorAll<HTMLElement>(
@@ -23,6 +33,7 @@ function getFocusable(container: HTMLElement): HTMLElement[] {
   )
 }
 
+/** Image with filename, creation time, size and Download/Close actions. */
 export function SnapshotLightbox({ snapshot, onClose }: SnapshotLightboxProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const previouslyFocused = useRef<HTMLElement | null>(null)
@@ -35,10 +46,10 @@ export function SnapshotLightbox({ snapshot, onClose }: SnapshotLightboxProps) {
   onCloseRef.current = onClose
 
   useEffect(() => {
-    // Senza focus trap/restore, un operatore che naviga a tastiera può
-    // continuare a tabbare sulla Sidebar/TopBar sotto l'overlay mentre il
-    // modal resta aperto, e il focus non torna mai all'elemento che ha
-    // aperto la lightbox alla chiusura.
+    // Without a focus trap and restore, a keyboard operator could keep tabbing
+    // through the Sidebar/TopBar under the overlay while the modal stays open,
+    // and focus would never return to the element that opened the lightbox on
+    // close.
     previouslyFocused.current = document.activeElement as HTMLElement | null
     const focusable = dialogRef.current ? getFocusable(dialogRef.current) : []
     focusable[0]?.focus()

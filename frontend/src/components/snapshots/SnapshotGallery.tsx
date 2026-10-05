@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Snapshot gallery with an All / RGB / Thermal filter and a lightbox.
+ */
+
 import { useMemo, useState } from 'react'
 import type { Snapshot, SnapshotFeedInfo } from '../../api/types'
 import { toDate } from '../../utils/formatTime'
@@ -11,26 +19,31 @@ interface SnapshotGalleryProps {
   error?: unknown
 }
 
+/** Media-type filter. */
 type Filter = 'all' | 'rgb' | 'thermal'
 
+/** Filter tabs. */
 const FILTERS: { id: Filter; label: string }[] = [
   { id: 'all', label: 'All media' },
   { id: 'rgb', label: 'RGB' },
   { id: 'thermal', label: 'Thermal' },
 ]
 
+/** True when a snapshot belongs to the selected media type. */
 function matches(snapshot: Snapshot, filter: Filter): boolean {
   if (filter === 'all') return true
   const feed = String(snapshot.feed ?? '').toLowerCase()
   return filter === 'thermal' ? feed.includes('thermal') : feed.includes('rgb')
 }
 
+/** Capture-set id of a snapshot taken by the paired RGB+thermal action (null otherwise). */
 function captureSetOf(snapshot: Snapshot): string | null {
   const meta = snapshot.meta as Record<string, unknown> | undefined
   const id = meta?.capture_set_id
   return typeof id === 'string' && id ? id : null
 }
 
+/** Thumbnail grid with loading, error and empty states. */
 export function SnapshotGallery({ items, feeds, loading, error }: SnapshotGalleryProps) {
   const [filter, setFilter] = useState<Filter>('all')
   const [selected, setSelected] = useState<Snapshot | null>(null)

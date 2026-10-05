@@ -1,15 +1,22 @@
 /**
- * Righe più recenti prima, indipendentemente dall'ordine restituito dal
- * backend. Non tronca: il chiamante applica il proprio limite di
- * visualizzazione e calcola "N more" sul totale reale — troncare qui a
- * monte falsava quel conteggio (es. "15 more" su un totale di 200 invece
- * di "195 more").
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
  *
- * A parità di timestamp (il backend logga più eventi nello stesso secondo)
- * l'ordine originale — che è per inserimento crescente — va invertito
- * esplicitamente: Array.sort è stabile, quindi senza il tie-break
- * sull'indice originale i pari-merito resterebbero nell'ordine di
- * inserimento, mostrando il più vecchio del gruppo invece del più recente.
+ * Sorting helpers for log-like tables.
+ */
+
+/**
+ * Most recent rows first, regardless of the order returned by the backend. It
+ * does not truncate: the caller applies its own display limit and computes
+ * "N more" from the real total (truncating here skewed that count, e.g. "15
+ * more" out of 200 instead of "195 more").
+ *
+ * On equal timestamps (the backend logs several events in the same second) the
+ * original order, which is ascending by insertion, must be reversed explicitly:
+ * Array.sort is stable, so without the tie-break on the original index ties
+ * would keep insertion order and show the oldest of the group instead of the
+ * most recent.
  */
 export function mostRecentFirst<T extends { timestamp: string }>(rows: T[]): T[] {
   return rows

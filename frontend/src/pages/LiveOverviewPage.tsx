@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Live Operations page: readiness, the two RGB feeds, the thermal card, recent activity and the device inventory.
+ */
+
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useSharedDashboardState } from '../hooks/DashboardStateContext'
@@ -14,18 +22,19 @@ import { mostRecentFirst } from '../utils/sorting'
 import { formatRelativeTime, toDate } from '../utils/formatTime'
 import type { Availability, RawLogEvent, RgbCamera } from '../api/types'
 
-/** Telemetria reale per lato, dall'inventario camere; assente = nessun chip. */
+/** Real telemetry for one side, from the camera inventory; absent means no chip. */
 function cameraFor(cameras: RgbCamera[], side: 'left' | 'right'): RgbCamera | undefined {
   return cameras.find((camera) => String(camera.logical_name || '').toLowerCase().includes(side))
 }
 
+/** Main operator view; all data comes from the shared dashboard polling. */
 export function LiveOverviewPage() {
   const { data, loading, error } = useSharedDashboardState()
   const [now, setNow] = useState(() => Date.now())
   const [refreshing, setRefreshing] = useState(false)
 
-  // Un solo tick al secondo per la durata missione: il resto della pagina
-  // si aggiorna col polling condiviso, non con timer locali.
+  // A single tick per second for the mission duration: the rest of the page
+  // updates with the shared polling, not with local timers.
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(id)
@@ -62,9 +71,9 @@ export function LiveOverviewPage() {
   const sources = data?.sources?.sources ?? []
 
   const rawEvents = (data?.events?.events ?? []) as RawLogEvent[]
-  // /events è restituito dal più vecchio al più recente (verificato su un
-  // payload reale): senza riordino "recent activity" mostrava eventi di
-  // settimane prima invece di quanto appena accaduto.
+  // /events is returned oldest first (verified on a real payload): without
+  // re-sorting, "recent activity" showed events from weeks ago instead of what
+  // just happened.
   const recentEvents = mostRecentFirst(rawEvents)
 
   const lastUpdate = toDate(data?.timestamp)
@@ -75,8 +84,8 @@ export function LiveOverviewPage() {
     try {
       await Promise.all([api.refreshDevices(), api.refreshSources()])
     } catch {
-      // Il polling condiviso riporta comunque lo stato reale al tick
-      // successivo: un refresh fallito non deve bloccare la pagina.
+      // The shared polling reports the real state on the next tick anyway: a failed
+      // refresh must not block the page.
     } finally {
       setRefreshing(false)
     }
@@ -97,7 +106,7 @@ export function LiveOverviewPage() {
             </>
           ) : (
             <>
-              Last synchronized update <b>{lastUpdate ? formatRelativeTime(lastUpdate) : 'unknown'}</b>
+              Last dashboard update <b>{lastUpdate ? formatRelativeTime(lastUpdate) : 'unknown'}</b>
             </>
           )}
         </div>

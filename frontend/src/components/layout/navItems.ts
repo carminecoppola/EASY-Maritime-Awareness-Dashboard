@@ -1,11 +1,21 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Navigation structure and page titles.
+ */
+
 import type { NavIconName } from './NavIcon'
 
+/** One navigation entry. */
 export interface NavItem {
   to: string
   label: string
   icon: NavIconName
 }
 
+/** Operations, System and Administration groups. */
 export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: 'Operations',
@@ -33,12 +43,13 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
 
 const ALL_ITEMS = NAV_GROUPS.flatMap((group) => group.items)
 
-/** Pagine raggiungibili ma non elencate nella navigazione. */
+/** Pages that can be reached but are not listed in the navigation. */
 const EXTRA_TITLES: Record<string, string> = {
   '/presentation': 'Presentation Preview',
   '/sign-in': 'Sign in',
 }
 
+/** Page title for a route path (`Live Operations` for `/`, `EASY` when unknown). */
 export function titleForPath(pathname: string): string {
   if (pathname === '/') return 'Live Operations'
   const extra = Object.keys(EXTRA_TITLES).find((path) => pathname.startsWith(path))

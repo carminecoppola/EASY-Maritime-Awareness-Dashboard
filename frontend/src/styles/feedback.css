@@ -1,3 +1,11 @@
+/*
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Styles of alerts, banners, toasts, notifications and stale-data markers.
+ */
+
 /* Banner, alert inline, stati di pannello, toast e centro notifiche. */
 
 .easy-banner {
@@ -164,7 +172,7 @@
   flex-wrap: wrap;
 }
 
-/* Dati non aggiornati */
+/* Stale data */
 
 .easy-stale {
   display: inline-flex;
@@ -188,7 +196,7 @@
   right: 12px;
 }
 
-/* L'immagine non è più live: va desaturata, non lasciata identica a una viva. */
+/* The image is no longer live: desaturate it instead of leaving it identical to a live one. */
 .easy-stale-media img {
   filter: grayscale(0.55) brightness(0.7);
 }

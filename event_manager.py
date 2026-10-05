@@ -1,3 +1,22 @@
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Event manager: turns raw detections into mission-level events.
+
+A *detection* is one box in one frame. An *event* groups the detections of the
+same kind (same session, class and source) into a single record that is created
+the first time the object appears and updated while it keeps being detected:
+
+    NEW      -> first detection of the object in the session
+    ACTIVE   -> further detections update ``update_count`` and ``last_*``
+    RESOLVED -> the session ended (see ``resolve_session_events``)
+
+Boats and ships raise LOW severity events, buoys INFO. Events are written to
+``runtime/sessions/current_events.json``, ``event_history.json`` and to each
+session's ``events.json``.
+"""
+
 from __future__ import annotations
 
 import threading
@@ -20,8 +39,11 @@ DETECTION_EVENT_MAP = {
     "ship": {"type": "ShipDetected", "severity": "LOW"},
     "buoy": {"type": "BuoyDetected", "severity": "INFO"},
 }
+
+
 @dataclass
 class EventRecord:
+    """One mission event and the detections that support it."""
     event_id: str
     session_id: str
     type: str
@@ -45,6 +67,7 @@ class EventRecord:
     meta: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialise the event, adding the ``id``/``count``/``timestamp``/``label`` aliases used by the UI."""
         payload = asdict(self)
         payload["id"] = self.event_id
         payload["count"] = self.update_count
@@ -63,6 +86,7 @@ class EventManager:
         events: Any | None = None,
         session_manager: Any | None = None,
     ) -> None:
+        """Restore the history and current events from disk and re-persist them."""
         self.sessions_dir = Path(sessions_dir)
         self.current_path = self.sessions_dir / "current_events.json"
         self.history_path = self.sessions_dir / "event_history.json"
@@ -79,15 +103,18 @@ class EventManager:
         self._persist()
 
     def _session_events_path(self, session_id: str) -> Path:
+        """Path of the per-session ``events.json`` file."""
         return self.sessions_dir / session_id / "events.json"
 
     def _float_or_none(self, value: Any) -> float | None:
+        """Round to 4 decimals, or None when the value is missing or not numeric."""
         try:
             return None if value is None else round(float(value), 4)
         except Exception:
             return None
 
     def _record_from_item(self, item: Dict[str, Any]) -> EventRecord | None:
+        """Rebuild an ``EventRecord`` from a stored dictionary, repairing invalid severity/status; None if malformed."""
         try:
             record = EventRecord(
                 event_id=str(item.get("event_id") or item.get("id") or f"evt-{uuid.uuid4().hex[:12]}"),
@@ -121,6 +148,7 @@ class EventManager:
             return None
 
     def _load_history_snapshot(self) -> None:
+        """Load ``event_history.json`` and index the events that are still open."""
         payload = read_json(self.history_path, {"events": []})
         for item in payload.get("events", []):
             record = self._record_from_item(item)
@@ -132,6 +160,7 @@ class EventManager:
                 self._active_keys[record.event_key] = record.event_id
 
     def _load_current_snapshot(self) -> None:
+        """Load ``current_events.json`` and index the events that are still open."""
         payload = read_json(self.current_path, {"events": []})
         current_ids: List[str] = []
         for item in payload.get("events", []) or payload.get("current_events", []):
@@ -147,6 +176,7 @@ class EventManager:
         self._current_ids = current_ids
 
     def _event_payload(self, *, current_only: bool) -> Dict[str, Any]:
+        """Build the API payload for the current events or for the whole history."""
         ids = self._current_ids if current_only else self._history_ids
         items = [self._records[item_id].to_dict() for item_id in ids if item_id in self._records]
         return {
@@ -160,6 +190,7 @@ class EventManager:
         }
 
     def _sync_session_file(self, session_id: str) -> None:
+        """Rewrite one session's ``events.json`` while preserving its activity log."""
         if not session_id:
             return
         path = self._session_events_path(session_id)
@@ -193,6 +224,7 @@ class EventManager:
         atomic_write_json(path, payload)
 
     def _persist(self, session_ids: set[str] | None = None) -> None:
+        """Write the current and history files, then synchronise the affected session files."""
         atomic_write_json(self.current_path, self._event_payload(current_only=True))
         atomic_write_json(self.history_path, self._event_payload(current_only=False))
         affected_session_ids = session_ids
@@ -206,14 +238,17 @@ class EventManager:
             self._sync_session_file(session_id)
 
     def _classification(self, detection: Dict[str, Any]) -> Dict[str, str] | None:
+        """Map a detection's class to an event type and severity (None for unknown classes)."""
         label = str(detection.get("class_name") or detection.get("label") or detection.get("type") or "").strip().lower()
         return DETECTION_EVENT_MAP.get(label)
 
     def _event_key(self, *, session_id: str, event_type: str, source: str, track_id: str | None = None) -> str:
+        """Key that identifies 'the same object' across detections: session, type, source and track."""
         parts = [session_id or "no-session", event_type, source or "unknown", track_id or "no-track"]
         return "::".join(parts)
 
     def _emit_activity(self, record: EventRecord, created: bool) -> None:
+        """Add an ``EVENT_CREATED`` or ``EVENT_UPDATED`` entry to the activity log."""
         if not self.events:
             return
         event_type = "EVENT_CREATED" if created else "EVENT_UPDATED"
@@ -225,6 +260,10 @@ class EventManager:
             pass
 
     def _record_detection_locked(self, detection: Dict[str, Any]) -> tuple[EventRecord, bool] | None:
+        """Create or update the event for one detection. The caller must hold the lock.
+
+        Returns ``(record, created)``, or None for classes that raise no event.
+        """
         classification = self._classification(detection)
         if classification is None:
             return None
@@ -300,7 +339,7 @@ class EventManager:
         return record, True
 
     def record_detections(self, detections: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Record one inference frame with a single durable write."""
+        """Record all detections of one inference frame with a single durable write."""
         changed: List[tuple[EventRecord, bool]] = []
         with self._lock:
             for detection in detections:
@@ -314,10 +353,12 @@ class EventManager:
         return [record.to_dict() for record, _ in changed]
 
     def record_detection(self, detection: Dict[str, Any]) -> Dict[str, Any] | None:
+        """Record a single detection and return the resulting event, if any."""
         records = self.record_detections([detection])
         return records[0] if records else None
 
     def resolve_session_events(self, session_id: str, *, notes: str | None = None) -> Dict[str, Any]:
+        """Close every open event of a session, optionally attaching ``notes``."""
         resolved = []
         with self._lock:
             for event_id in list(self._current_ids):
@@ -341,6 +382,7 @@ class EventManager:
         return {"ok": True, "count": len(resolved), "events": resolved, "session_id": session_id}
 
     def get_event(self, event_id: str | None) -> Dict[str, Any] | None:
+        """Return one event by id, or None."""
         if not event_id:
             return None
         with self._lock:
@@ -348,14 +390,17 @@ class EventManager:
             return record.to_dict() if record else None
 
     def get_current_events(self) -> Dict[str, Any]:
+        """Return the open events."""
         with self._lock:
             return self._event_payload(current_only=True)
 
     def get_history(self) -> Dict[str, Any]:
+        """Return every event recorded so far."""
         with self._lock:
             return self._event_payload(current_only=False)
 
     def clear(self) -> Dict[str, Any]:
+        """Forget all events and rewrite the files empty."""
         with self._lock:
             session_ids = {
                 self._records[item_id].session_id

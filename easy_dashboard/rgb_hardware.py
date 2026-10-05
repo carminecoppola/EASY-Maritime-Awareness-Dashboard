@@ -1,3 +1,23 @@
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""RGB camera runtime: one shared capture process, split into a left and a right view.
+
+A single stereo sensor (Arducam UC-512 multiplexer with two UC-517 cameras) is
+read through ``rpicam-vid``/``libcamera-vid``. It outputs one MJPEG stream with
+the left and right images side by side. ``RgbMasterSource`` owns that process and
+serves everything the dashboard needs from it:
+
+    * the latest frame, cropped into the left or right view (snapshots, live
+      MJPEG streams, inference frames, a focus-assist score);
+    * a state machine (OFFLINE, STARTING, ONLINE, BUSY, ERROR) with a retry
+      back-off, so a busy or crashed camera never makes the app spin;
+    * detection through the libcamera camera list.
+
+The camera is opened exactly once: every consumer reads the same frame buffer.
+"""
+
 from __future__ import annotations
 
 import io
@@ -6,6 +26,7 @@ import subprocess
 import threading
 import time
 from collections import deque
+from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 import numpy as np
@@ -23,10 +44,23 @@ from .utils import which
 LOGGER = logging.getLogger("easy-dashboard")
 
 
+@dataclass(frozen=True)
+class StereoFrame:
+    """One immutable stereo sample: the master frame, both crops and the capture timestamps."""
+
+    master_jpeg: bytes
+    left_jpeg: bytes
+    right_jpeg: bytes
+    sequence: int
+    received_wall_ts: float
+    received_monotonic_ns: int
+
+
 class RgbMasterSource:
     """Single owner of the shared RGB camera process and feed splitting logic."""
 
     def __init__(self, config: Dict[str, Any], events: EventStore, probe: SystemProbe) -> None:
+        """Read the RGB settings from the configuration and prepare the frame buffer and state."""
         self.config = config
         self.events = events
         self.probe = probe
@@ -52,7 +86,9 @@ class RgbMasterSource:
         self._condition = threading.Condition(self._lock)
         self._frame: Optional[bytes] = None
         self._frame_ts: float = 0.0
+        self._frame_monotonic_ns: int = 0
         self._frame_seq: int = 0
+        self._frame_times: deque[float] = deque(maxlen=max(12, self.fps_target * 3))
         self._stderr_tail: deque[str] = deque(maxlen=8)
         self._reader_thread: Optional[threading.Thread] = None
         self._stderr_thread: Optional[threading.Thread] = None
@@ -70,6 +106,7 @@ class RgbMasterSource:
 
     @property
     def camera_list_output(self) -> str:
+        """Output of the libcamera camera listing, queried once and cached."""
         if self._camera_list_output is not None:
             return self._camera_list_output
         with self._camera_list_lock:
@@ -82,6 +119,7 @@ class RgbMasterSource:
         return self._camera_list_output
 
     def _camera_detected(self) -> bool:
+        """True when the camera list mentions a supported sensor."""
         output = self.camera_list_output.lower()
         return "imx477" in output or "arducam" in output or ("available cameras" in output and "no cameras available" not in output)
 
@@ -92,15 +130,18 @@ class RgbMasterSource:
         return self.detected
 
     def _busy_reason(self) -> bool:
+        """True when the last error means the camera is held by another process."""
         lowered = self._error.lower()
         return any(token in lowered for token in ("busy", "timeout", "in use", "failed to acquire"))
 
     def _mark_busy(self, message: str) -> None:
+        """Enter the BUSY state and delay the next start attempt by the retry back-off."""
         self._error = message
         self._status = "BUSY"
         self._next_retry_ts = time.time() + self._retry_backoff
 
     def _is_benign_stderr(self, line: str) -> bool:
+        """True for known harmless libcamera messages that must not be treated as errors."""
         lowered = line.lower()
         return any(
             token in lowered
@@ -112,6 +153,7 @@ class RgbMasterSource:
         )
 
     def camera_state(self) -> str:
+        """Camera state for the UI: OFFLINE (not detected), BUSY (held elsewhere) or DETECTED."""
         if not self.detected:
             return "OFFLINE"
         if self._busy_reason():
@@ -125,6 +167,7 @@ class RgbMasterSource:
         return "DETECTED"
 
     def camera_message(self) -> str:
+        """Human-readable description of the camera state."""
         if not self.detected:
             return "Camera not detected by libcamera"
         if self._busy_reason():
@@ -136,6 +179,7 @@ class RgbMasterSource:
         return "Camera detected and ready"
 
     def _terminate_process_locked(self) -> None:
+        """Terminate the capture process (kill after 2 s). The caller must hold the lock."""
         proc = self.process
         self.process = None
         if proc and proc.poll() is None:
@@ -147,6 +191,11 @@ class RgbMasterSource:
                 proc.wait(timeout=2)
 
     def start(self, force_restart: bool = False) -> bool:
+        """Start the capture process if it is not running.
+
+        Returns True when it is (or already was) running. After a failure the next
+        attempt is postponed by the retry back-off unless ``force_restart`` is set.
+        """
         if not self.detected and not self._detection_checked:
             self.refresh_detection()
         with self._lock:
@@ -190,6 +239,7 @@ class RgbMasterSource:
             return True
 
     def stop(self) -> None:
+        """Stop the capture process."""
         with self._lock:
             self._stop = True
             self._terminate_process_locked()
@@ -219,6 +269,7 @@ class RgbMasterSource:
             self.start(force_restart=True)
 
     def _read_stdout(self) -> None:
+        """Reader thread: split the MJPEG stream into frames and store them."""
         assert self.process and self.process.stdout
         buffer = b""
         stream = self.process.stdout
@@ -244,6 +295,9 @@ class RgbMasterSource:
                     self.events.add("UC512_MULTIPLEXER", "STREAM_STOP", self._error, "warning")
 
     def _store_frame(self, frame: bytes) -> None:
+        """Publish a new frame, clear transient errors and wake every waiting consumer."""
+        received_wall_ts = time.time()
+        received_monotonic_ns = time.monotonic_ns()
         with self._condition:
             # libcamera can report a transient timeout while recovering
             # internally. A subsequent valid frame is the authoritative
@@ -251,12 +305,15 @@ class RgbMasterSource:
             self._error = ""
             self._next_retry_ts = 0.0
             self._frame = frame
-            self._frame_ts = time.time()
+            self._frame_ts = received_wall_ts
+            self._frame_monotonic_ns = received_monotonic_ns
+            self._frame_times.append(received_monotonic_ns / 1_000_000_000.0)
             self._frame_seq += 1
             self._status = "ONLINE"
             self._condition.notify_all()
 
     def _read_stderr(self) -> None:
+        """Reader thread: classify the process messages as benign, busy or error and record them."""
         assert self.process and self.process.stderr
         for raw_line in self.process.stderr:
             if self._stop:
@@ -284,9 +341,11 @@ class RgbMasterSource:
                 LOGGER.info("rgb-source: %s", line)
 
     def any_enabled(self) -> bool:
+        """True if at least one of the two views is enabled."""
         return any(self.enabled_feeds.values())
 
     def set_enabled(self, feed_name: str, enabled: bool) -> None:
+        """Enable or pause one view; the process stops when both are paused."""
         self.enabled_feeds[feed_name] = enabled
         self.events.add(
             feed_name.upper(),
@@ -300,6 +359,11 @@ class RgbMasterSource:
             self.stop()
 
     def wait_for_frame(self, last_seq: int = 0, timeout: float = 3.0) -> tuple[Optional[bytes], int]:
+        """Block until a frame newer than ``last_seq`` arrives (or ``timeout``).
+
+        Starts the process when needed and restarts it at most every five seconds when
+        no frame arrives. Returns ``(jpeg_bytes_or_None, sequence)``.
+        """
         if not self.start():
             return None, last_seq
         end = time.time() + timeout
@@ -327,9 +391,14 @@ class RgbMasterSource:
         return frame, seq
 
     def latest_state(self) -> Dict[str, Any]:
+        """Full RGB state: status, fps, frame age, errors and the normalised ``runtime_state`` contract."""
         with self._condition:
             age_ms = int((time.time() - self._frame_ts) * 1000) if self._frame_ts else None
-            fps = float(self.fps_target) if self._frame_seq > 1 and self._frame_ts else 0.0
+            fps = 0.0
+            if len(self._frame_times) > 1:
+                elapsed = self._frame_times[-1] - self._frame_times[0]
+                if elapsed > 0:
+                    fps = (len(self._frame_times) - 1) / elapsed
             status = self._status
             if self._frame is not None and self.process and self.process.poll() is None:
                 status = "ONLINE"
@@ -341,8 +410,11 @@ class RgbMasterSource:
                 "detected": self.detected,
                 "has_frame": self._frame is not None,
                 "last_frame_ts": self._frame_ts,
+                "last_frame_monotonic_ns": self._frame_monotonic_ns,
+                "frame_seq": self._frame_seq,
                 "last_frame_age_ms": age_ms,
-                "fps": fps,
+                "fps": round(fps, 2),
+                "fps_target": self.fps_target,
                 "camera_index": self.camera_index,
                 "width": self.width,
                 "height": self.height,
@@ -352,14 +424,17 @@ class RgbMasterSource:
             return payload
 
     def read_current_frame(self) -> Optional[bytes]:
+        """Latest full-width frame (waits up to 2 s)."""
         frame, _ = self.wait_for_frame(timeout=2.0)
         return frame
 
     def ensure_running(self) -> None:
+        """Start the capture if any view is enabled."""
         if self.enabled_feeds and any(self.enabled_feeds.values()):
             self.start()
 
     def _crop_snapshot(self, frame: bytes, side: str) -> bytes:
+        """Crop the left or right half (split at ``crop_ratio``) of a master frame; any other ``side`` returns the frame unchanged."""
         if side not in {"left", "right"}:
             return frame
         try:
@@ -376,6 +451,7 @@ class RgbMasterSource:
             return frame
 
     def capture_snapshot(self, side: str) -> tuple[bytes, bool]:
+        """JPEG of one view and a flag telling whether it is a real frame or a placeholder."""
         frame = self.read_current_frame()
         if not frame:
             state = self.camera_state()
@@ -383,6 +459,27 @@ class RgbMasterSource:
             subtitle = self.camera_message()
             return make_placeholder_jpeg(label, subtitle, "#ffbc56" if state == "BUSY" else "#ff7a7a"), False
         return self._crop_snapshot(frame, side), True
+
+    def capture_stereo_frame(self) -> Optional[StereoFrame]:
+        """Return both RGB views from one master frame with shared timing."""
+        frame, _ = self.wait_for_frame(timeout=2.0)
+        if not frame:
+            return None
+        with self._condition:
+            master = self._frame
+            sequence = self._frame_seq
+            wall_ts = self._frame_ts
+            monotonic_ns = self._frame_monotonic_ns
+        if master is None:
+            return None
+        return StereoFrame(
+            master_jpeg=master,
+            left_jpeg=self._crop_snapshot(master, "left"),
+            right_jpeg=self._crop_snapshot(master, "right"),
+            sequence=sequence,
+            received_wall_ts=wall_ts,
+            received_monotonic_ns=monotonic_ns,
+        )
 
     def focus_score(self, side: str) -> Dict[str, Any]:
         """Sharpness estimate (Laplacian variance) to help manually focus a fixed lens.
@@ -411,7 +508,9 @@ class RgbMasterSource:
             return {"ok": False, "error": str(exc), "score": None}
 
     def stream_response(self, feed_name: str, side: str) -> Response:
+        """Flask MJPEG response for one view; shows a status placeholder while paused or without frames."""
         def generator():
+            """Yield MJPEG parts forever, one per new frame."""
             seq = 0
             while True:
                 if not self.enabled_feeds.get(feed_name, True):
@@ -425,12 +524,9 @@ class RgbMasterSource:
                     yield multipart_frame(make_placeholder_jpeg(f"RGB_CAM_{side.upper()} {state}", subtitle, "#ffbc56" if state == "BUSY" else "#ff7a7a"))
                     time.sleep(1.0)
                     continue
-                # Il sensore stereo produce un unico frame affiancato left+right;
-                # senza questo crop lo stream live serviva il frame intero non
-                # tagliato su entrambi i lati (a differenza dello snapshot, che
-                # già usava _crop_snapshot), mostrando la stessa immagine
-                # duplicata su RGB LEFT e RGB RIGHT.
+                # The stereo sensor produces one side-by-side left+right frame; the
+                # live stream must crop it exactly like the snapshot does, otherwise
+                # RGB LEFT and RGB RIGHT would both show the same uncropped image.
                 yield multipart_frame(self._crop_snapshot(frame, side))
 
         return Response(generator(), mimetype="multipart/x-mixed-replace; boundary=frame")
-

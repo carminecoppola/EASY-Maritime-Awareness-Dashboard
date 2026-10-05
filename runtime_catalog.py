@@ -1,11 +1,16 @@
-from __future__ import annotations
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared runtime catalog used by device and source managers.
+"""Canonical catalog of the EASY endpoints shared by the device and source managers.
 
-Both managers expose the same logical EASY endpoints: replay, RGB left,
-RGB right and thermal. Keeping the canonical naming in one module avoids
-drift between UI-facing source labels and runtime-facing device labels.
+Both managers expose the same four logical endpoints: ``replay``, ``rgb_left``,
+``rgb_right`` and ``thermal``. Defining their names, types and capabilities in
+one place prevents drift between the UI-facing source labels and the
+runtime-facing device labels.
 """
+
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -14,6 +19,11 @@ from typing import Any
 
 @dataclass(frozen=True)
 class RuntimeEndpointSpec:
+    """Static description of one endpoint, as seen both as a device and as a source.
+
+    The ``device_*`` fields describe the physical or virtual hardware, the
+    ``source_*`` fields describe how its frames are consumed by the pipeline.
+    """
     endpoint_id: str
     display_name: str
     device_type: str
@@ -29,12 +39,18 @@ class RuntimeEndpointSpec:
 
 
 def build_runtime_endpoint_catalog(runtime_root: Path | str, replay_root: Path | str) -> list[RuntimeEndpointSpec]:
+    """Return the default catalog of endpoints.
+
+    Camera and thermal entries start as NOT_PRESENT placeholders; the hardware
+    managers replace them with live state once a real device is detected. The
+    replay endpoint is always available and reads frames from ``replay_root``.
+    """
     runtime_root = Path(runtime_root)
     replay_root = Path(replay_root)
     return [
         RuntimeEndpointSpec(
             endpoint_id="replay",
-            display_name="Replay Folder",
+            display_name="Recorded Dataset",
             device_type="replay",
             source_type="replay_folder",
             driver="folder-frame-provider",

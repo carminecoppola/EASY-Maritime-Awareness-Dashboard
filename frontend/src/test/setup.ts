@@ -1,8 +1,16 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Vitest setup: jest-dom matchers and a localStorage fallback.
+ */
+
 import '@testing-library/jest-dom/vitest'
 
-// jsdom in questo ambiente non espone un localStorage completo: senza questo
-// stub qualunque test che tocchi token o preferenze fallisce con
-// "localStorage.removeItem is not a function" invece di provare il comportamento.
+// jsdom in this environment does not expose a complete localStorage: without this
+// stub any test that touches the token or the preferences fails with
+// "localStorage.removeItem is not a function" instead of testing the behaviour.
 if (typeof window !== 'undefined' && typeof window.localStorage?.removeItem !== 'function') {
   const store = new Map<string, string>()
   const memoryStorage: Storage = {

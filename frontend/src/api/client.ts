@@ -1,3 +1,16 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Typed HTTP client for the dashboard backend.
+ *
+ * Every call goes through `request`, which adds an 8 s timeout (override per
+ * call), the JSON content type, and, for state-changing methods, the optional
+ * shared token (`X-EASY-Token`) and the session CSRF token (`X-EASY-CSRF`).
+ * Non-2xx answers become an `ApiError` carrying the status and parsed body.
+ */
+
 import { getAuthToken, getCsrfToken } from './config'
 import type {
   AcquisitionStatus,
@@ -30,6 +43,7 @@ import type {
   ThermalStatusResponse,
 } from './types'
 
+/** Error thrown for a non-2xx response; carries the HTTP `status` and the parsed `body`. */
 export class ApiError extends Error {
   status: number
   body: unknown
@@ -42,12 +56,14 @@ export class ApiError extends Error {
   }
 }
 
+/** `fetch` options plus a per-call timeout in milliseconds. */
 interface RequestOptions extends RequestInit {
   timeoutMs?: number
 }
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 
+/** Parse a response body as JSON, returning null when it is not valid JSON. */
 async function safeJson(res: Response): Promise<unknown> {
   try {
     return await res.json()
@@ -56,6 +72,7 @@ async function safeJson(res: Response): Promise<unknown> {
   }
 }
 
+/** Issue a request and return the parsed JSON (null for 204). Aborts after `timeoutMs` (default 8000). */
 async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 8000)
@@ -70,9 +87,9 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   if (token && !SAFE_METHODS.has(method)) {
     headers['X-EASY-Token'] = token
   }
-  // Il cookie di sessione è HttpOnly (mai leggibile da JS): il CSRF token
-  // ottenuto al login viaggia come header separato, verificato lato server
-  // contro quello legato alla sessione — vedi easy_dashboard/auth.py.
+  // The session cookie is HttpOnly (never readable from JavaScript): the CSRF
+  // token obtained at login travels as a separate header and is checked by the
+  // server against the one bound to the session (see easy_dashboard/auth.py).
   const csrf = getCsrfToken()
   if (csrf && !SAFE_METHODS.has(method) && !headers['X-EASY-CSRF']) {
     headers['X-EASY-CSRF'] = csrf
@@ -92,6 +109,7 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   }
 }
 
+/** Build a query string from the defined entries of `params` (empty string when none). */
 function qs(params: Record<string, string | number | undefined>): string {
   const entries = Object.entries(params).filter(([, v]) => v !== undefined) as [string, string | number][]
   if (entries.length === 0) return ''
@@ -99,12 +117,13 @@ function qs(params: Record<string, string | number | undefined>): string {
   return `?${search.toString()}`
 }
 
+/** One method per backend endpoint, grouped by area: status, sources, inference, detections, missions, dataset, snapshots, thermal, streams, auth. */
 export const api = {
   getConfig: () => request<ConfigResponse>('/api/config'),
 
-  // Endpoint aggregato e volutamente costoso (~2 s misurati sul Raspberry,
-  // psutil incluso): con il timeout predefinito di 8 s bastava una richiesta
-  // accodata per farlo abortire, lasciando la dashboard senza dati.
+  // Aggregated endpoint, deliberately expensive (about 2 s measured on the
+  // Raspberry, psutil included): with the default 8 s timeout a single queued
+  // request was enough to abort it and leave the dashboard without data.
   getDashboardState: (params: { events_limit?: number; snapshots_limit?: number } = {}) =>
     request<DashboardState>(`/api/dashboard/state${qs(params)}`, { timeoutMs: 20000 }),
 
@@ -123,7 +142,7 @@ export const api = {
   refreshDevices: () => request('/api/devices/refresh', { method: 'POST' }),
 
   getInferenceStatus: () => request<InferenceStatus>('/api/inference/status'),
-  /** Esegue l'inferenza sul frame successivo della sorgente selezionata. Attesa reale sulla CPU del Raspberry. */
+  /** Runs inference on the next frame of the selected source. It really waits for the Raspberry CPU. */
   runInferenceOnNextFrame: () =>
     request<InferenceRunResult>('/api/inference/run-on-next-frame', { method: 'POST', timeoutMs: 60000 }),
   startInference: () => request<{ ok: boolean }>('/api/inference/start', { method: 'POST' }),
@@ -152,7 +171,7 @@ export const api = {
   getSessionList: () => request<{ sessions: unknown[] }>('/api/session/list'),
 
   getAcquisitionStatus: () => request<AcquisitionStatus>('/api/acquisition/status'),
-  /** RGB left+right+thermal sotto un unico capture_set_id. Richiede una missione attiva (409 altrimenti). */
+  /** Atomic RGB left+right plus a thermal frame, paired under one capture_set_id. Needs a running mission. */
   captureAcquisitionSet: () =>
     request<CaptureSetResponse>('/api/acquisition/capture-set', { method: 'POST', timeoutMs: 20000 }),
   validateDataset: (sessionId?: string) =>
@@ -174,8 +193,8 @@ export const api = {
   setStreamState: (feed: 'rgb_left' | 'rgb_right', enabled: boolean) =>
     request<StreamStateResponse>('/api/stream-state', {
       method: 'POST',
-      // Il backend fa bool(payload[feed]): un dict è sempre truthy, quindi
-      // disabilitare un feed lo abilitava. Va inviato il booleano nudo.
+      // The backend does bool(payload[feed]): a dict is always truthy, so
+      // disabling a feed used to enable it. Send the bare boolean.
       body: JSON.stringify({ [feed]: enabled }),
     }),
   startStream: (feed: 'rgb_left' | 'rgb_right') => request(`/video/${feed}/start`, { method: 'POST' }),
@@ -183,7 +202,7 @@ export const api = {
 
   getFocus: (side: 'rgb_left' | 'rgb_right') => request<FocusResponse>(`/api/focus/${side}`),
 
-  /** Ferma e riavvia i servizi hardware (camere, termico). Admin-only, richiede step-up. */
+  /** Stops and restarts the hardware services (cameras, thermal). Admin only, needs step-up. */
   restartSystemServices: () => request<{ ok: boolean }>('/api/system/restart', { method: 'POST', timeoutMs: 30000 }),
 
   getAuthStatus: () => request<AuthStatusResponse>('/api/auth/status'),
@@ -199,7 +218,7 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   authLogout: () => request<{ ok: boolean }>('/api/auth/logout', { method: 'POST' }),
-  /** Ri-conferma la password per sbloccare un'azione distruttiva per una finestra breve. */
+  /** Re-confirms the password to unlock a destructive action for a short window. */
   authStepUp: (payload: { password: string }) =>
     request<{ ok: boolean; elevated_until: number | null }>('/api/auth/step-up', {
       method: 'POST',
@@ -225,7 +244,7 @@ export const api = {
   getAuditLog: (limit = 100) => request<{ ok: boolean; entries: AuditEntry[]; count: number }>(`/api/auth/audit?limit=${limit}`),
 }
 
-/** Aggiunge un cache-buster: usare per <img src> di endpoint no-store (preview, thermal/frame). */
+/** Appends a cache buster: use it for <img src> of no-store endpoints (preview, thermal/frame). */
 export function withCacheBuster(url: string): string {
   const sep = url.includes('?') ? '&' : '?'
   return `${url}${sep}t=${Date.now()}`

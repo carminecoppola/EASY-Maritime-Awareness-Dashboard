@@ -1,3 +1,11 @@
+/*
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Design tokens: colours, spacing, typography, radii and shadows. Every other stylesheet reads these variables.
+ */
+
 :root {
   color-scheme: dark;
 
@@ -15,14 +23,14 @@
   --text-secondary: #b6c1cc;
   --text-muted: #8fa0b2;
 
-  /* Accento di marca — identità EASY, mai usato per comunicare stato
+  /* Brand accent: the EASY identity, never used to communicate state.
      (quello resta sempre e solo accent-ok/warn/critical/info qui sotto).
-     Ambra segnaletica, stesso registro delle boe di navigazione reali —
-     coerente col poster del progetto, non un colore scelto a caso. */
+     Signal amber, the same register as real navigation buoys,
+     consistent with the project poster, not a randomly chosen colour. */
   --accent-brand: #f5b82e;
   --accent-brand-dim: #3a2c12;
 
-  /* Accenti di stato — usati sempre insieme a testo/icona, mai da soli */
+  /* State accents: always used together with text or an icon, never alone */
   --accent-ok: #2dd4a4;
   --accent-ok-dim: #143a30;
   --accent-warn: #f6b94a;
@@ -34,7 +42,7 @@
   --accent-interactive: #3d8bff;
   --accent-interactive-hover: #5c9dff;
 
-  /* Severità eventi/detection */
+  /* Event / detection severity */
   --severity-info: var(--accent-info);
   --severity-low: #7dd956;
   --severity-medium: var(--accent-warn);
@@ -55,10 +63,10 @@
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
 
-  /* Numeri hero (StatusCard, gauge) — leggibili a colpo d'occhio da lontano */
+  /* Hero numbers (StatusCard, gauge): readable at a glance from a distance */
   --font-size-hero: 36px;
-  /* Titolo di pagina — deve leggersi come intestazione di un pannello
-     strumenti, non come un titolo di sito web qualunque. */
+  /* Page title: it must read as the heading of an instrument panel
+     not as just another website title. */
   --font-size-page-title: 26px;
 
   --radius-sm: 4px;
@@ -67,9 +75,9 @@
 
   --focus-ring: 0 0 0 2px var(--bg-0), 0 0 0 4px var(--accent-interactive);
 
-  /* Separazione reale tra pannello e sfondo, non solo bordo 1px.
-     Riservata ai pannelli primari: un'informazione visiva di gerarchia,
-     non un default applicato ovunque. */
+  /* Real separation between panel and background, not just a 1px border.
+     Reserved for primary panels: a visual hierarchy cue,
+     not a default applied everywhere. */
   --shadow-panel: 0 2px 4px rgba(0, 0, 0, 0.5), 0 12px 32px rgba(0, 0, 0, 0.45);
 }
 

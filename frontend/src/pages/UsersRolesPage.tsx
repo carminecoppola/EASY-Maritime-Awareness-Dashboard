@@ -1,3 +1,13 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Users & Roles page (admin only): first-run setup, security switches, user list, creation and edits.
+ *
+ * Sensitive changes go through step-up authentication (the password typed again).
+ */
+
 import { useCallback, useEffect, useId, useState } from 'react'
 import { api } from '../api/client'
 import type { AuthRole, AuthUser } from '../api/types'
@@ -7,8 +17,10 @@ import { authErrorMessage, useAuth } from '../hooks/AuthContext'
 import { useStepUp } from '../components/feedback/StepUpProvider'
 import { toDate } from '../utils/formatTime'
 
+/** Assignable roles. */
 const ROLES: AuthRole[] = ['viewer', 'operator', 'admin']
 
+/** Form that creates a user with a role. */
 function CreateUserForm({ onCreated }: { onCreated: (user: AuthUser) => void }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -84,6 +96,7 @@ function CreateUserForm({ onCreated }: { onCreated: (user: AuthUser) => void }) 
   )
 }
 
+/** One user with role, active flag and password reset controls. */
 function UserRow({ user, isSelf, onChanged }: { user: AuthUser; isSelf: boolean; onChanged: (user: AuthUser) => void }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -172,6 +185,7 @@ function UserRow({ user, isSelf, onChanged }: { user: AuthUser; isSelf: boolean;
   )
 }
 
+/** Switches for sign-in enforcement and anonymous read-only access (step-up required). */
 function SecuritySettings() {
   const auth = useAuth()
   const { runElevated } = useStepUp()
@@ -268,6 +282,7 @@ function SecuritySettings() {
   )
 }
 
+/** All users with their controls. */
 function UsersTable({ currentUserId }: { currentUserId: string | undefined }) {
   const [users, setUsers] = useState<AuthUser[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -335,6 +350,7 @@ function UsersTable({ currentUserId }: { currentUserId: string | undefined }) {
   )
 }
 
+/** Shows first-run setup, an access-denied notice for non-admins, or the administration panels. */
 export function UsersRolesPage() {
   const auth = useAuth()
 

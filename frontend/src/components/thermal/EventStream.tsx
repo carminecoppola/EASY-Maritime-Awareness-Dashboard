@@ -1,11 +1,21 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Unified event stream: merges the operator activity log and the AI mission events.
+ */
+
 import { useMemo, useState } from 'react'
 import { TabFilter } from '../common/TabFilter'
 import { toDate } from '../../utils/formatTime'
 import { mostRecentFirst } from '../../utils/sorting'
 import type { MissionEvent, RawLogEvent } from '../../api/types'
 
+/** Origin of an event: thermal sensor, AI detection or system. */
 export type EventKind = 'thermal' | 'ai' | 'system'
 
+/** One row of the merged stream. */
 export interface StreamEvent {
   id: string
   timestamp: string
@@ -16,18 +26,21 @@ export interface StreamEvent {
   status: string
 }
 
+/** Filter tabs. */
 const FILTERS: { id: 'all' | EventKind; label: string }[] = [
   { id: 'all', label: 'All events' },
   { id: 'thermal', label: 'Thermal' },
   { id: 'ai', label: 'AI detection' },
 ]
 
+/** Label per event kind. */
 const KIND_LABEL: Record<EventKind, string> = {
   thermal: 'THERMAL',
   ai: 'AI DETECTION',
   system: 'SYSTEM',
 }
 
+/** Classify a raw log event as thermal or system. */
 function kindOfLogEvent(event: RawLogEvent): EventKind {
   const haystack = `${event.source} ${event.type} ${event.description}`.toLowerCase()
   if (haystack.includes('thermal')) return 'thermal'
@@ -35,9 +48,9 @@ function kindOfLogEvent(event: RawLogEvent): EventKind {
 }
 
 /**
- * Unisce due feed reali distinti in un solo flusso, mantenendo esplicita la
- * provenienza: gli eventi di missione derivano dalle detection AI, il log di
- * attività riporta sensori e salvataggi.
+ * Merges two distinct real feeds into one stream while keeping the origin
+ * explicit: mission events derive from AI detections, the activity log reports
+ * sensors and saves.
  */
 export function buildStream(logEvents: RawLogEvent[], missionEvents: MissionEvent[]): StreamEvent[] {
   const fromLog: StreamEvent[] = logEvents.map((event) => ({
@@ -70,6 +83,7 @@ interface EventStreamProps {
   maxRows?: number
 }
 
+/** Filterable, newest-first table with loading, error and empty states. */
 export function EventStream({ events, loading, error, maxRows = 12 }: EventStreamProps) {
   const [filter, setFilter] = useState<'all' | EventKind>('all')
 

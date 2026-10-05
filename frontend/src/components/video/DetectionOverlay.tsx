@@ -1,21 +1,33 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * SVG overlay that draws detection boxes on top of a video feed.
+ *
+ * Box coordinates are in the native frame resolution; they are mapped to the
+ * displayed size with the same transform as `object-fit: cover`.
+ */
+
 import { useEffect, useRef, useState } from 'react'
 import type { Detection } from '../../api/types'
 import { computeCoverTransform, toDisplayPoint } from './coverTransform'
 
 interface DetectionOverlayProps {
   detections: Detection[]
-  /** Ref del contenitore su cui l'overlay viene sovrapposto (per la misura del ResizeObserver). */
+  /** Ref of the container the overlay sits on (measured with a ResizeObserver). */
   containerRef?: React.RefObject<HTMLDivElement | null>
   /**
-   * Risoluzione nativa del frame a cui si riferiscono le coordinate bbox.
-   * Va misurata dal frame reale (es. naturalWidth/naturalHeight dell'<img>
-   * che mostra lo stesso stream) — un valore hardcoded ha già causato in
-   * passato una scala 2x errata quando differiva dalla risoluzione reale.
+   * Native resolution of the frame the bbox coordinates refer to. It must be
+   * measured from the real frame (e.g. naturalWidth/naturalHeight of the <img>
+   * showing the same stream): a hardcoded value once caused a wrong 2x scale when
+   * it differed from the real resolution.
    */
   nativeWidth: number
   nativeHeight: number
 }
 
+/** Draws each detection as a rectangle with a `class (confidence%)` label, greener for higher confidence. */
 export function DetectionOverlay({ detections, containerRef, nativeWidth, nativeHeight }: DetectionOverlayProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const internalContainerRef = useRef<HTMLDivElement>(null)

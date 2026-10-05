@@ -1,3 +1,15 @@
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Dashboard configuration loader.
+
+``config.yaml`` is parsed with a tiny built-in reader (nested ``key: value``
+pairs, comments, booleans, numbers, ``null``) and deep-merged over
+``constants.DEFAULT_CONFIG``, so a missing or partial file still yields a
+complete configuration. No YAML library is needed on the Raspberry for this.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -7,6 +19,7 @@ from .constants import CONFIG_PATH, DEFAULT_CONFIG
 
 
 def _coerce_scalar(raw: str) -> Any:
+    """Convert a YAML scalar string into bool, None, float, int or a de-quoted string."""
     value = raw.strip()
     lower = value.lower()
     if lower in {"true", "yes", "on"}:
@@ -24,6 +37,10 @@ def _coerce_scalar(raw: str) -> Any:
 
 
 def load_simple_yaml(path: Path) -> Dict[str, Any]:
+    """Parse the restricted YAML subset used by ``config.yaml`` (empty dict if the file is missing).
+
+    Nesting is derived from indentation; lists and multi-line values are not supported.
+    """
     if not path.exists():
         return {}
     root: Dict[str, Any] = {}
@@ -52,6 +69,7 @@ def load_simple_yaml(path: Path) -> Dict[str, Any]:
 
 
 def deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+    """Recursively merge ``override`` over ``base`` without modifying either."""
     merged = dict(base)
     for key, value in override.items():
         if isinstance(value, dict) and isinstance(merged.get(key), dict):
@@ -62,6 +80,5 @@ def deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]
 
 
 def load_config() -> Dict[str, Any]:
-    """Load config.yaml and merge it over the project defaults."""
+    """Load ``config.yaml`` and merge it over the project defaults."""
     return deep_merge(DEFAULT_CONFIG, load_simple_yaml(CONFIG_PATH))
-

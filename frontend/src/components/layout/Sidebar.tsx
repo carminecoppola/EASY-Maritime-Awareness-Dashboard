@@ -1,8 +1,17 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Left navigation: brand, grouped links and the connection/host indicator.
+ */
+
 import { NavLink } from 'react-router-dom'
 import { useSharedDashboardState } from '../../hooks/DashboardStateContext'
 import { NavIcon } from './NavIcon'
 import { NAV_GROUPS } from './navItems'
 
+/** Navigation groups plus the device name, connection state and IP address. */
 export function Sidebar() {
   const { data, error, loading } = useSharedDashboardState()
   const system = data?.health?.system

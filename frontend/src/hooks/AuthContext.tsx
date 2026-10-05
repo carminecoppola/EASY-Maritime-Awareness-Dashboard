@@ -1,8 +1,21 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Authentication state for the whole application.
+ *
+ * `AuthProvider` asks the backend who the visitor is and whether role enforcement
+ * is on, keeps the CSRF token in memory, and exposes `login`, `logout` and
+ * `setup`. `useAuth` reads it; `roleAtLeast` mirrors the backend rank check.
+ */
+
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api, ApiError } from '../api/client'
 import { setCsrfToken } from '../api/config'
 import type { AuthRole, AuthUser } from '../api/types'
 
+/** What is known about the visitor and the server's authentication mode. */
 interface AuthState {
   status: 'loading' | 'ready'
   setupComplete: boolean
@@ -10,11 +23,12 @@ interface AuthState {
   enforcementForcedByServer: boolean | null
   anonymousViewerEnabled: boolean
   user: AuthUser | null
-  /** L'identità viene dal vecchio token condiviso, non da un login vero. */
+  /** The identity comes from the legacy shared token, not from a real login. */
   legacy: boolean
   hostname: string | null
 }
 
+/** The state plus the actions that change it. */
 interface AuthContextValue extends AuthState {
   refresh: () => Promise<void>
   login: (username: string, password: string) => Promise<void>
@@ -35,6 +49,7 @@ const INITIAL_STATE: AuthState = {
   hostname: null,
 }
 
+/** Loads the authentication state once and keeps it up to date after login, logout and setup. */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>(INITIAL_STATE)
 
@@ -53,10 +68,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         hostname: status.hostname,
       })
     } catch {
-      // Il backend non è raggiungibile: non si può sapere se l'auth è
-      // richiesta. Si assume di no piuttosto che bloccare l'intera app
-      // dietro una schermata di login che potrebbe non servire — lo stesso
-      // polling della dashboard segnalerà "backend unreachable" a parte.
+      // The backend is unreachable, so it is unknown whether authentication is
+      // required. Assume it is not rather than blocking the whole app behind a
+      // login screen that may not be needed; the dashboard polling reports
+      // "backend unreachable" separately.
       setState({ ...INITIAL_STATE, status: 'ready' })
     }
   }, [])
@@ -103,6 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
+/** Read the authentication context (must be used inside `AuthProvider`). */
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext)
   if (!ctx) {
@@ -113,13 +129,13 @@ export function useAuth(): AuthContextValue {
 
 const ROLE_RANK: Record<AuthRole, number> = { viewer: 0, operator: 1, admin: 2 }
 
-/** Stesso confronto usato lato backend (easy_dashboard/auth.py role_at_least). */
+/** Same comparison as the backend (easy_dashboard/auth.py role_at_least). */
 export function roleAtLeast(role: AuthRole | null | undefined, minimum: AuthRole): boolean {
   if (!role) return false
   return ROLE_RANK[role] >= ROLE_RANK[minimum]
 }
 
-/** Traduce un errore API in un messaggio leggibile per un form di login/setup. */
+/** Turns an API error into a readable message for a login or setup form. */
 export function authErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     const body = error.body as { error?: string } | null

@@ -1,3 +1,14 @@
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Placeholder images and MJPEG framing.
+
+When a camera is offline the stream endpoints serve generated placeholders (SVG
+or JPEG) so the UI always has something to show. ``multipart_frame`` wraps one
+JPEG into a part of a ``multipart/x-mixed-replace`` (MJPEG) response.
+"""
+
 from __future__ import annotations
 
 import io
@@ -12,6 +23,7 @@ RESAMPLE_NEAREST = getattr(_RESAMPLE, "NEAREST", Image.NEAREST)
 
 
 def draw_rounded_box(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], radius: int, *, fill=None, outline=None, width: int = 1) -> None:
+    """Draw a rounded rectangle, or a plain one on Pillow versions without ``rounded_rectangle``."""
     if hasattr(draw, "rounded_rectangle"):
         draw.rounded_rectangle(box, radius=radius, fill=fill, outline=outline, width=width)
     else:
@@ -19,6 +31,7 @@ def draw_rounded_box(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], 
 
 
 def build_placeholder_svg(title: str, subtitle: str, accent: str = "#26d0b2") -> bytes:
+    """Return a 1280x480 SVG card with a title, a subtitle and a progress-bar accent."""
     svg = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 480" role="img" aria-label="{title}">
   <rect width="1280" height="480" rx="28" fill="#08111b"/>
   <rect x="40" y="40" width="1200" height="400" rx="24" fill="#13212d" stroke="#21465d" stroke-width="2"/>
@@ -32,6 +45,11 @@ def build_placeholder_svg(title: str, subtitle: str, accent: str = "#26d0b2") ->
 
 
 def make_thermal_svg(stats: Dict[str, Any]) -> bytes:
+    """Render a thermal grid (default 16x12) as an SVG heat map.
+
+    Cells are coloured between the minimum and maximum temperature, hot cells are
+    outlined and a badge states whether an anomaly is active.
+    """
     matrix = stats.get("matrix") or [[24.0 for _ in range(16)] for _ in range(12)]
     min_t = float(stats.get("min_c", 24.0))
     max_t = float(stats.get("max_c", 31.0))
@@ -40,7 +58,7 @@ def make_thermal_svg(stats: Dict[str, Any]) -> bytes:
     threshold = float(stats.get("threshold_celsius", 35.0))
     hot_cells = stats.get("hot_cells") or []
     badge_fill = "#ff7a7a" if anomaly_active else "#26d0b2"
-    badge_text = "ANOMALIA TERMICA" if anomaly_active else "NELLA SOGLIA"
+    badge_text = "THERMAL ANOMALY" if anomaly_active else "WITHIN THRESHOLD"
     rects = []
     cell_w = 1280 / 16.0
     cell_h = 360 / 12.0
@@ -79,6 +97,7 @@ def make_thermal_svg(stats: Dict[str, Any]) -> bytes:
 
 
 def make_placeholder_jpeg(title: str, subtitle: str, accent: str = "#26d0b2") -> bytes:
+    """Return a 1280x480 JPEG placeholder with a title and subtitle."""
     image = Image.new("RGB", (1280, 480), (9, 17, 26))
     draw = ImageDraw.Draw(image)
     draw_rounded_box(draw, (40, 40, 1240, 440), radius=24, fill=(20, 34, 46), outline=(33, 70, 93), width=2)
@@ -93,4 +112,5 @@ def make_placeholder_jpeg(title: str, subtitle: str, accent: str = "#26d0b2") ->
 
 
 def multipart_frame(jpeg_bytes: bytes) -> bytes:
+    """Wrap JPEG bytes into one ``--frame`` part of an MJPEG stream."""
     return b"--frame\r\nContent-Type: image/jpeg\r\nCache-Control: no-cache\r\n\r\n" + jpeg_bytes + b"\r\n"

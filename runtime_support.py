@@ -1,11 +1,20 @@
-from __future__ import annotations
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
 
-"""Small shared helpers for the runtime managers.
+"""Small helpers shared by the runtime managers.
 
-The Phase 6 managers persist similar JSON snapshots and UTC timestamps.
-Keeping that plumbing in one place makes the manager modules shorter and
-keeps naming consistent across detections, events and sessions.
+The detection, event and session managers persist similar JSON snapshots and
+UTC timestamps, and all of them classify component states the same way.
+Keeping that plumbing in one module keeps naming and behaviour consistent.
+
+Status vocabulary:
+    HEALTHY  - the component works (READY, STREAMING, CONNECTED, ...).
+    DEGRADED - the component is coming up or recovering (INITIALIZING, ...).
+    OFFLINE  - the component is absent or failed (ERROR, NOT_PRESENT, ...).
 """
+
+from __future__ import annotations
 
 import calendar
 import json
@@ -22,11 +31,13 @@ ACTIVE_STATUSES = HEALTHY_STATUSES | {"INITIALIZING", "STARTING", "LOADING"}
 
 
 def normalize_status(value: Any, default: str = "UNKNOWN") -> str:
+    """Return ``value`` as an upper-case, stripped status string (``default`` if empty)."""
     resolved = str(value or default).strip().upper()
     return resolved or default
 
 
 def health_from_status(status: Any) -> str:
+    """Map a component status to a coarse health level: GOOD, DEGRADED, OFFLINE or UNKNOWN."""
     value = normalize_status(status)
     if value in HEALTHY_STATUSES:
         return "GOOD"
@@ -38,10 +49,16 @@ def health_from_status(status: Any) -> str:
 
 
 def is_active_status(status: Any) -> bool:
+    """Return True when the status means the component is running or starting up."""
     return normalize_status(status) in ACTIVE_STATUSES
 
 
 def status_from_payload(payload: Any, default: str = "UNKNOWN") -> str:
+    """Extract a status from a component payload.
+
+    The first non-empty ``status``/``state``/``health``/``mode`` key wins; a bare
+    ``ok`` flag maps to READY/ERROR. A plain string is normalised directly.
+    """
     if isinstance(payload, dict):
         for key in ("status", "state", "health", "mode"):
             if payload.get(key) not in (None, ""):
@@ -56,6 +73,7 @@ def status_from_payload(payload: Any, default: str = "UNKNOWN") -> str:
 
 
 def error_from_payload(payload: Any) -> str:
+    """Return the first error message found in a payload, or an empty string."""
     if not isinstance(payload, dict):
         return ""
     for key in ("error", "config_error", "last_error"):
@@ -65,10 +83,12 @@ def error_from_payload(payload: Any) -> str:
 
 
 def utc_now_iso() -> str:
+    """Return the current UTC time as ``YYYY-MM-DDTHH:MM:SSZ``."""
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
 def parse_utc_ts(value: str | None) -> float | None:
+    """Parse a ``utc_now_iso`` timestamp into epoch seconds (None if invalid)."""
     if not value:
         return None
     try:
@@ -80,6 +100,11 @@ def parse_utc_ts(value: str | None) -> float | None:
 
 
 def atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
+    """Write ``payload`` to ``path`` without ever exposing a half-written file.
+
+    The JSON goes to a unique temporary file in the same directory and is then
+    renamed over the target, which is atomic on POSIX filesystems.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
     with temp_path.open("w", encoding="utf-8") as handle:
@@ -89,6 +114,7 @@ def atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
 
 
 def read_json(path: Path, default: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Read a JSON object from ``path``; return ``default`` (or ``{}``) if it is missing or corrupt."""
     if not path.exists():
         return default or {}
     try:
@@ -99,6 +125,7 @@ def read_json(path: Path, default: dict[str, Any] | None = None) -> dict[str, An
 
 
 def directory_has_frames(path: Path) -> bool:
+    """Return True when ``path`` contains at least one image file (searched recursively)."""
     if not path.exists():
         return False
     for candidate in path.rglob("*"):

@@ -1,7 +1,16 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Compact log table of events or detections.
+ */
+
 import type { CSSProperties } from 'react'
 import { StatusBadge } from '../status/StatusBadge'
 import { toneForSeverity, toneForEventStatus } from '../status/severityColors'
 
+/** Style shared by the header cells. */
 const thStyle: CSSProperties = {
   padding: 'var(--space-2) var(--space-3)',
   textAlign: 'left',
@@ -12,6 +21,7 @@ const thStyle: CSSProperties = {
   textTransform: 'uppercase',
 }
 
+/** One row; `severity_or_status` is coloured according to `statusType`. */
 export interface EventTableRow {
   id: string
   timestamp: string
@@ -35,6 +45,7 @@ interface EventsTableProps {
   statusType?: 'severity' | 'status'
 }
 
+/** Shows the first `maxRows` rows (callers sort newest first) and how many more exist. */
 export function EventsTable({
   rows,
   title,

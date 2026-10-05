@@ -1,3 +1,22 @@
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Detection manager: current detections plus the persisted detection history.
+
+Storage layout under ``runtime/sessions/``:
+
+    current_detections.json   detections of the latest inference only
+    detection_history.json    compacted snapshot of every detection
+    detection_history.jsonl   append-only journal written between compactions
+
+Every new detection is appended to the journal (cheap, O(1)). The journal is
+folded into the snapshot at start-up and, while running, only once it is both
+older than ``EASY_DETECTION_HISTORY_COMPACTION_SECONDS`` and larger than
+``EASY_DETECTION_HISTORY_COMPACTION_BYTES``. This keeps persistence cost
+constant during long unattended missions.
+"""
+
 from __future__ import annotations
 
 import json
@@ -23,6 +42,12 @@ SESSIONS_DIR = RUNTIME_ROOT / "sessions"
 
 @dataclass
 class DetectionRecord:
+    """One detected object with provenance, lifecycle status and optional fusion fields.
+
+    ``status`` is NEW for the latest inference and RESOLVED once a newer inference
+    replaces it. ``track_id``, ``thermal_confirmation``, ``depth``, ``distance``
+    and ``velocity`` are reserved for tracking and sensor fusion.
+    """
     id: str
     timestamp: str
     session_id: str
@@ -47,6 +72,7 @@ class DetectionRecord:
     source_name: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialise the record, adding the ``box_xyxy`` list and the ``label``/``type``/``origin``/``ts`` aliases used by the UI."""
         payload = asdict(self)
         payload["box_xyxy"] = [
             payload["bbox"].get("x1"),
@@ -74,6 +100,11 @@ class DetectionManager:
         acquisition_manager: Any | None = None,
         event_manager: Any | None = None,
     ) -> None:
+        """Load the history snapshot, the journal and the current snapshot, then re-persist.
+
+        Detections that were current before a restart but are not any more are marked
+        RESOLVED.
+        """
         self.sessions_dir = Path(sessions_dir)
         self.current_path = self.sessions_dir / "current_detections.json"
         self.history_path = self.sessions_dir / "detection_history.json"
@@ -109,12 +140,14 @@ class DetectionManager:
         self._load_history_snapshot()
         self._load_history_journal()
         self._load_current_snapshot()
+        # # Journal entries that are not current any more belong to a previous run: close them.
         for record_id in self._journal_record_ids - set(self._current_ids):
             if record_id in self._detections:
                 self._detections[record_id].status = "RESOLVED"
         self._persist(force_history=True)
 
     def _load_history_snapshot(self) -> None:
+        """Load the compacted history snapshot, skipping malformed entries."""
         if not self.history_path.exists():
             return
         try:
@@ -157,6 +190,7 @@ class DetectionManager:
             self._last_detection_id = record.id
 
     def _record_from_payload_item(self, item: Dict[str, Any]) -> Optional[DetectionRecord]:
+        """Build a ``DetectionRecord`` from a stored dictionary; None if it is malformed."""
         try:
             bbox = item.get("bbox") or {}
             if isinstance(bbox, list):
@@ -189,6 +223,7 @@ class DetectionManager:
             return None
 
     def _load_current_snapshot(self) -> None:
+        """Restore the latest inference (detections and run metadata) from ``current_detections.json``."""
         if not self.current_path.exists():
             return
         try:
@@ -215,6 +250,7 @@ class DetectionManager:
         self._last_error = str(payload.get("error") or "")
 
     def _load_history_journal(self) -> None:
+        """Replay the append-only journal, skipping corrupted lines and records already in the snapshot."""
         if not self.history_journal_path.exists():
             return
         try:
@@ -244,6 +280,7 @@ class DetectionManager:
             self._last_detection_id = record.id
 
     def _bbox_dict(self, value: Any) -> Dict[str, Optional[float]]:
+        """Normalise a box given as dict or list into ``{x1, y1, x2, y2}`` floats."""
         if isinstance(value, dict):
             return {
                 "x1": self._float_or_none(value.get("x1")),
@@ -261,12 +298,14 @@ class DetectionManager:
         return {"x1": None, "y1": None, "x2": None, "y2": None}
 
     def _float_or_none(self, value: Any) -> Optional[float]:
+        """Round to 4 decimals, or None when the value is missing or not numeric."""
         try:
             return None if value is None else round(float(value), 4)
         except Exception:
             return None
 
     def _active_session_id(self, *, source: str = "replay") -> str:
+        """Return the id of the active mission session, creating one when none is running."""
         if self.session_manager is None:
             return self.session_id
         try:
@@ -280,6 +319,7 @@ class DetectionManager:
         return self.session_id
 
     def _event(self, record: DetectionRecord) -> None:
+        """Add a ``DETECTION_NEW`` event for a record; event failures are ignored."""
         if not self.events:
             return
         confidence = "--" if record.confidence is None else f"{record.confidence:.2f}"
@@ -296,6 +336,7 @@ class DetectionManager:
             pass
 
     def _payload(self, *, current_only: bool = True) -> Dict[str, Any]:
+        """Build the API payload for the current detections or for the full history."""
         ids = self._current_ids if current_only else self._history_ids
         detections = [self._detections[item_id].to_dict() for item_id in ids if item_id in self._detections]
         return {
@@ -320,6 +361,7 @@ class DetectionManager:
         }
 
     def _append_history_journal(self, records: List[DetectionRecord]) -> None:
+        """Append records to the JSONL journal, one compact JSON object per line."""
         if not records:
             return
         with self.history_journal_path.open("a", encoding="utf-8") as stream:
@@ -332,6 +374,7 @@ class DetectionManager:
         force_history: bool = False,
         journal_records: List[DetectionRecord] | None = None,
     ) -> None:
+        """Write the current snapshot and journal, compacting the history when due or forced."""
         atomic_write_json(self.current_path, self._payload(current_only=True))
         self._append_history_journal(journal_records or [])
         journal_size = self.history_journal_path.stat().st_size if self.history_journal_path.exists() else 0
@@ -356,6 +399,7 @@ class DetectionManager:
         timestamp: str,
         status: str,
     ) -> DetectionRecord:
+        """Create a ``DetectionRecord`` from a raw detection dictionary."""
         now = utc_now_iso()
         return DetectionRecord(
             id=str(detection.get("id") or f"det-{uuid.uuid4().hex[:12]}"),
@@ -383,6 +427,7 @@ class DetectionManager:
         )
 
     def _append_record(self, record: DetectionRecord) -> None:
+        """Register a record as current and as the newest history entry."""
         self._detections[record.id] = record
         self._current_ids.append(record.id)
         self._history_ids.append(record.id)
@@ -401,6 +446,7 @@ class DetectionManager:
         timestamp: str | None = None,
         status: str = "NEW",
     ) -> Dict[str, Any]:
+        """Record a single detection (outside the inference loop) and return it."""
         image_path_value = "" if image_path is None else str(image_path)
         active_source = str(source or detection.get("source") or "unknown")
         record = self._build_record(
@@ -424,9 +470,15 @@ class DetectionManager:
         return record.to_dict()
 
     def record_inference_result(self, result: Dict[str, Any], *, mode: str = "replay") -> Dict[str, Any]:
+        """Store the outcome of one inference run.
+
+        The previous detections are marked RESOLVED, the new ones become current, and
+        the result is forwarded to the event manager and to the acquisition or session
+        manager so the active mission manifest stays complete.
+        """
         timestamp = str(result.get("updated_at") or utc_now_iso())
         source = str(result.get("source") or ("replay" if mode in {"replay", "demo", "loop", "single", "once"} else mode))
-        source_label = str(result.get("source_label") or ("Replay / Demo" if source == "replay" else source.replace("_", " ").title()))
+        source_label = str(result.get("source_label") or ("Recorded Dataset" if source == "replay" else source.replace("_", " ").title()))
         image_path = str(result.get("image_path") or result.get("last_image") or "")
         detections = result.get("detections") if isinstance(result.get("detections"), list) else []
         session_id = self._active_session_id(source=source)
@@ -485,20 +537,24 @@ class DetectionManager:
         return self.get_current_detections()
 
     def get_detection(self, detection_id: str | None) -> Optional[Dict[str, Any]]:
+        """Return one detection by id, or None."""
         if not detection_id:
             return None
         record = self._detections.get(str(detection_id))
         return record.to_dict() if record else None
 
     def get_current_detections(self) -> Dict[str, Any]:
+        """Return the detections of the latest inference."""
         with self._lock:
             return self._payload(current_only=True)
 
     def get_history(self) -> Dict[str, Any]:
+        """Return every detection recorded so far."""
         with self._lock:
             return self._payload(current_only=False)
 
     def clear(self) -> Dict[str, Any]:
+        """Forget all detections and persist the empty state."""
         with self._lock:
             self._detections.clear()
             self._current_ids = []

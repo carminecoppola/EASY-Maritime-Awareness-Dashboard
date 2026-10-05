@@ -1,4 +1,12 @@
-/* Sezioni specifiche della pagina Live Operations. */
+/*
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Styles of the Live Operations page.
+ */
+
+/* Styles specific to the Live Operations page. */
 
 /* Feeds */
 
@@ -140,7 +148,7 @@
   font-size: 13px;
 }
 
-/* Fascia inferiore: termica + attività */
+/* Lower band: thermal + activity */
 
 .easy-lower {
   display: grid;
@@ -163,15 +171,15 @@
   position: relative;
   display: grid;
   place-items: center;
-  /* Altezza fissata dal pannello: senza questo l'altezza naturale del frame
-     termico (verticale) allungava l'intera riga della griglia. */
+  /* Height fixed by the panel: without it the natural height of the thermal
+     frame (portrait) stretched the whole grid row. */
   height: 174px;
 }
 
 .easy-thermalimg img {
   width: 100%;
   height: 100%;
-  /* contain, non cover: il ritaglio nasconderebbe parte della scena termica. */
+  /* contain, not cover: cropping would hide part of the thermal scene. */
   object-fit: contain;
 }
 
@@ -242,7 +250,7 @@
   flex-wrap: wrap;
 }
 
-/* Attività */
+/* Activity */
 
 .easy-activityhead {
   display: flex;

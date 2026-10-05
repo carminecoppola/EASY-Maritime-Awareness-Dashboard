@@ -1,6 +1,24 @@
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Live video, snapshots, thermal frames and paired acquisition.
+
+    /video/rgb_*           MJPEG streams of the two RGB views (and start/stop)
+    /api/focus/rgb_*       focus-assist score
+    /snapshot/*            POST captures and stores one snapshot (GET answers 405)
+    /snapshots/<feed>/...  serve stored snapshots; /api/snapshots/recent lists them
+    /thermal/*             thermal status, frame, cached frame, refresh, snapshot
+    /api/acquisition/capture-set   one stereo RGB frame plus one thermal frame
+
+A snapshot is saved only when it comes from a real frame: placeholder images
+(camera offline or starting) are reported as errors and never archived.
+"""
+
 from __future__ import annotations
 
 import uuid
+import time
 from typing import Any, Dict
 
 from flask import Blueprint, current_app, jsonify, request, send_file
@@ -13,6 +31,7 @@ media_bp = Blueprint("media", __name__)
 
 
 def _snapshot_error(feed: str, filename: str, error_message: str, snapshot_info: Dict[str, Any], status_code: int = 503):
+    """JSON error response for a failed snapshot."""
     return (
         jsonify(
             {
@@ -30,6 +49,7 @@ def _snapshot_error(feed: str, filename: str, error_message: str, snapshot_info:
 
 
 def _snapshot_success(feed: str, snapshot_info: Dict[str, Any], status_code: int = 200):
+    """JSON success response describing a stored snapshot."""
     return (
         jsonify(
             {
@@ -47,16 +67,19 @@ def _snapshot_success(feed: str, snapshot_info: Dict[str, Any], status_code: int
 
 @media_bp.route("/video/rgb_left")
 def video_rgb_left():
+    """MJPEG stream of the left RGB view."""
     return get_runtime().rgb.stream_response("rgb_left", "left")
 
 
 @media_bp.route("/video/rgb_right")
 def video_rgb_right():
+    """MJPEG stream of the right RGB view."""
     return get_runtime().rgb.stream_response("rgb_right", "right")
 
 
 @media_bp.route("/video/rgb_left/start", methods=["POST"])
 def start_rgb_left():
+    """Enable the left RGB view."""
     runtime = get_runtime()
     runtime.rgb.set_enabled("rgb_left", True)
     return jsonify({"ok": True, "feed": "rgb_left", "enabled": True, "state": runtime.rgb.latest_state()})
@@ -64,6 +87,7 @@ def start_rgb_left():
 
 @media_bp.route("/video/rgb_left/stop", methods=["POST"])
 def stop_rgb_left():
+    """Pause the left RGB view."""
     runtime = get_runtime()
     runtime.rgb.set_enabled("rgb_left", False)
     return jsonify({"ok": True, "feed": "rgb_left", "enabled": False, "state": runtime.rgb.latest_state()})
@@ -71,6 +95,7 @@ def stop_rgb_left():
 
 @media_bp.route("/video/rgb_right/start", methods=["POST"])
 def start_rgb_right():
+    """Enable the right RGB view."""
     runtime = get_runtime()
     runtime.rgb.set_enabled("rgb_right", True)
     return jsonify({"ok": True, "feed": "rgb_right", "enabled": True, "state": runtime.rgb.latest_state()})
@@ -78,6 +103,7 @@ def start_rgb_right():
 
 @media_bp.route("/video/rgb_right/stop", methods=["POST"])
 def stop_rgb_right():
+    """Pause the right RGB view."""
     runtime = get_runtime()
     runtime.rgb.set_enabled("rgb_right", False)
     return jsonify({"ok": True, "feed": "rgb_right", "enabled": False, "state": runtime.rgb.latest_state()})
@@ -85,16 +111,19 @@ def stop_rgb_right():
 
 @media_bp.route("/api/focus/rgb_left")
 def focus_rgb_left():
+    """Sharpness score of the left view, to help focus the lens by hand."""
     return jsonify(get_runtime().rgb.focus_score("left"))
 
 
 @media_bp.route("/api/focus/rgb_right")
 def focus_rgb_right():
+    """Sharpness score of the right view, to help focus the lens by hand."""
     return jsonify(get_runtime().rgb.focus_score("right"))
 
 
 @media_bp.route("/api/snapshots/recent")
 def api_snapshots_recent():
+    """One page of stored snapshots (``limit`` 1-999, ``offset``) with per-feed totals."""
     runtime = get_runtime()
     try:
         limit = int(request.args.get("limit", 24))
@@ -121,6 +150,7 @@ def api_snapshots_recent():
 
 @media_bp.route("/snapshots/<feed>/<path:filename>")
 def serve_snapshot(feed: str, filename: str):
+    """Serve a stored JPEG (or download it with ``?download=1``)."""
     runtime = get_runtime()
     if feed not in SNAPSHOT_FEED_MAP:
         return jsonify({"ok": False, "error": "Unknown snapshot feed"}), 404
@@ -139,11 +169,13 @@ def serve_snapshot(feed: str, filename: str):
 @media_bp.route("/thermal/snapshot", methods=["GET"])
 def snapshot_requires_post():
     # Explicit routes also prevent the SPA catch-all from returning HTML/200.
+    """Answer 405 on GET so the SPA catch-all never returns HTML for a capture URL."""
     return jsonify({"ok": False, "error": "Use POST to capture a snapshot"}), 405, {"Allow": "POST, OPTIONS"}
 
 
 @media_bp.route("/snapshot/rgb_left", methods=["POST"])
 def snapshot_rgb_left():
+    """Capture and store a left RGB snapshot (503 if the camera is offline)."""
     runtime = get_runtime()
     meta = {
         "feed": "rgb_left",
@@ -165,6 +197,7 @@ def snapshot_rgb_left():
 
 @media_bp.route("/snapshot/rgb_right", methods=["POST"])
 def snapshot_rgb_right():
+    """Capture and store a right RGB snapshot (503 if the camera is offline)."""
     runtime = get_runtime()
     meta = {
         "feed": "rgb_right",
@@ -186,11 +219,13 @@ def snapshot_rgb_right():
 
 @media_bp.route("/thermal/status")
 def thermal_status():
+    """Thermal status payload."""
     return jsonify(get_runtime().thermal.status_payload())
 
 
 @media_bp.route("/thermal/refresh", methods=["POST"])
 def thermal_refresh():
+    """Force a new PureThermal discovery."""
     thermal = get_runtime().thermal
     detected = thermal.refresh_device(force=True)
     payload = thermal.status_payload()
@@ -199,6 +234,7 @@ def thermal_refresh():
 
 @media_bp.route("/thermal/frame")
 def thermal_frame():
+    """Current thermal JPEG (a status placeholder when unavailable)."""
     frame, stats = get_runtime().thermal.frame()
     return current_app.response_class(
         frame,
@@ -209,6 +245,7 @@ def thermal_frame():
 
 @media_bp.route("/thermal/last-frame")
 def thermal_last_frame():
+    """Cached thermal preview without touching the device (204 when none)."""
     frame, stats = get_runtime().thermal.last_frame()
     if frame is None:
         return current_app.response_class(status=204)
@@ -225,6 +262,12 @@ def thermal_last_frame():
 @media_bp.route("/thermal/snapshot", methods=["POST"])
 @media_bp.route("/snapshot/thermal", methods=["POST"])
 def thermal_snapshot():
+    """Capture and store a thermal snapshot.
+
+    Only real or simulated frames are saved: ``ThermalState.frame`` returns a
+    placeholder JPEG for DISABLED, NOT_DETECTED, ERROR and STARTING, and saving it
+    would leave it in the archive as if it were a real capture.
+    """
     runtime = get_runtime()
     frame, stats = runtime.thermal.snapshot()
     meta = dict(stats)
@@ -257,17 +300,24 @@ def thermal_snapshot():
 
 @media_bp.route("/api/acquisition/capture-set", methods=["POST"])
 def capture_acquisition_set():
-    """Capture RGB left/right and thermal as one dataset sample."""
+    """Capture one atomic stereo frame and one paired thermal frame.
+
+    Requires a running mission. Both RGB views come from the same master frame;
+    the thermal frame follows it and the wall-clock skew between them is recorded
+    (the pairing is *measured*, not hardware-synchronised). Placeholder frames are
+    never saved.
+    """
     runtime = get_runtime()
     current = runtime.session_manager.get_current_session()
     if not current:
-        return jsonify({"ok": False, "error": "Start a mission before capturing a synchronized sensor set"}), 409
+        return jsonify({"ok": False, "error": "Start a mission before capturing a paired sensor set"}), 409
 
     capture_set_id = f"capture-{uuid.uuid4().hex[:12]}"
     captures: Dict[str, Any] = {}
-    for feed, side, source in (
-        ("rgb_left", "left", "RGB_CAM_LEFT"),
-        ("rgb_right", "right", "RGB_CAM_RIGHT"),
+    stereo = runtime.rgb.capture_stereo_frame()
+    for feed, source, rgb_frame in (
+        ("rgb_left", "RGB_CAM_LEFT", stereo.left_jpeg if stereo else b""),
+        ("rgb_right", "RGB_CAM_RIGHT", stereo.right_jpeg if stereo else b""),
     ):
         meta = {
             "feed": feed,
@@ -277,10 +327,15 @@ def capture_acquisition_set():
             "camera_state": runtime.rgb.camera_state(),
             "width": runtime.rgb.width,
             "height": runtime.rgb.height,
+            "rgb_master_seq": stereo.sequence if stereo else None,
+            "received_wall_ts": stereo.received_wall_ts if stereo else None,
+            "received_monotonic_ns": stereo.received_monotonic_ns if stereo else None,
+            "pairing_status": "pending_thermal" if stereo else "missing_rgb",
+            "hardware_synchronized": False,
         }
         _frame, ok, snapshot_info, _meta = runtime.capture_snapshot(
             feed,
-            lambda side=side: runtime.rgb.capture_snapshot(side),
+            lambda frame=rgb_frame, available=stereo is not None: (frame, available),
             meta,
         )
         captures[feed] = {
@@ -292,7 +347,22 @@ def capture_acquisition_set():
     try:
         thermal_frame, thermal_stats = runtime.thermal.snapshot()
         thermal_meta = dict(thermal_stats)
-        thermal_meta.update({"feed": "thermal", "snapshot_type": "thermal", "capture_set_id": capture_set_id})
+        thermal_wall_ts = float(thermal_stats.get("snapshot_ts") or thermal_stats.get("last_frame_ts") or time.time())
+        skew_ms = round((thermal_wall_ts - stereo.received_wall_ts) * 1000.0, 3) if stereo else None
+        pairing_status = "paired_unmeasured" if stereo else "missing_rgb"
+        thermal_meta.update({
+            "feed": "thermal",
+            "snapshot_type": "thermal",
+            "capture_set_id": capture_set_id,
+            "rgb_master_seq": stereo.sequence if stereo else None,
+            "thermal_frame_seq": thermal_stats.get("frame_seq"),
+            "rgb_received_wall_ts": stereo.received_wall_ts if stereo else None,
+            "thermal_received_wall_ts": thermal_wall_ts,
+            "observed_wall_skew_ms": skew_ms,
+            "pairing_status": pairing_status,
+            "synchronization_method": "sequential_capture_wall_clock",
+            "hardware_synchronized": False,
+        })
         # ThermalState.frame() falls back to a placeholder JPEG ("THERMAL
         # DISABLED"/"THERMAL OFFLINE"/"THERMAL STARTING") for several status
         # values, not just NOT_DETECTED/DISABLED — the same class of bug as
@@ -329,12 +399,18 @@ def capture_acquisition_set():
             "total_feeds": len(captures),
             "captures": captures,
             "manifest_counts": manifest.get("counts", {}),
+            "pairing": {
+                "status": pairing_status if 'pairing_status' in locals() else "missing_thermal",
+                "observed_wall_skew_ms": skew_ms if 'skew_ms' in locals() else None,
+                "hardware_synchronized": False,
+            },
         }
     ), (200 if successful > 0 else 503)
 
 
 @media_bp.route("/api/stream-state", methods=["GET"])
 def stream_state():
+    """Enabled flag and state of each RGB view."""
     rgb = get_runtime().rgb
     return jsonify(
         {
@@ -346,6 +422,7 @@ def stream_state():
 
 @media_bp.route("/api/stream-state", methods=["POST"])
 def set_stream_state():
+    """Enable or pause the RGB views."""
     rgb = get_runtime().rgb
     payload = request.get_json(force=True, silent=True) or {}
     for feed_name in ("rgb_left", "rgb_right"):

@@ -1,8 +1,16 @@
-// Vista statica "Presentation Preview": nessuna chiamata API, nessun
-// polling, pensata per demo/paper quando l'hardware non è disponibile.
-// I contenuti sono fissi e dichiaratamente non rappresentano
-// un'acquisizione live simultanea.
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Static "Presentation Preview" view.
+ *
+ * No API calls and no polling: meant for demos and papers when the hardware is not
+ * available. The content is fixed and explicitly does not represent a simultaneous
+ * live acquisition.
+ */
 
+/** Illustrative page built from two repository sample images. */
 export function PresentationPage() {
   return (
     <>

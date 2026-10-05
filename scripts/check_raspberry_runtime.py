@@ -1,7 +1,17 @@
 #!/usr/bin/env python3
-from __future__ import annotations
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
 
-"""Short, temperature-aware validation of the real Raspberry camera runtime."""
+"""Short, temperature-aware validation of the real Raspberry camera runtime.
+
+Through the public HTTP API it checks that ``/health`` is ok, that RGB streams,
+and (unless ``--skip-thermal``) that one thermal frame is a valid JPEG with an
+increasing frame sequence and that RGB keeps streaming afterwards. It aborts if
+the CPU reaches the temperature limit. Exit code 0 means the runtime is usable.
+"""
+
+from __future__ import annotations
 
 import argparse
 import json
@@ -14,6 +24,7 @@ from typing import Any
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse the target URL, timeouts and temperature limit."""
     parser = argparse.ArgumentParser(description="Validate EASY hardware through its public HTTP API.")
     parser.add_argument("--url", default="http://127.0.0.1:5000", help="Dashboard base URL")
     parser.add_argument("--timeout", type=float, default=12.0, help="HTTP and RGB recovery timeout")
@@ -24,6 +35,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def request_json(base_url: str, path: str, *, timeout: float) -> dict[str, Any]:
+    """GET a JSON endpoint."""
     with urllib.request.urlopen(f"{base_url.rstrip('/')}{path}", timeout=timeout) as response:
         payload = json.load(response)
     if not isinstance(payload, dict):
@@ -32,12 +44,14 @@ def request_json(base_url: str, path: str, *, timeout: float) -> dict[str, Any]:
 
 
 def request_bytes(base_url: str, path: str, *, timeout: float) -> tuple[bytes, str]:
+    """GET a binary endpoint; returns the body and its content type."""
     with urllib.request.urlopen(f"{base_url.rstrip('/')}{path}", timeout=timeout) as response:
         content_type = str(response.headers.get("Content-Type") or "")
         return response.read(), content_type
 
 
 def cpu_temperature() -> float | None:
+    """CPU temperature in Celsius, or None."""
     try:
         completed = subprocess.run(
             ["vcgencmd", "measure_temp"],
@@ -53,6 +67,7 @@ def cpu_temperature() -> float | None:
 
 
 def validate_rgb_payload(payload: dict[str, Any], *, minimum_fps: float = 1.0) -> dict[str, Any]:
+    """Check the RGB state: detected, has a frame, fps at least ``minimum_fps``."""
     measurements: dict[str, Any] = {}
     for feed in ("rgb_left", "rgb_right"):
         state = (payload.get(feed) or {}).get("state") or {}
@@ -73,6 +88,7 @@ def validate_rgb_payload(payload: dict[str, Any], *, minimum_fps: float = 1.0) -
 
 
 def wait_for_rgb(base_url: str, *, timeout: float) -> dict[str, Any]:
+    """Poll until both RGB views are valid or ``timeout`` expires."""
     deadline = time.monotonic() + timeout
     last_error = "RGB status unavailable"
     while time.monotonic() < deadline:
@@ -86,6 +102,7 @@ def wait_for_rgb(base_url: str, *, timeout: float) -> dict[str, Any]:
 
 
 def enforce_temperature(limit: float, stage: str) -> float | None:
+    """Raise when the CPU temperature reaches ``limit``."""
     measured = cpu_temperature()
     if measured is not None and measured >= limit:
         raise RuntimeError(f"CPU temperature {measured:.1f} C at {stage}; limit is {limit:.1f} C")
@@ -93,6 +110,7 @@ def enforce_temperature(limit: float, stage: str) -> float | None:
 
 
 def run_validation(args: argparse.Namespace) -> dict[str, Any]:
+    """Run every check and return the structured report."""
     report: dict[str, Any] = {
         "ok": False,
         "url": args.url,
@@ -141,6 +159,7 @@ def run_validation(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def main() -> int:
+    """Entry point; prints the report as JSON."""
     args = parse_args()
     try:
         report = run_validation(args)

@@ -1,6 +1,15 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Toast notifications: at most three visible, deduplicated by key, critical ones stay until dismissed.
+ */
+
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Severity } from '../../lib/errors'
 
+/** A toast being displayed. */
 interface Toast {
   id: number
   severity: Severity
@@ -8,11 +17,12 @@ interface Toast {
   message?: string
 }
 
+/** What a caller passes to `notify`. */
 interface ToastInput {
   severity: Severity
   title: string
   message?: string
-  /** Stessa chiave = stesso avviso: aggiorna invece di impilare un duplicato. */
+  /** Same key means the same notice: update it instead of stacking a duplicate. */
   dedupeKey?: string
 }
 
@@ -23,16 +33,18 @@ interface ToastContextValue {
 const ToastContext = createContext<ToastContextValue | null>(null)
 
 const MAX_VISIBLE = 3
+/** Auto-dismiss time per severity in ms (0 = stays). */
 const DURATION: Record<Severity, number> = {
   success: 3500,
   info: 3500,
   neutral: 3500,
   warning: 6000,
-  // I guasti bloccanti non sono mai solo un toast: restano finché chiusi,
-  // accompagnati da uno stato persistente altrove.
+  // Blocking failures are never just a toast: they stay until dismissed,
+  // accompanied by a persistent state elsewhere.
   critical: 0,
 }
 
+/** Provides `notify` and renders the toast stack. */
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
   const nextId = useRef(1)
@@ -59,7 +71,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         const next = existingId
           ? prev.map((t) => (t.id === id ? { id, severity, title, message } : t))
           : [...prev, { id, severity, title, message }]
-        // Il più vecchio esce quando ne arrivano più di tre.
+        // The oldest leaves when more than three arrive.
         return next.slice(-MAX_VISIBLE)
       })
 
@@ -106,7 +118,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   )
 }
 
-/** Restituisce un notify inerte fuori dal provider: un toast non deve far crashare una pagina. */
+/** Returns an inert notify outside the provider: a toast must never crash a page. */
 export function useToast(): ToastContextValue {
   return useContext(ToastContext) ?? { notify: () => {} }
 }

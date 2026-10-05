@@ -1,12 +1,20 @@
-from __future__ import annotations
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
 
-"""Dataset acquisition coordinator.
+"""Acquisition coordinator: the point where runtime captures become dataset material.
 
-This manager is intentionally thin for now: it centralizes the moment where a
-runtime action becomes dataset material and delegates persistence to
-SessionManager. That gives the project one obvious place to grow toward RGB /
-thermal pairing, capture cadence, and fine-tuning manifests.
+When a mission is running, every snapshot and every inference result is recorded
+in the session manifest (``manifest.json``) through this class. RGB and thermal
+captures taken within ``PAIR_WINDOW_SECONDS`` of each other are linked into the
+same *sample*, which is the unit later validated and exported for fine-tuning
+(see ``dataset_exporter.py``).
+
+The manager is intentionally thin: it decides *what* to record and delegates
+persistence to ``SessionManager``.
 """
+
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, List
@@ -26,11 +34,13 @@ class AcquisitionManager:
     """Records acquisition artifacts into the active session manifest."""
 
     def __init__(self, *, session_manager: Any, events: Any | None = None, logger: Any | None = None) -> None:
+        """Keep references to the session manager and the optional event log and logger."""
         self.session_manager = session_manager
         self.events = events
         self.logger = logger
 
     def status(self) -> Dict[str, Any]:
+        """Summarise the acquisition of the running (or latest) session: manifest counts and dataset summary."""
         session_status = self.session_manager.status()
         current = session_status.get("current")
         latest = session_status.get("latest")
@@ -46,6 +56,8 @@ class AcquisitionManager:
             "dataset_summary": {
                 "samples": counts.get("samples", 0) if isinstance(counts, dict) else 0,
                 "paired_items": counts.get("paired_items", 0) if isinstance(counts, dict) else 0,
+                "paired_capture_sets": counts.get("paired_capture_sets", 0) if isinstance(counts, dict) else 0,
+                "within_tolerance_samples": counts.get("within_tolerance_samples", 0) if isinstance(counts, dict) else 0,
                 "synchronized_samples": counts.get("synchronized_samples", 0) if isinstance(counts, dict) else 0,
                 "by_feed": counts.get("by_feed", {}) if isinstance(counts, dict) else {},
                 "pair_window_seconds": PAIR_WINDOW_SECONDS,
@@ -54,7 +66,13 @@ class AcquisitionManager:
         }
 
     def record_snapshot(self, *, feed: str, snapshot: Dict[str, Any], meta: Dict[str, Any] | None = None) -> Dict[str, Any]:
-        """Index a saved snapshot when an operator session is active."""
+        """Index a saved snapshot in the running session's manifest.
+
+        A capture taken by the paired RGB+thermal action carries a ``capture_set_id``
+        and is grouped by it. Otherwise it is paired by timestamp with the closest
+        snapshot of the other modality inside the pairing window. Returns
+        ``recorded: False`` when no mission is running.
+        """
         current = self.session_manager.get_current_session()
         if not current:
             return {
@@ -97,15 +115,18 @@ class AcquisitionManager:
             "paired_with": pairing.get("paired_with"),
             "pair_delta_seconds": pairing.get("pair_delta_seconds"),
             "synchronization": {
-                "method": "coordinated_capture" if capture_set_id else "timestamp_window",
+                "method": capture_meta.get("synchronization_method") or ("capture_set_unmeasured" if capture_set_id else "timestamp_window"),
                 "window_seconds": PAIR_WINDOW_SECONDS,
+                "pairing_status": capture_meta.get("pairing_status") or ("legacy_unmeasured" if capture_set_id else None),
+                "observed_wall_skew_ms": capture_meta.get("observed_wall_skew_ms"),
+                "hardware_synchronized": bool(capture_meta.get("hardware_synchronized", False)),
             },
             "meta": capture_meta,
         }
         return self.session_manager.append_manifest_item(session_id, entry)
 
     def record_inference_result(self, result: Dict[str, Any], detections: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Persist detections and add an inference entry to the session manifest."""
+        """Persist the detections of one inference and add an ``inference`` entry to the session manifest."""
         mode = str(result.get("source") or result.get("mode") or "replay")
         session = self.session_manager.ensure_session(mode=mode, operator="auto")
         session_id = str(session.get("session_id") or "")
@@ -137,6 +158,11 @@ class AcquisitionManager:
         return self.session_manager.append_manifest_item(session_id, entry)
 
     def _snapshot_pairing(self, *, session_id: str, feed: str, created_ts: float | None) -> Dict[str, Any]:
+        """Find the closest snapshot of the opposite modality within the pairing window.
+
+        Returns the shared ``sample_id``, the matched item and the time delta, or an
+        empty dictionary when nothing is close enough.
+        """
         if created_ts is None:
             return {}
         manifest = self.session_manager.read_manifest(session_id)
@@ -177,6 +203,7 @@ class AcquisitionManager:
 
     @staticmethod
     def _snapshot_created_ts(snapshot: Dict[str, Any]) -> float | None:
+        """Creation time of a snapshot in epoch seconds (None if unknown)."""
         try:
             if snapshot.get("created_ts") is not None:
                 return float(snapshot.get("created_ts"))
@@ -186,6 +213,7 @@ class AcquisitionManager:
 
     @staticmethod
     def _item_created_ts(item: Dict[str, Any]) -> float | None:
+        """Creation time of a manifest item in epoch seconds (None if unknown)."""
         try:
             if item.get("created_ts") is not None:
                 return float(item.get("created_ts"))
@@ -195,5 +223,6 @@ class AcquisitionManager:
 
     @staticmethod
     def _new_sample_id(session_id: str, feed: str, created_ts: float | None) -> str:
+        """Build a sample id from the session, the creation time in milliseconds and the feed."""
         stamp = int((created_ts or 0.0) * 1000)
         return f"{session_id}:{stamp}:{feed}"

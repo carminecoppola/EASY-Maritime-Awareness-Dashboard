@@ -1,7 +1,16 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Four-cell strip: system readiness, mission, AI analysis and storage.
+ */
+
 import type { DashboardState, SystemDiagnostics } from '../../api/types'
 import { READINESS_COLOR, READINESS_LABEL, readinessLevel, sensorReadiness } from '../../lib/readiness'
 import { elapsedSince } from '../../hooks/useMissionControl'
 
+/** Colour of a sensor dot: green when ready, red on error, amber while starting, grey otherwise. */
 function sensorColor(ready: boolean, availability: string): string {
   if (ready) return 'var(--accent-ok)'
   if (availability === 'ERROR') return 'var(--accent-critical)'
@@ -9,6 +18,7 @@ function sensorColor(ready: boolean, availability: string): string {
   return 'var(--text-muted)'
 }
 
+/** Free space text and subtitle from the disk usage. */
 function storageLabel(disk: SystemDiagnostics['disk'] | undefined) {
   if (!disk || typeof disk.free_gb !== 'number') return { value: 'Unavailable', sub: 'Disk usage not reported' }
   return {
@@ -17,6 +27,7 @@ function storageLabel(disk: SystemDiagnostics['disk'] | undefined) {
   }
 }
 
+/** Summarises what the operator needs to know at a glance. */
 export function ReadinessStrip({ data, now }: { data: DashboardState | null; now: number }) {
   const sensors = sensorReadiness(data)
   const level = readinessLevel(sensors)

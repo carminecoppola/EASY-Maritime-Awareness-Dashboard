@@ -1,5 +1,14 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Accessible tab group with a roving tabindex and keyboard navigation.
+ */
+
 import { useRef, type KeyboardEvent } from 'react'
 
+/** One tab. */
 export interface TabOption<T extends string> {
   id: T
   label: string
@@ -9,17 +18,17 @@ interface TabFilterProps<T extends string> {
   options: TabOption<T>[]
   value: T
   onChange: (value: T) => void
-  /** Nome accessibile del gruppo. */
+  /** Accessible name of the group. */
   label: string
-  /** id del pannello controllato, per aria-controls. */
+  /** Id of the controlled panel, for aria-controls. */
   panelId: string
   className?: string
 }
 
 /**
- * Gruppo di tab con roving tabindex e navigazione da tastiera: senza di essa
- * i tab erano tutti in tab order e le frecce non facevano nulla, cioè il
- * contrario di quello che il ruolo "tab" promette a uno screen reader.
+ * Tab group with a roving tabindex and keyboard navigation. Without it every tab
+ * was in the tab order and the arrow keys did nothing, the opposite of what the
+ * "tab" role promises to a screen reader.
  */
 export function TabFilter<T extends string>({
   options,

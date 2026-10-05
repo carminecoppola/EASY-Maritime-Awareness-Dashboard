@@ -1,7 +1,7 @@
 {
-  "name": "frontend",
+  "name": "easy-dashboard-frontend",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,12 +14,10 @@
   },
   "dependencies": {
     "clsx": "^2.1.1",
-    "motion": "^13.2.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.2",
-    "tailwind-merge": "^3.7.0",
-    "thinking-orbs": "^0.3.1"
+    "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
@@ -31,13 +29,14 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.1.1",
-    "agentation": "^3.0.2",
-    "agentation-mcp": "^1.2.0",
     "jsdom": "^29.1.1",
     "oxlint": "^1.79.0",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2",
     "vite": "^8.2.2",
     "vitest": "^4.1.11"
-  }
+  },
+  "license": "BSD-3-Clause",
+  "author": "Carmine Coppola",
+  "description": "React operator interface of the EASY Maritime Awareness Dashboard"
 }

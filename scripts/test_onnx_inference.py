@@ -1,5 +1,15 @@
 #!/usr/bin/env python3
-"""Standalone ONNX inference smoke test for EASY-v1."""
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Standalone ONNX inference smoke test.
+
+Runs the configured model on one image with a self-contained copy of the
+pre/post-processing (it does not import the dashboard modules), so a new model
+file can be validated on any machine before it is deployed. It writes an
+annotated image and a JSON file under ``runtime/sessions/``.
+"""
 
 from __future__ import annotations
 
@@ -24,6 +34,7 @@ IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
 
 @dataclass(frozen=True)
 class Detection:
+    """One detection in original-image pixels."""
     class_id: int
     class_name: str
     confidence: float
@@ -31,6 +42,7 @@ class Detection:
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse the image, config and threshold options."""
     parser = argparse.ArgumentParser(description="Run a standalone ONNX inference smoke test.")
     parser.add_argument(
         "image",
@@ -56,11 +68,13 @@ def parse_args() -> argparse.Namespace:
 
 
 def load_json(path: Path) -> dict:
+    """Read a JSON file."""
     with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
 
 
 def load_yaml_with_pyyaml(path: Path) -> dict:
+    """Read a YAML file (needs PyYAML)."""
     try:
         import yaml  # type: ignore
     except ImportError as exc:  # pragma: no cover - runtime-specific
@@ -74,6 +88,7 @@ def load_yaml_with_pyyaml(path: Path) -> dict:
 
 
 def load_config(path: Path | None) -> dict:
+    """Load the inference configuration (default location if ``None``)."""
     candidates = [path] if path else list(DEFAULT_CONFIG_CANDIDATES)
     for candidate in candidates:
         if not candidate:
@@ -96,6 +111,7 @@ def load_config(path: Path | None) -> dict:
 
 
 def resolve_runtime_path(relative_path: str) -> Path:
+    """Resolve a configured path against the project root."""
     candidate = (ROOT / relative_path).resolve()
     if candidate.exists():
         return candidate
@@ -103,6 +119,7 @@ def resolve_runtime_path(relative_path: str) -> Path:
 
 
 def find_input_image(explicit_image: Path | None, replay_dir: Path) -> Path:
+    """Use the given image or the first one in the replay folder."""
     if explicit_image is not None:
         if not explicit_image.exists():
             raise FileNotFoundError(f"Input image not found: {explicit_image}")
@@ -123,6 +140,7 @@ def letterbox(
     new_shape: int | Tuple[int, int],
     color: Tuple[int, int, int] = (114, 114, 114),
 ) -> Tuple[np.ndarray, float, Tuple[float, float]]:
+    """Resize with aspect ratio kept and pad to a square (see ``inference_image.letterbox``)."""
     shape = image.shape[:2]  # h, w
     if isinstance(new_shape, int):
         new_shape = (new_shape, new_shape)
@@ -148,6 +166,7 @@ def letterbox(
 
 
 def preprocess_image(image_path: Path, input_size: int) -> Tuple[np.ndarray, np.ndarray, float, Tuple[float, float]]:
+    """Load an image and build the model input tensor."""
     image = Image.open(image_path).convert("RGB")
     rgb = np.asarray(image)
     letterboxed, ratio, pad = letterbox(rgb, input_size)
@@ -157,10 +176,12 @@ def preprocess_image(image_path: Path, input_size: int) -> Tuple[np.ndarray, np.
 
 
 def sigmoid(x: np.ndarray) -> np.ndarray:
+    """Element-wise logistic function."""
     return 1.0 / (1.0 + np.exp(-x))
 
 
 def box_iou(box: np.ndarray, boxes: np.ndarray) -> np.ndarray:
+    """IoU of one box against many (xyxy)."""
     if boxes.size == 0:
         return np.empty((0,), dtype=np.float32)
     x1 = np.maximum(box[0], boxes[:, 0])
@@ -177,6 +198,7 @@ def box_iou(box: np.ndarray, boxes: np.ndarray) -> np.ndarray:
 
 
 def nms(boxes: np.ndarray, scores: np.ndarray, iou_threshold: float) -> List[int]:
+    """Greedy non-maximum suppression."""
     if boxes.size == 0:
         return []
     order = scores.argsort()[::-1]
@@ -198,6 +220,7 @@ def scale_boxes_to_image(
     pad: Tuple[float, float],
     image_shape: Tuple[int, int],
 ) -> np.ndarray:
+    """Map boxes from the letterboxed input back to image pixels."""
     boxes = boxes.copy()
     boxes[:, [0, 2]] -= pad[0]
     boxes[:, [1, 3]] -= pad[1]
@@ -221,6 +244,7 @@ def decode_yolo_output(
     image_shape: Tuple[int, int],
     input_size: int,
 ) -> List[Detection]:
+    """Decode the raw YOLOv8 output into detections."""
     raw = np.asarray(outputs[0])
     raw = np.squeeze(raw)
     if raw.ndim != 2:
@@ -277,6 +301,7 @@ def decode_yolo_output(
 
 
 def load_onnxruntime():
+    """Import onnxruntime or exit with a clear message."""
     try:
         import onnxruntime as ort  # type: ignore
     except ImportError as exc:  # pragma: no cover - runtime-specific
@@ -287,6 +312,7 @@ def load_onnxruntime():
 
 
 def draw_detections(image_path: Path, detections: Sequence[Detection], output_path: Path) -> None:
+    """Save an annotated copy of the image."""
     image = Image.open(image_path).convert("RGB")
     draw = ImageDraw.Draw(image)
     try:
@@ -323,6 +349,7 @@ def detections_to_json(
     detections: Sequence[Detection],
     output_image: Path,
 ) -> dict:
+    """Serialise the detections and run metadata."""
     return {
         "input_image": str(image_path),
         "model_path": str(resolve_runtime_path(config["model"]["preferred_path"])),
@@ -345,6 +372,7 @@ def detections_to_json(
 
 
 def main() -> int:
+    """Run the test; exit code 0 on success."""
     args = parse_args()
     config = load_config(args.config)
 
@@ -357,11 +385,7 @@ def main() -> int:
     image_path = find_input_image(args.image_flag or args.image, replay_dir)
     model_path = resolve_runtime_path(config["model"]["preferred_path"])
     if not model_path.exists():
-        fallback = resolve_runtime_path(config["model"]["fallback_path"])
-        if fallback.exists():
-            model_path = fallback
-        else:
-            raise FileNotFoundError(f"Model not found: {model_path} or {fallback}")
+        raise FileNotFoundError(f"Model not found: {model_path}")
 
     ort = load_onnxruntime()
     session = ort.InferenceSession(str(model_path), providers=["CPUExecutionProvider"])

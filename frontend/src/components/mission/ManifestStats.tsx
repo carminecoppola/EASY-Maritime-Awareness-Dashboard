@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Counters of a mission manifest as a grid of cards.
+ */
+
 import { StatusCard } from '../status/StatusCard'
 import type { SessionManifestCounts } from '../../api/types'
 
@@ -6,6 +14,7 @@ interface ManifestStatsProps {
   title?: string
 }
 
+/** Items, snapshots, samples, detections, inference runs, pairing counters and a per-feed breakdown. */
 export function ManifestStats({ counts, title = 'Manifest Statistics' }: ManifestStatsProps) {
   if (!counts) {
     return (
@@ -22,7 +31,8 @@ export function ManifestStats({ counts, title = 'Manifest Statistics' }: Manifes
     { label: 'Detections', value: counts.detections },
     { label: 'Inference Runs', value: counts.inference },
     { label: 'Paired Items', value: counts.paired_items },
-    { label: 'Synchronized Samples', value: counts.synchronized_samples },
+    { label: 'Paired Capture Sets', value: counts.paired_capture_sets ?? 0 },
+    { label: 'Within Time Tolerance', value: counts.within_tolerance_samples ?? counts.synchronized_samples },
   ]
 
   return (

@@ -1,11 +1,19 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Account chip in the top bar.
+ */
+
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../hooks/AuthContext'
 
 /**
- * Chip nella top bar: mostra chi è collegato con un menu di logout, oppure
- * un link "Sign in" quando nessuno lo è — visibile anche ad enforcement
- * spento, per chi vuole farsi attribuire le proprie azioni nell'audit.
+ * Chip in the top bar: shows who is signed in with a sign-out menu, or a
+ * "Sign in" link when nobody is. It is visible even with enforcement off, for
+ * whoever wants their actions attributed in the audit log.
  */
 export function AccountMenu() {
   const auth = useAuth()

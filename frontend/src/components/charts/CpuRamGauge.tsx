@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Donut gauge for CPU or memory usage (hand-written SVG).
+ */
+
 interface CpuRamGaugeProps {
   value: number
   max?: number
@@ -20,6 +28,7 @@ interface CpuRamGaugeProps {
 // previous recharts config: innerRadius 65% / outerRadius 100% of the box's
 // half-min-dimension, 2deg padding angle, starting at 12 o'clock going
 // clockwise (recharts startAngle=90/endAngle=-270).
+/** Ring showing `value` out of `max`; turns amber from 60% and red from 80%. */
 export function CpuRamGauge({ value, max = 100, label, color = 'var(--accent-info)', height = 150 }: CpuRamGaugeProps) {
   const percentage = Math.max(0, Math.min(100, (value / max) * 100))
 

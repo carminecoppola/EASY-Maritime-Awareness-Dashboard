@@ -1,3 +1,9 @@
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Tests for detection and event persistence: batched writes, journal replay and compaction, and tolerance of a corrupted journal line."""
+
 from __future__ import annotations
 
 import tempfile
@@ -21,7 +27,7 @@ class RuntimePersistenceTests(unittest.TestCase):
                 {
                     "ok": True,
                     "source": "REPLAY_FOLDER",
-                    "source_label": "Replay Folder",
+                    "source_label": "Recorded Dataset",
                     "image_path": "/tmp/frame.jpg",
                     "updated_at": "2026-07-18T10:00:00Z",
                     "detections": [

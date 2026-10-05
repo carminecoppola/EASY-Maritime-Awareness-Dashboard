@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * AI Analysis page: run the detector on the next frame of the selected source and review the result.
+ */
+
 import { useEffect, useState } from 'react'
 import { api, withCacheBuster } from '../api/client'
 import { useSharedDashboardState } from '../hooks/DashboardStateContext'
@@ -8,6 +16,7 @@ import { normalizeApiError, type OperatorError } from '../lib/errors'
 import { formatRelativeTime, toDate } from '../utils/formatTime'
 import type { InferenceStatus } from '../api/types'
 
+/** Headline text, colour and subtitle summarising the inference service state. */
 function statusLabel(status: InferenceStatus | null, running: boolean): { text: string; color: string; sub: string } {
   if (running) return { text: 'Running', color: 'var(--accent-info)', sub: 'Processing the latest RGB frame' }
   if (!status) return { text: 'Unknown', color: 'var(--text-muted)', sub: 'Inference status not available' }
@@ -16,10 +25,11 @@ function statusLabel(status: InferenceStatus | null, running: boolean): { text: 
   return { text: 'Idle', color: 'var(--accent-ok)', sub: 'Waiting for a request' }
 }
 
+/** Preview with boxes, source and model controls, results table and performance tiles. */
 export function AnalysisPage() {
-  // Inference e detection arrivano già dal payload aggregato condiviso: due
-  // polling dedicati aggiungevano ~24 richieste al minuto al Raspberry per
-  // dati che la dashboard aveva già.
+  // Inference and detection already arrive in the shared aggregated payload: two
+  // dedicated polls would add about 24 requests per minute to the Raspberry for
+  // data the dashboard already has.
   const dashboard = useSharedDashboardState()
 
   const [running, setRunning] = useState(false)
@@ -36,8 +46,8 @@ export function AnalysisPage() {
   const selectedSourceId = dashboard.data?.sources?.selected_source_id ?? null
   const detectionList = detectionsPayload?.detections ?? []
 
-  // Un 204/404 sull'anteprima non deve restare appiccicato: quando l'URL
-  // cambia (nuova esecuzione) si riprova a mostrarla.
+  // A 204/404 on the preview must not stick: when the URL changes (a new run)
+  // showing it is attempted again.
   useEffect(() => setPreviewMissing(false), [previewUrl])
 
   const summary = statusLabel(status, running)
@@ -67,8 +77,8 @@ export function AnalysisPage() {
       }
       const count = result.count ?? result.detections?.length ?? 0
       setRunMessage(`${count} detection${count === 1 ? '' : 's'} · ${(elapsed / 1000).toFixed(2)} s end-to-end`)
-      // Il preview è riscritto dal backend a ogni run: forza un nuovo URL,
-      // altrimenti il browser mostra il frame precedente dalla cache.
+      // The backend rewrites the preview on every run: force a new URL, otherwise
+      // the browser shows the previous frame from its cache.
       setPreviewMissing(false)
       setPreviewUrl(withCacheBuster('/api/inference/preview'))
     } catch (e) {

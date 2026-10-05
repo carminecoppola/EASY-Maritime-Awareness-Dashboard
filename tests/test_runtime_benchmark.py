@@ -1,3 +1,9 @@
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Tests for the benchmark helpers: nearest-rank p95, empty summaries, field extraction, LaTeX escaping and missing-process handling."""
+
 from __future__ import annotations
 
 import unittest

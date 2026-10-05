@@ -1,3 +1,9 @@
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Builders for the payloads shown in the UI: start-up notices, camera inventory, operations summary and system information."""
+
 from __future__ import annotations
 
 import logging
@@ -17,6 +23,7 @@ LOGGER = logging.getLogger("easy-dashboard")
 
 
 def run_preflight_script() -> None:
+    """Run ``preflight_check.sh`` (15 s limit) and log, rather than raise, any problem."""
     script = PROJECT_ROOT / "preflight_check.sh"
     if not script.exists():
         LOGGER.warning("Preflight script missing: %s", script)
@@ -30,11 +37,13 @@ def run_preflight_script() -> None:
 
 
 def append_startup_notice(events: EventStore, probe: SystemProbe, config: Dict[str, Any]) -> None:
+    """Add the start-up and configuration entries to the event log."""
     events.add("SYSTEM", "STARTUP", f"EASY dashboard starting on {probe.hostname()} at {probe.ip_address()}", "info")
     events.add("SYSTEM", "CONFIG", f"RGB mode {config['rgb'].get('mode')} | thermal mode {config['thermal'].get('mode')}", "info")
 
 
 def build_camera_inventory(rgb: RgbMasterSource, thermal: ThermalState) -> Dict[str, Any]:
+    """Describe the camera hardware (multiplexer, two RGB cameras, thermal sensor) and what libcamera reports."""
     camera_entries = []
     for line in rgb.camera_list_output.splitlines():
         line = line.strip()
@@ -93,7 +102,14 @@ def build_operations_payload(
     thermal_state: Dict[str, Any],
     inference_state: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
+    """Build the operations summary shown in the UI.
+
+    It combines sensor health, the inference state and detections into an
+    *attention level* (LOW, ELEVATED or WATCH) with a reason. Sensor problems
+    rank above thermal hotspots, which rank above AI detections.
+    """
     def _legacy_sensor_state(contract: Dict[str, Any]) -> str:
+        """Map the sensor availability contract to the older ONLINE/READY/OFFLINE vocabulary."""
         return {
             "STREAMING": "ONLINE",
             "READY": "READY",
@@ -187,6 +203,7 @@ def build_operations_payload(
 
 
 def build_system_payload(probe: SystemProbe) -> Dict[str, Any]:
+    """Host information: name, address, model, OS, Python, CPU temperature and load, memory, disk, uptime."""
     cpu_percent = psutil.cpu_percent(interval=0.1)
     return {
         "hostname": probe.hostname(),

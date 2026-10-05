@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Table of recent missions with an expandable manifest summary.
+ */
+
 import { Fragment, useState } from 'react'
 import { api } from '../../api/client'
 import { ManifestStats } from './ManifestStats'
@@ -13,12 +21,14 @@ interface SessionHistoryTableProps {
   onRefresh: () => Promise<void>
 }
 
+/** Short local date and time of a mission start. */
 function formatDate(value: string): string {
   const date = toDate(value)
   if (!date) return '—'
   return date.toLocaleString(undefined, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
+/** Duration as 1h 05m, 3m 04s or 12s. */
 function formatDuration(seconds: number | null | undefined): string {
   if (typeof seconds !== 'number' || seconds < 0) return '—'
   const h = Math.floor(seconds / 3600)
@@ -29,10 +39,11 @@ function formatDuration(seconds: number | null | undefined): string {
   return `${s}s`
 }
 
+/** Lists missions and loads a manifest summary on demand when a row is expanded. */
 export function SessionHistoryTable({ sessions, loading, error, onRefresh }: SessionHistoryTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  // Per-sessione, non un unico booleano condiviso: espandere una seconda riga
-  // mentre la prima carica non deve mostrare "Loading" su entrambe.
+  // Per session, not a single shared boolean: expanding a second row while the
+  // first is loading must not show "Loading" on both.
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set())
   const [manifests, setManifests] = useState<Record<string, SessionManifestCounts>>({})
 
@@ -44,8 +55,8 @@ export function SessionHistoryTable({ sessions, loading, error, onRefresh }: Ses
     }
     setExpandedId(id)
     if (manifests[id]) return
-    // /api/session/list include già manifest.counts per ogni sessione
-    // (verificato su un payload reale): niente GET separato quando c'è.
+    // /api/session/list already includes manifest.counts for every session
+    // (verified on a real payload): no separate GET when it is there.
     if (session.manifest?.counts) {
       setManifests((prev) => ({ ...prev, [id]: session.manifest!.counts! }))
       return
@@ -105,7 +116,7 @@ export function SessionHistoryTable({ sessions, loading, error, onRefresh }: Ses
               {sessions.map((session) => {
                 const expanded = expandedId === session.session_id
                 const tone = toneForRunningStatus(session.status)
-                const captureSets = session.manifest?.counts?.synchronized_samples
+                const captureSets = session.manifest?.counts?.paired_capture_sets ?? session.manifest?.counts?.synchronized_samples
                 return (
                   <Fragment key={session.session_id}>
                     <tr>

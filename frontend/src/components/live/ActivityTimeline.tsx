@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Recent activity list from the operator event log.
+ */
+
 import { Link } from 'react-router-dom'
 import { toneForSeverity } from '../status/severityColors'
 import { toDate } from '../../utils/formatTime'
@@ -10,6 +18,7 @@ interface ActivityTimelineProps {
   maxRows?: number
 }
 
+/** Glyph per event severity. */
 const SEVERITY_GLYPH: Record<string, string> = {
   INFO: 'i',
   LOW: '✓',
@@ -18,6 +27,7 @@ const SEVERITY_GLYPH: Record<string, string> = {
   CRITICAL: '×',
 }
 
+/** `Today` or the local date. */
 function dayLabel(date: Date): string {
   const today = new Date()
   const sameDay =
@@ -27,6 +37,7 @@ function dayLabel(date: Date): string {
   return sameDay ? 'Today' : date.toLocaleDateString()
 }
 
+/** The newest `maxRows` events with time, severity and suggested action. */
 export function ActivityTimeline({ events, loading, error, maxRows = 6 }: ActivityTimelineProps) {
   const rows = events.slice(0, maxRows)
 
@@ -51,9 +62,8 @@ export function ActivityTimeline({ events, loading, error, maxRows = 6 }: Activi
             const date = toDate(event.timestamp)
             return (
               <div className="easy-event" key={event.id}>
-                {/* La data completa è visibile, non solo nel tooltip: il log
-                    contiene giorni diversi e un evento vecchio non deve
-                    sembrare odierno. */}
+                {/* The date is visible, not only in the tooltip: the log spans several days
+                    and an old event must not look like today's. */}
                 <span className="easy-event-time" title={date?.toLocaleString() ?? 'Unknown time'}>
                   {date ? date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false }) : '—'}
                   <br />

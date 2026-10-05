@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Unit tests for StatusCard.
+ */
+
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { StatusCard } from './StatusCard'

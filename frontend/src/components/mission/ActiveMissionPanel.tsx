@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Panel of the running mission: elapsed time, counters and the capture/end actions.
+ */
+
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../../api/client'
@@ -8,19 +16,21 @@ import type { Session, SessionManifestCounts } from '../../api/types'
 interface ActiveMissionPanelProps {
   session: Session | null
   counts: SessionManifestCounts | null
-  /** Sensori pronti su totale, per la metrica di readiness. */
+  /** Ready sensors out of the total, for the readiness metric. */
   sensorsReady: number
   sensorsTotal: number
   now: number
   onChanged: () => void
-  /** Chiamata solo dopo uno stop confermato dal backend. */
+  /** Called only after a stop confirmed by the backend. */
   onStopped?: () => void
 }
 
+/** Number as text, or an em dash when the backend did not report it. */
 function metricValue(value: number | undefined): string {
   return typeof value === 'number' ? String(value) : '—'
 }
 
+/** Shows the mission id and timer, four metrics, and buttons for a paired capture, the live feeds and ending the mission. */
 export function ActiveMissionPanel({
   session,
   counts,
@@ -88,7 +98,7 @@ export function ActiveMissionPanel({
 
       <div className="easy-missionmetrics">
         <div className="easy-metric">
-          <b>{metricValue(counts?.synchronized_samples)}</b>
+          <b>{metricValue(counts?.paired_capture_sets ?? counts?.synchronized_samples)}</b>
           <span>Capture sets</span>
         </div>
         <div className="easy-metric">
@@ -112,7 +122,7 @@ export function ActiveMissionPanel({
 
       <div className="easy-missionactions">
         <button type="button" className="easy-btn primary" onClick={handleCaptureSet} disabled={capturing}>
-          {capturing ? 'Capturing…' : 'Capture synchronized set'}
+          {capturing ? 'Capturing…' : 'Capture paired set'}
         </button>
         <Link className="easy-btn" to="/">
           Open live feeds

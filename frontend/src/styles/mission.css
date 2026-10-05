@@ -1,4 +1,12 @@
-/* Sezioni specifiche della pagina Mission Control. */
+/*
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Styles of the Mission Control page.
+ */
+
+/* Styles specific to the Mission Control page. */
 
 .easy-mission-layout {
   display: grid;
@@ -84,7 +92,7 @@
   margin-top: 5px;
 }
 
-/* Scelta modalità */
+/* Mode selection */
 
 .easy-modecards {
   display: grid;

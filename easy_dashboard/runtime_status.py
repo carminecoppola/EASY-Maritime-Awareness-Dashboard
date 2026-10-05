@@ -1,11 +1,23 @@
-from __future__ import annotations
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
 
-"""Normalize hardware state for APIs, managers, and the operator interface.
+"""Normalise hardware state for the APIs, the managers and the operator interface.
 
-Hardware adapters retain their native states for backward compatibility.  The
-functions in this module add one stable vocabulary that all consumers can use:
-``STREAMING``, ``READY``, ``INITIALIZING``, ``NOT_PRESENT``, or ``ERROR``.
+The hardware adapters keep their native states (``DETECTED``, ``BUSY``, ``REAL``,
+...). The functions here add one stable vocabulary that every consumer can rely on:
+
+    STREAMING     frames are arriving and fresh (younger than 5 seconds)
+    READY         the device is present and idle, or waiting for its first frame
+    INITIALIZING  the device is starting up or recovering
+    NOT_PRESENT   disabled, not detected, or absent
+    ERROR         the device failed
+
+Each *contract* also carries ``health``, ``ready``, ``streaming`` and
+``service_healthy`` flags so the UI never has to interpret native states.
 """
+
+from __future__ import annotations
 
 import time
 from typing import Any, Mapping
@@ -19,6 +31,7 @@ NOT_PRESENT_STATES = {"DISABLED", "NOT_DETECTED", "NOT_PRESENT"}
 
 
 def _is_fresh(timestamp: Any, max_age_seconds: float = 5.0) -> bool:
+    """True when ``timestamp`` (epoch seconds) is at most ``max_age_seconds`` old."""
     try:
         return bool(timestamp and time.time() - float(timestamp) <= max_age_seconds)
     except (TypeError, ValueError):
@@ -26,6 +39,11 @@ def _is_fresh(timestamp: Any, max_age_seconds: float = 5.0) -> bool:
 
 
 def build_rgb_state_contract(state: Mapping[str, Any] | None, *, enabled: bool = True) -> dict[str, Any]:
+    """Build the state contract of the RGB cameras from the capture runtime state.
+
+    Freshness of the last frame decides between STREAMING and READY. A detected
+    RGB device counts as service-healthy even while its first frame is pending.
+    """
     payload = dict(state or {})
     camera_state = normalize_status(payload.get("camera_state"))
     process_state = normalize_status(payload.get("status"))
@@ -67,9 +85,15 @@ def build_rgb_state_contract(state: Mapping[str, Any] | None, *, enabled: bool =
 
 
 def build_thermal_state_contract(state: Mapping[str, Any] | None) -> dict[str, Any]:
+    """Build the state contract of the thermal sensor.
+
+    A missing or disabled thermal device is not a service failure (only ERROR is);
+    simulated (mock) mode is always STREAMING.
+    """
     payload = dict(state or {})
     native_state = normalize_status(payload.get("status") or payload.get("mode"))
     mode = str(payload.get("mode") or "").lower()
+    capture_mode = str(payload.get("capture_mode") or "on_demand").lower()
     last_frame_ts = payload.get("last_frame_ts")
     fresh = _is_fresh(last_frame_ts)
     detected = bool(payload.get("detected") or mode == "mock" or native_state in {"REAL", "MOCK", "READY"})
@@ -83,8 +107,8 @@ def build_thermal_state_contract(state: Mapping[str, Any] | None) -> dict[str, A
     elif native_state in INITIALIZING_STATES:
         availability = "INITIALIZING"
     elif detected:
-        # PureThermal is intentionally released between acquisitions. READY is
-        # therefore the normal idle state, not a missing or failed stream.
+        # READY is valid before the continuous worker has produced its first
+        # frame, and remains the normal idle state for legacy single-frame mode.
         availability = "READY"
     else:
         availability = "NOT_PRESENT"
@@ -93,7 +117,7 @@ def build_thermal_state_contract(state: Mapping[str, Any] | None) -> dict[str, A
     return {
         "availability": availability,
         "health": "GOOD" if ready else "DEGRADED" if availability == "INITIALIZING" else "OFFLINE",
-        "capture_mode": "simulated" if mode == "mock" else "on_demand",
+        "capture_mode": "simulated" if mode == "mock" else capture_mode,
         "detected": detected,
         "ready": ready,
         "streaming": availability == "STREAMING",
@@ -108,12 +132,14 @@ def build_thermal_state_contract(state: Mapping[str, Any] | None) -> dict[str, A
 
 
 def runtime_is_healthy(rgb_state: Mapping[str, Any] | None, thermal_state: Mapping[str, Any] | None) -> bool:
+    """True when neither the RGB nor the thermal runtime is in a failed state."""
     rgb_contract = build_rgb_state_contract(rgb_state)
     thermal_contract = build_thermal_state_contract(thermal_state)
     return bool(rgb_contract["service_healthy"] and thermal_contract["service_healthy"])
 
 
 def build_rgb_device_status(rgb: Any, feed_id: str) -> dict[str, Any]:
+    """Translate the RGB runtime state into the status payload the device manager expects."""
     if rgb is None or not hasattr(rgb, "latest_state"):
         return {"status": "NOT_PRESENT", "fps": 0.0, "configuration": {"feed": feed_id, "reason": "RGB runtime not available"}}
     try:
@@ -139,6 +165,7 @@ def build_rgb_device_status(rgb: Any, feed_id: str) -> dict[str, Any]:
 
 
 def build_thermal_device_status(thermal: Any) -> dict[str, Any]:
+    """Translate the thermal runtime state into the status payload the device manager expects."""
     if thermal is None or not hasattr(thermal, "status_payload"):
         return {"status": "NOT_PRESENT", "fps": 0.0, "configuration": {"reason": "Thermal runtime not available"}}
     try:

@@ -1,8 +1,7 @@
 {
   "runtime_root": "runtime",
   "model": {
-    "preferred_path": "runtime/models/best.onnx",
-    "fallback_path": "runtime/models/easy_v1_best_rgb.pt",
+    "preferred_path": "runtime/models/easy_v3_aboships_640.onnx",
     "type": "onnx"
   },
   "inference": {

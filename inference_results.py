@@ -1,6 +1,14 @@
-from __future__ import annotations
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
 
-"""Convert internal detections into the stable public API representation."""
+"""Convert internal detections into the stable public API representation.
+
+The JSON produced here is what the dashboard stores in session manifests and
+returns from ``/api/inference/*``; changing a key is an API change.
+"""
+
+from __future__ import annotations
 
 import uuid
 from typing import Any, Iterable
@@ -11,6 +19,12 @@ def format_detections(
     *,
     frame: Any | None = None,
 ) -> list[dict[str, Any]]:
+    """Serialise detections into JSON-ready dictionaries.
+
+    Each item gets a random ``det-<12 hex>`` id, a rounded confidence and box,
+    and the provenance of ``frame`` (frame id, source type/name, session id)
+    when a frame is supplied.
+    """
     return [
         {
             "id": f"det-{uuid.uuid4().hex[:12]}",

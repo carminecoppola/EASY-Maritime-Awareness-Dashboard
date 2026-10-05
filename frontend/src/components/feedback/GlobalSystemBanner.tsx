@@ -1,13 +1,20 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Banner shown when the dashboard backend stops answering.
+ */
+
 import { Link } from 'react-router-dom'
 import { useSharedDashboardState } from '../../hooks/DashboardStateContext'
 import { formatStaleAge, normalizeApiError } from '../../lib/errors'
 import { TechnicalDetails } from './TechnicalDetails'
 
 /**
- * Escalation della connessione secondo la specifica operativa:
- * un fallimento isolato non lampeggia, due sono un avviso, tre o più sono un
- * guasto persistente. Il dato precedente resta visibile, dichiarato come
- * vecchio.
+ * Connection escalation: an isolated failure does not flash, two are a warning,
+ * three or more are a persistent outage. The previous data stays visible,
+ * declared as stale.
  */
 export function GlobalSystemBanner() {
   const { error, failures, lastSuccessAt, refresh, loading } = useSharedDashboardState()

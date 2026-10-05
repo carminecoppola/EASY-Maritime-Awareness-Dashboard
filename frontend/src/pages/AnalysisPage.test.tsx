@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Unit tests for AnalysisPage.
+ */
+
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
@@ -28,7 +36,7 @@ const INFERENCE = {
   backend: 'onnx',
   backend_status: { loaded: true, cpu_threads: 4, execution_mode: 'sequential' },
   model_path: '/runtime/models/best.onnx',
-  source_label: 'Replay Folder',
+  source_label: 'Recorded Dataset',
   source_status: 'STREAMING',
   last_inference_ms: 891.5,
   last_run_ts: '2026-09-10T16:06:57Z',

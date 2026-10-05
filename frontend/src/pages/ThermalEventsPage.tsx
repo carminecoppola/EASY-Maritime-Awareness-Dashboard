@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Thermal & Events page: thermal viewer, sensor status and the merged event stream.
+ */
+
 import { useCallback, useState } from 'react'
 import { useThermalStatus } from '../hooks/useThermal'
 import { useSharedDashboardState } from '../hooks/DashboardStateContext'
@@ -7,11 +15,12 @@ import { EventStream, buildStream } from '../components/thermal/EventStream'
 import { formatRelativeTime, toDate } from '../utils/formatTime'
 import type { MissionEvent, RawLogEvent } from '../api/types'
 
+/** Inspect the thermal sensor, capture evidence and review cross-source events. */
 export function ThermalEventsPage() {
   const thermal = useThermalStatus(3000)
   const dashboard = useSharedDashboardState()
-  // Incrementato dopo una cattura manuale: forza un nuovo ciclo del viewer
-  // senza rimontare i pannelli vicini.
+  // Incremented after a manual capture: forces a new viewer cycle without
+  // remounting the neighbouring panels.
   const [, setCaptureCount] = useState(0)
   const handleCaptured = useCallback(() => setCaptureCount((n) => n + 1), [])
 
@@ -51,7 +60,7 @@ export function ThermalEventsPage() {
           >
             {online ? 'Operational' : availability.replace('_', ' ')}
           </div>
-          <div className="easy-sub">Independent hardware path · on demand</div>
+          <div className="easy-sub">Independent continuous path · concurrent with RGB</div>
         </div>
         <div className="easy-readycell">
           <div className="easy-kicker">Hotspot coverage</div>

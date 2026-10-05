@@ -1,23 +1,28 @@
-"""Local authentication: users, roles, server-side sessions, audit log.
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
 
-Design notes (see conversation for the full rationale):
+"""Local authentication: users, roles, server-side sessions and an audit log.
+
+Design notes:
 
 - Three roles, ranked: viewer < operator < admin. A route declares the
   minimum role it needs; any role at or above that rank is allowed.
-- Passwords are hashed with hashlib.scrypt (stdlib, no new dependency —
-  requirements.txt has no pinned Python floor and the project otherwise
-  avoids compiled dependencies where the stdlib suffices).
-- Sessions are server-side (opaque id in an HttpOnly cookie, looked up in an
-  in-memory table) rather than a signed cookie carrying the user's identity:
-  this makes an admin's "revoke this session" meaningful — a signed cookie
-  cannot be revoked before it expires.
-- Enforcement is a two-key safety switch, not just "an admin exists":
-  EASY_DASHBOARD_ENABLE_AUTH=1 must also be set. Completing first-run setup
-  (creating the first Admin) never silently locks anyone out of a device
-  that has no login UI reachable yet — see app.py's before_request hook.
-- Storage is a single JSON file (users + settings) written atomically
-  (temp file + os.replace), plus an append-only JSONL audit log, following
-  the same on-disk conventions as easy_dashboard/stores.py.
+- Passwords are hashed with ``hashlib.scrypt`` (standard library, no extra
+  dependency).
+- Sessions are server-side (an opaque id in an HttpOnly cookie, looked up in an
+  in-memory table) rather than a signed cookie carrying the identity: this makes
+  an admin's "revoke this session" meaningful, because a signed cookie cannot be
+  revoked before it expires.
+- Enforcement is a two-key safety switch, not just "an admin exists": the Admin
+  must also enable it (or ``EASY_DASHBOARD_ENABLE_AUTH=1`` must be set).
+  Completing first-run setup never silently locks anyone out of a device that
+  has no login UI reachable yet; see the ``before_request`` hook in ``app.py``.
+- Storage is a single JSON file (users and settings) written atomically (temp
+  file plus rename), plus an append-only JSONL audit log, following the same
+  on-disk conventions as ``easy_dashboard/stores.py``.
+- Sensitive actions additionally need *step-up* authentication: the password
+  typed again within the last five minutes.
 """
 
 from __future__ import annotations
@@ -40,36 +45,43 @@ LOGGER = logging.getLogger("easy-dashboard")
 ROLES = ("viewer", "operator", "admin")
 ROLE_RANK = {role: rank for rank, role in enumerate(ROLES)}
 
-# Costi scrypt: N=2^14, r=8, p=1 — i parametri "interactive" raccomandati da
-# RFC 7914, adeguati a un login umano sul Raspberry Pi senza introdurre una
-# latenza percepibile.
+# scrypt cost: N=2^14, r=8, p=1, the "interactive" parameters recommended by
+# RFC 7914. Adequate for a human login on the Raspberry Pi without adding a
+# noticeable delay.
 _SCRYPT_N = 2**14
 _SCRYPT_R = 8
 _SCRYPT_P = 1
 _SCRYPT_DKLEN = 32
 _SCRYPT_MAXMEM = 64 * 1024 * 1024
 
-SESSION_TTL_SECONDS = 12 * 60 * 60  # 12h scorrevoli, rinnovate ad ogni richiesta
+SESSION_TTL_SECONDS = 12 * 60 * 60  # sliding 12 h window, renewed on every request
 SESSION_COOKIE_NAME = "easy_session"
 
-# Finestra di step-up: quanto resta "sbloccata" un'azione distruttiva dopo
-# aver ri-digitato la password. Breve apposta — non è una seconda sessione.
+# Step-up window: how long a destructive action stays "unlocked" after the
+# password was typed again. Deliberately short: it is not a second session.
 STEP_UP_WINDOW_SECONDS = 5 * 60
 
 MIN_PASSWORD_LENGTH = 8
 
 
 def is_valid_role(role: str) -> bool:
+    """True for ``viewer``, ``operator`` and ``admin``."""
     return role in ROLE_RANK
 
 
 def role_at_least(role: Optional[str], minimum: str) -> bool:
+    """True when ``role`` ranks at or above ``minimum`` (None and unknown roles never do)."""
     if role is None or role not in ROLE_RANK:
         return False
     return ROLE_RANK[role] >= ROLE_RANK[minimum]
 
 
 def hash_password(password: str) -> str:
+    """Hash a password with scrypt and a fresh random salt.
+
+    Format: ``scrypt$N$r$p$<salt hex>$<hash hex>``, so the parameters can change
+    over time without invalidating stored hashes.
+    """
     salt = secrets.token_bytes(16)
     derived = hashlib.scrypt(
         password.encode("utf-8"),
@@ -84,6 +96,7 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(password: str, stored: str) -> bool:
+    """Check a password against a stored hash in constant time; any malformed hash is simply invalid."""
     try:
         algo, n_s, r_s, p_s, salt_hex, hash_hex = stored.split("$")
         if algo != "scrypt":
@@ -100,13 +113,13 @@ def verify_password(password: str, stored: str) -> bool:
         )
         return hmac.compare_digest(derived, expected)
     except (ValueError, TypeError):
-        # Hash malformato o algoritmo sconosciuto: mai un'eccezione fino al
-        # chiamante, solo "non valida".
+        # Malformed hash or unknown algorithm: never raise to the caller, just
+        # report the password as invalid.
         return False
 
 
 def _public_user(user: Dict[str, Any]) -> Dict[str, Any]:
-    """Rappresentazione di un utente senza l'hash della password."""
+    """Return a user record without its password hash."""
     return {
         "id": user["id"],
         "username": user["username"],
@@ -118,13 +131,14 @@ def _public_user(user: Dict[str, Any]) -> Dict[str, Any]:
 
 
 class UserStoreError(Exception):
-    """Errore applicativo (username duplicato, ruolo invalido, ecc.)."""
+    """Application-level error (duplicate username, invalid role, ...)."""
 
 
 class UserStore:
-    """Utenti locali e impostazioni di autenticazione, persistiti su disco."""
+    """Local users and authentication settings, persisted on disk."""
 
     def __init__(self, path: Path) -> None:
+        """Load the users file (missing means first-run setup)."""
         self.path = path
         self._lock = threading.Lock()
         self._users: List[Dict[str, Any]] = []
@@ -132,6 +146,11 @@ class UserStore:
         self._load()
 
     def _load(self) -> None:
+        """Read and strictly validate the users file.
+
+        A damaged file raises ``UserStoreError`` instead of being mistaken for a
+        first-run setup, which would let anyone create a new admin.
+        """
         try:
             data = json.loads(self.path.read_text(encoding="utf-8"))
         except FileNotFoundError:
@@ -163,6 +182,7 @@ class UserStore:
         self._settings.update(data["settings"])
 
     def _save_locked(self) -> None:
+        """Atomically write users and settings. The caller must hold the lock."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
         payload = {"users": self._users, "settings": self._settings}
         tmp = self.path.with_suffix(".json.tmp")
@@ -170,6 +190,7 @@ class UserStore:
         tmp.replace(self.path)
 
     def _find_by_username_locked(self, username: str) -> Optional[Dict[str, Any]]:
+        """Case-insensitive username lookup. The caller must hold the lock."""
         needle = username.strip().lower()
         for user in self._users:
             if user["username"].lower() == needle:
@@ -177,35 +198,43 @@ class UserStore:
         return None
 
     def has_admin(self) -> bool:
+        """True when at least one active admin exists (false means first-run setup)."""
         with self._lock:
             return any(u["role"] == "admin" and u["active"] for u in self._users)
 
     def anonymous_viewer_enabled(self) -> bool:
+        """Whether unauthenticated visitors get read-only (viewer) access."""
         with self._lock:
             return bool(self._settings.get("anonymous_viewer_enabled", False))
 
     def set_anonymous_viewer_enabled(self, enabled: bool) -> None:
+        """Persist the anonymous viewer setting."""
         with self._lock:
             self._settings["anonymous_viewer_enabled"] = bool(enabled)
             self._save_locked()
 
     def auth_enforced(self) -> bool:
-        """Preferenza persistita: se l'Admin ha scelto di far rispettare i
-        ruoli. Il processo può comunque forzarla on/off tramite variabile
-        d'ambiente — vedi AuthContext.enforcing()."""
+        """Persisted preference: whether the Admin chose to enforce roles.
+
+        The process can still force it on or off through an environment variable; see
+        ``AuthContext.enforcing``.
+        """
         with self._lock:
             return bool(self._settings.get("auth_enforced", False))
 
     def set_auth_enforced(self, enabled: bool) -> None:
+        """Persist the enforcement preference."""
         with self._lock:
             self._settings["auth_enforced"] = bool(enabled)
             self._save_locked()
 
     def list_users(self) -> List[Dict[str, Any]]:
+        """All users, without password hashes."""
         with self._lock:
             return [_public_user(u) for u in self._users]
 
     def get_user(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """A copy of one user record (including the hash, for internal use), or None."""
         with self._lock:
             for user in self._users:
                 if user["id"] == user_id:
@@ -213,6 +242,7 @@ class UserStore:
             return None
 
     def verify_credentials(self, username: str, password: str) -> Optional[Dict[str, Any]]:
+        """Return the user when the username and password match an active account, else None."""
         with self._lock:
             user = self._find_by_username_locked(username)
             if not user or not user["active"]:
@@ -222,6 +252,7 @@ class UserStore:
             return dict(user)
 
     def create_user(self, username: str, password: str, role: str) -> Dict[str, Any]:
+        """Create a user (username unique case-insensitively, password at least 8 characters)."""
         username = username.strip()
         if not username:
             raise UserStoreError("Username is required")
@@ -254,6 +285,10 @@ class UserStore:
         active: Optional[bool] = None,
         new_password: Optional[str] = None,
     ) -> Dict[str, Any]:
+        """Change a user's role, active flag or password.
+
+        The last active admin can neither be deactivated nor demoted.
+        """
         if role is not None and not is_valid_role(role):
             raise UserStoreError(f"Unknown role: {role}")
         if new_password is not None and len(new_password) < MIN_PASSWORD_LENGTH:
@@ -287,30 +322,36 @@ class UserStore:
 
 @dataclass
 class AuthSession:
+    """One logged-in session: ids, expiry and the step-up (elevation) deadline."""
     session_id: str
     user_id: str
     csrf_token: str
     created_at: float
     expires_at: float
-    # Finestra breve dopo aver ri-digitato la password, per le azioni
-    # distruttive (step-up auth) — 0 = mai elevata o scaduta.
+    # Short window after the password was typed again, for destructive actions
+    # (step-up authentication). 0 means never elevated, or expired.
     elevated_until: float = 0.0
 
     def elevated(self) -> bool:
+        """True while the step-up window is open."""
         return self.elevated_until > time.time()
 
 
 class SessionStore:
-    """Sessioni server-side in memoria. Riavviare il processo invalida tutte
-    le sessioni: comportamento accettato (forza un nuovo login), non un bug.
+    """In-memory server-side sessions.
+
+    Restarting the process invalidates every session. That is accepted
+    behaviour (it forces a new login), not a bug.
     """
 
     def __init__(self, ttl_seconds: int = SESSION_TTL_SECONDS) -> None:
+        """``ttl_seconds`` is the sliding session lifetime."""
         self.ttl_seconds = ttl_seconds
         self._lock = threading.Lock()
         self._sessions: Dict[str, AuthSession] = {}
 
     def create(self, user_id: str) -> AuthSession:
+        """Create a session with random session and CSRF tokens."""
         now = time.time()
         session = AuthSession(
             session_id=secrets.token_urlsafe(32),
@@ -324,6 +365,7 @@ class SessionStore:
         return session
 
     def get(self, session_id: str) -> Optional[AuthSession]:
+        """Return a live session and extend its lifetime; expired sessions are removed and return None."""
         with self._lock:
             session = self._sessions.get(session_id)
             if session is None:
@@ -331,23 +373,27 @@ class SessionStore:
             if session.expires_at < time.time():
                 del self._sessions[session_id]
                 return None
-            # Sessione scorrevole: ogni richiesta valida allontana la scadenza.
+            # Sliding session: every valid request pushes the expiry forward.
             session.expires_at = time.time() + self.ttl_seconds
             return session
 
     def delete(self, session_id: str) -> None:
+        """Remove one session (logout or revocation)."""
         with self._lock:
             self._sessions.pop(session_id, None)
 
     def delete_all_for_user(self, user_id: str) -> None:
+        """Revoke every session of a user (e.g. after a password change)."""
         with self._lock:
             for sid in [sid for sid, s in self._sessions.items() if s.user_id == user_id]:
                 del self._sessions[sid]
 
     def elevate(self, session_id: str, window_seconds: int = STEP_UP_WINDOW_SECONDS) -> Optional[AuthSession]:
-        """Segna la sessione come "elevata" dopo aver ri-verificato la
-        password: le azioni distruttive restano sbloccate per una finestra
-        breve, non per l'intera durata della sessione."""
+        """Mark the session as "elevated" after the password was re-verified.
+
+        Destructive actions stay unlocked for a short window, not for the whole
+        session.
+        """
         with self._lock:
             session = self._sessions.get(session_id)
             if session is None or session.expires_at < time.time():
@@ -357,24 +403,28 @@ class SessionStore:
 
 
 class LoginRateLimiter:
-    """Backoff esponenziale per tentativo di login fallito, per chiave
-    (tipicamente username in minuscolo). Non persistito: riavviare il
-    servizio azzera i contatori, accettabile per un dispositivo locale.
+    """Exponential back-off after each failed login, per key.
+
+    The key is typically the lower-case username. Counters are not persisted:
+    restarting the service resets them, which is acceptable for a local device.
     """
 
     def __init__(self, max_delay_seconds: float = 30.0) -> None:
+        """``max_delay_seconds`` caps the back-off (1, 2, 4, ... seconds)."""
         self.max_delay_seconds = max_delay_seconds
         self._lock = threading.Lock()
         self._failures: Dict[str, int] = {}
         self._locked_until: Dict[str, float] = {}
 
     def seconds_until_allowed(self, key: str) -> float:
+        """Seconds the caller must still wait before another attempt (0 when allowed)."""
         with self._lock:
             locked_until = self._locked_until.get(key, 0.0)
             remaining = locked_until - time.time()
             return max(0.0, remaining)
 
     def record_failure(self, key: str) -> None:
+        """Register a failed attempt and lock the key for 2^(failures-1) seconds."""
         with self._lock:
             failures = self._failures.get(key, 0) + 1
             self._failures[key] = failures
@@ -382,15 +432,17 @@ class LoginRateLimiter:
             self._locked_until[key] = time.time() + delay
 
     def record_success(self, key: str) -> None:
+        """Clear the failure counters after a successful login."""
         with self._lock:
             self._failures.pop(key, None)
             self._locked_until.pop(key, None)
 
 
 class AuditLog:
-    """Log di audit append-only (JSONL), stesso pattern di EventStore."""
+    """Append-only audit log (JSONL), same pattern as ``EventStore``."""
 
     def __init__(self, path: Path, memory_limit: int = 500) -> None:
+        """``path`` is the JSONL file; it is created on first write."""
         self.path = path
         self.memory_limit = memory_limit
         self._lock = threading.Lock()
@@ -406,6 +458,7 @@ class AuditLog:
         client_ip: Optional[str] = None,
         detail: Optional[str] = None,
     ) -> Dict[str, Any]:
+        """Append one audit entry (who, what, on which resource, with which result, from which address)."""
         entry = {
             "timestamp": utc_now_iso(),
             "actor": actor,
@@ -423,6 +476,7 @@ class AuditLog:
         return entry
 
     def list(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """Return the most recent ``limit`` entries, newest first (malformed lines are skipped)."""
         if not self.path.exists():
             return []
         try:
@@ -444,10 +498,10 @@ class AuditLog:
         return entries[:limit]
 
 
-# Endpoint di /api/auth/* raggiungibili senza un'identità: sono il modo
-# stesso per ottenerne una (login/setup) o per leggere lo stato pubblico.
-# Tutto il resto sotto /api/auth/ (utenti, audit, impostazioni) richiede
-# admin, come qualunque altro percorso amministrativo.
+# /api/auth/* endpoints reachable without an identity: they are the way to
+# obtain one (login/setup) or to read the public state. Everything else under
+# /api/auth/ (users, audit, settings) requires admin, like any other
+# administrative path.
 PUBLIC_AUTH_PATHS = {
     "/api/auth/status",
     "/api/auth/session",
@@ -456,9 +510,9 @@ PUBLIC_AUTH_PATHS = {
     "/api/auth/setup",
 }
 
-# Percorsi "di backend" soggetti ad autenticazione quando l'enforcement è
-# attivo. Tutto il resto (asset della SPA, /paper-assets, /) resta pubblico:
-# è cosa serve per caricare la pagina di login stessa.
+# Backend paths subject to authentication when enforcement is on. Everything
+# else (SPA assets, /) stays public: it is what is needed to load the login
+# page itself.
 PROTECTED_PREFIXES = (
     "/api/",
     "/video/",
@@ -471,10 +525,10 @@ PROTECTED_PREFIXES = (
     "/events",
 )
 
-# Azioni riservate all'Admin: gestione utenti/audit (sotto /api/auth/, già
-# gestita da PUBLIC_AUTH_PATHS più sopra), configurazione hardware sensibile,
-# riavvio del servizio. Le altre operazioni mutative "di campo" — start/stop
-# missione, capture, analisi, selezione sorgente — restano a livello Operator.
+# Admin-only actions: user and audit management (under /api/auth/), sensitive
+# hardware configuration and service restart. The other field operations that
+# change state (mission start/stop, capture, analysis, source selection) stay
+# at Operator level.
 ADMIN_ONLY_PREFIXES = (
     "/api/auth/users",
     "/api/auth/audit",
@@ -486,13 +540,14 @@ ADMIN_ONLY_EXACT = {
 
 
 def is_public_path(path: str) -> bool:
+    """True when a path can be used without an identity (login/setup endpoints and the SPA assets)."""
     if path in PUBLIC_AUTH_PATHS:
         return True
     return not path.startswith(PROTECTED_PREFIXES)
 
 
 def required_role_for(method: str, path: str) -> Optional[str]:
-    """Ruolo minimo per un percorso protetto, o None se il percorso è pubblico."""
+    """Minimum role for a protected path, or None when the path is public."""
     if is_public_path(path):
         return None
     if path in ADMIN_ONLY_EXACT or path.startswith(ADMIN_ONLY_PREFIXES):
@@ -502,15 +557,15 @@ def required_role_for(method: str, path: str) -> Optional[str]:
     return "operator"
 
 
-# Azioni distruttive o che riducono la sicurezza: richiedono aver ri-digitato
-# la password entro STEP_UP_WINDOW_SECONDS, non solo il ruolo giusto.
-#   - modificare un utente esistente (ruolo, disattivazione, reset password):
-#     PATCH/DELETE su /api/auth/users/<id>, mai la POST che ne crea uno nuovo;
-#   - toccare le impostazioni di sicurezza (disattivare l'enforcement,
-#     aprire l'accesso anonimo — POST /api/auth/settings, sempre, anche se
-#     un dato invio le sta solo rendendo più severe: il costo di un prompt
-#     in più è basso, il costo di saltarlo su quello sbagliato non lo è);
-#   - riavviare i servizi hardware (POST /api/system/restart).
+# Destructive or security-reducing actions: they need the password to have been
+# typed again within STEP_UP_WINDOW_SECONDS, not only the right role.
+#   - changing an existing user (role, deactivation, password reset):
+#     PATCH/DELETE on /api/auth/users/<id>, never the POST that creates one;
+#   - touching the security settings (turning enforcement off, opening
+#     anonymous access): POST /api/auth/settings, always, even when a given
+#     request only makes them stricter. One extra prompt is cheap; skipping it
+#     on the wrong request is not;
+#   - restarting the hardware services (POST /api/system/restart).
 _ELEVATED_PREFIXES = ("/api/auth/users/",)
 _ELEVATED_METHODS_FOR_PREFIX = {"PATCH", "DELETE"}
 _ELEVATED_EXACT = {
@@ -520,6 +575,7 @@ _ELEVATED_EXACT = {
 
 
 def requires_elevation(method: str, path: str) -> bool:
+    """True for destructive or security-reducing requests that need step-up authentication."""
     if path.startswith(_ELEVATED_PREFIXES) and method in _ELEVATED_METHODS_FOR_PREFIX:
         return True
     return (method, path) in _ELEVATED_EXACT
@@ -527,8 +583,10 @@ def requires_elevation(method: str, path: str) -> bool:
 
 @dataclass
 class AuthContext:
-    """Raggruppa le collaborazioni dell'auth in un unico oggetto, tenuto in
-    app.config['easy_auth'] — stesso pattern del dashboard_runtime.
+    """Groups the authentication collaborators in one object.
+
+    It is stored in ``app.config['easy_auth']``, the same pattern used for the
+    dashboard runtime.
     """
 
     user_store: UserStore
@@ -536,18 +594,23 @@ class AuthContext:
     audit_log: Optional[AuditLog] = None
     rate_limiter: LoginRateLimiter = field(default_factory=LoginRateLimiter)
     legacy_shared_token: str = ""
-    # Interruttore a tre stati, letto da EASY_DASHBOARD_ENABLE_AUTH:
-    #   None  -> "auto", segue la preferenza persistita (UserStore.auth_enforced,
-    #            impostabile dall'Admin in Users & Roles);
-    #   True  -> forza l'enforcement acceso, ignorando la preferenza salvata
-    #            (utile per test/deploy automatizzati);
-    #   False -> forza l'enforcement spento SEMPRE, anche se un Admin esiste
-    #            e ha attivato la preferenza — via utilizzabile in emergenza
-    #            (SSH sul Pi, imposta la variabile, riavvia il servizio) per
-    #            rientrare in un dashboard bloccato senza UI raggiungibile.
+    # Three-state switch, read from EASY_DASHBOARD_ENABLE_AUTH:
+    #   None  -> "auto": follows the persisted preference (UserStore.auth_enforced,
+    #            set by the Admin in Users & Roles);
+    #   True  -> forces enforcement on, ignoring the stored preference (useful
+    #            for tests and automated deployments);
+    #   False -> forces enforcement off ALWAYS, even when an Admin exists and
+    #            enabled the preference. This is the emergency way back into a
+    #            locked dashboard with no reachable login UI: SSH into the Pi,
+    #            set the variable, restart the service.
     env_override: Optional[bool] = None
 
     def enforcing(self) -> bool:
+        """True when roles are enforced.
+
+        Never before the first admin exists; after that the environment override wins,
+        otherwise the Admin's stored preference.
+        """
         if not self.user_store.has_admin():
             return False
         if self.env_override is not None:

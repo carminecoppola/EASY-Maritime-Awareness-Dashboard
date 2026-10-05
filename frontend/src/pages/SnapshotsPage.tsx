@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Archive & Snapshots page: captures, gallery, mission activity and dataset export.
+ */
+
 import { useCallback, useState } from 'react'
 import { api } from '../api/client'
 import { normalizeApiError } from '../lib/errors'
@@ -10,6 +18,7 @@ import { toDate } from '../utils/formatTime'
 import { mostRecentFirst } from '../utils/sorting'
 import type { RawLogEvent, SessionManifestCounts, Snapshot } from '../api/types'
 
+/** Number of RGB, thermal, left and right snapshots in a list. */
 function countByKind(items: Snapshot[]): { rgb: number; thermal: number; left: number; right: number } {
   let rgb = 0
   let thermal = 0
@@ -27,9 +36,10 @@ function countByKind(items: Snapshot[]): { rgb: number; thermal: number; left: n
   return { rgb, thermal, left, right }
 }
 
+/** Capture RGB or a paired set, browse stored snapshots and open the dataset export tools. */
 export function SnapshotsPage() {
-  // La galleria si aggiorna da sola ogni 5s: non serve rimontarla dopo una
-  // cattura manuale.
+  // The gallery refreshes itself every 5 s: it does not need remounting after a
+  // manual capture.
   const { data, loading, error } = useSnapshotsRecent(24, 5000)
   const dashboard = useSharedDashboardState()
 
@@ -39,8 +49,8 @@ export function SnapshotsPage() {
 
   const items = data?.items ?? []
   const kinds = countByKind(items)
-  // manifest_counts resta popolato dalla sessione PRECEDENTE quando nessuna
-  // missione è attiva: mostrarlo come "della missione" sarebbe falso.
+  // manifest_counts stays populated from the PREVIOUS session when no mission is
+  // active: presenting it as "of the mission" would be false.
   const rawCounts = dashboard.data?.acquisition?.manifest_counts as SessionManifestCounts | undefined
   const missionRunning = dashboard.data?.session?.running ?? false
   const counts = missionRunning ? rawCounts : undefined
@@ -53,8 +63,8 @@ export function SnapshotsPage() {
     setMessage(null)
     setCaptureError(null)
     try {
-      // Due scatti separati: senza missione attiva il backend non assegna un
-      // capture-set, quindi non vanno presentati come un insieme sincronizzato.
+      // Two separate shots: without an active mission the backend assigns no
+      // capture set, so they must not be presented as a synchronised set.
       const results = await Promise.allSettled([api.takeSnapshot('rgb_left'), api.takeSnapshot('rgb_right')])
       const ok = results.filter((r) => r.status === 'fulfilled').length
       if (ok === 0) {
@@ -76,7 +86,7 @@ export function SnapshotsPage() {
       const result = await api.captureAcquisitionSet()
       setMessage(
         result.complete
-          ? `Synchronized set ${result.capture_set_id} saved`
+          ? `Paired capture set ${result.capture_set_id} saved`
           : `Partial set: ${result.successful_feeds}/${result.total_feeds} feeds saved`,
       )
     } catch (e) {
@@ -92,7 +102,7 @@ export function SnapshotsPage() {
         <div>
           <div className="easy-eyebrow">Mission evidence</div>
           <h1>Archive &amp; Snapshots</h1>
-          <p>Capture, review and prepare synchronized maritime datasets.</p>
+          <p>Capture, review and prepare traceable multimodal maritime datasets.</p>
         </div>
         <div className="easy-updated">
           Auto refresh <b>5s</b>
@@ -104,8 +114,8 @@ export function SnapshotsPage() {
           <div className="easy-kicker">Recent captures</div>
           <div className="easy-value mono">{items.length}</div>
           <div className="easy-sub">
-            {typeof counts?.synchronized_samples === 'number'
-              ? `${counts.synchronized_samples} synchronized sets in mission`
+            {typeof counts?.paired_capture_sets === 'number'
+              ? `${counts.paired_capture_sets} paired capture sets in mission`
               : 'No active mission'}
           </div>
         </div>
@@ -123,7 +133,7 @@ export function SnapshotsPage() {
           <div className="easy-value mono" style={{ color: 'var(--accent-warn)' }}>
             {kinds.thermal}
           </div>
-          <div className="easy-sub">Captured on demand</div>
+          <div className="easy-sub">Saved from the continuous feed</div>
         </div>
         <div className="easy-readycell">
           <div className="easy-kicker">Mission samples</div>
@@ -139,7 +149,7 @@ export function SnapshotsPage() {
           +
         </div>
         <div>
-          <h3>Capture synchronized sample</h3>
+          <h3>Capture paired sensor sample</h3>
           <p>
             {captureError ??
               message ??
@@ -155,9 +165,9 @@ export function SnapshotsPage() {
             className="easy-btn primary"
             onClick={handleCaptureSet}
             disabled={capturing !== null || !missionRunning}
-            title={missionRunning ? undefined : 'Start a mission before capturing a synchronized sensor set'}
+            title={missionRunning ? undefined : 'Start a mission before capturing a paired sensor set'}
           >
-            {capturing === 'set' ? 'Capturing…' : 'Capture synchronized set'}
+            {capturing === 'set' ? 'Capturing…' : 'Capture paired set'}
           </button>
         </div>
       </section>

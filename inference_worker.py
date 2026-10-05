@@ -1,3 +1,19 @@
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Inference worker: runs the ONNX detector on replay images or live frames.
+
+Responsibilities:
+  * pull frames from the unified frame provider (replay folder or live RGB);
+  * run pre-processing, the ONNX backend and post-processing, timing each stage;
+  * persist the latest result, preview image and events;
+  * run an optional background loop that keeps analysing frames unattended.
+
+The worker is thread-safe: ``_state_lock`` protects the status snapshot that the
+HTTP layer reads while the background loop updates it.
+"""
+
 from __future__ import annotations
 
 import json
@@ -8,15 +24,13 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-
-LOGGER = logging.getLogger("easy-dashboard")
-
 import numpy as np
 from PIL import Image
 from frame_provider import FrameObject, UnifiedFrameProvider
 from inference_backend import OnnxDetectionBackend
 from inference_config import (
     DEFAULT_CONFIG_CANDIDATES,
+    DEFAULT_MODEL_PATH,
     PROJECT_ROOT,
     RUNTIME_ROOT,
     load_runtime_config,
@@ -41,11 +55,14 @@ from inference_image import (
 from source_manager import SourceManager, SourceStatus
 
 
+LOGGER = logging.getLogger("easy-dashboard")
+
 ALLOWED_CLASSES = {"boat", "ship", "buoy"}
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
 
 
 def find_first_image(replay_dir: Path) -> Path:
+    """Return the first image (sorted by path) under ``replay_dir``; raise FileNotFoundError if none."""
     if not replay_dir.exists():
         raise FileNotFoundError(f"Replay directory not found: {replay_dir}")
     for path in sorted(replay_dir.rglob("*")):
@@ -55,6 +72,7 @@ def find_first_image(replay_dir: Path) -> Path:
 
 
 def list_images(replay_dir: Path) -> List[Path]:
+    """Return every image file under ``replay_dir`` in a stable order (empty if the folder is missing)."""
     if not replay_dir.exists():
         return []
     return [
@@ -65,6 +83,7 @@ def list_images(replay_dir: Path) -> List[Path]:
 
 
 def _atomic_write_json(path: Path, payload: dict) -> None:
+    """Write JSON through a temporary file and rename, so readers never see a partial file."""
     path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
     with temp_path.open("w", encoding="utf-8") as handle:
@@ -74,6 +93,7 @@ def _atomic_write_json(path: Path, payload: dict) -> None:
 
 
 class InferenceWorker:
+    """Coordinates model execution, frame sources and persisted detection state."""
     def __init__(
         self,
         events: Any | None = None,
@@ -81,6 +101,11 @@ class InferenceWorker:
         detection_manager: Any | None = None,
         source_manager: SourceManager | None = None,
     ) -> None:
+        """Load the configuration (falling back to safe defaults on error) and prepare directories.
+
+        A configuration error does not prevent start-up: it is kept in ``config_error``
+        so the UI can report it while the default model path is still tried.
+        """
         self.events = events
         self.detection_manager = detection_manager
         self.source_manager = source_manager
@@ -92,8 +117,7 @@ class InferenceWorker:
             self.config = {
                 "runtime_root": "runtime",
                 "model": {
-                    "preferred_path": "runtime/models/easy_v1_best_rgb.onnx",
-                    "fallback_path": "runtime/models/easy_v1_best_rgb.pt",
+                    "preferred_path": DEFAULT_MODEL_PATH,
                     "type": "onnx",
                 },
                 "inference": {
@@ -124,7 +148,6 @@ class InferenceWorker:
         self.allowed_classes = set(ALLOWED_CLASSES)
         self.backend = str(self.config.get("model", {}).get("type", "onnx")).lower()
         self.model_path = self._resolve_model_path()
-        self.fallback_model_path = resolve_runtime_path(str(self.config.get("model", {}).get("fallback_path", "runtime/models/easy_v1_best_rgb.pt")))
         self.input_size = int(self.config.get("inference", {}).get("input_size", 640))
         self.confidence_threshold = float(self.config.get("inference", {}).get("confidence_threshold", 0.25))
         self.iou_threshold = float(self.config.get("inference", {}).get("iou_threshold", 0.45))
@@ -155,14 +178,16 @@ class InferenceWorker:
         self._write_current_state()
 
     def _resolve_model_path(self) -> Path:
+        """Absolute path of the ONNX model named in the configuration."""
         model_info = self.config.get("model", {})
-        return resolve_runtime_path(str(model_info.get("preferred_path", "runtime/models/easy_v1_best_rgb.onnx")))
+        return resolve_runtime_path(str(model_info.get("preferred_path", DEFAULT_MODEL_PATH)))
 
     def _selected_source(self) -> Dict[str, Any]:
+        """Return the operator-selected source, or a replay placeholder if no source manager is attached."""
         if self.source_manager is None:
             return {
                 "id": "replay",
-                "name": "Replay Folder",
+                "name": "Recorded Dataset",
                 "type": "replay_folder",
                 "status": SourceStatus.STREAMING if self.default_replay_dir.exists() else SourceStatus.OFFLINE,
                 "enabled": True,
@@ -175,7 +200,7 @@ class InferenceWorker:
         except Exception:
             return {
                 "id": "replay",
-                "name": "Replay Folder",
+                "name": "Recorded Dataset",
                 "type": "replay_folder",
                 "status": SourceStatus.UNKNOWN,
                 "enabled": True,
@@ -185,6 +210,7 @@ class InferenceWorker:
             }
 
     def _resolve_active_replay_dir(self) -> Path:
+        """Replay folder of the selected source, or the configured default."""
         if self.source_manager is not None:
             try:
                 selected_dir = self.source_manager.get_selected_replay_dir()
@@ -195,6 +221,7 @@ class InferenceWorker:
         return self.default_replay_dir
 
     def _refresh_active_source(self) -> None:
+        """Re-read the active replay folder and its image count."""
         self.replay_dir = self._resolve_active_replay_dir()
         try:
             self._available_images = len(list_images(self.replay_dir))
@@ -202,17 +229,21 @@ class InferenceWorker:
             self._available_images = 0
 
     def _selected_source_status(self) -> str:
+        """Status string of the selected source (``UNKNOWN`` if missing)."""
         source = self._selected_source()
         return str(source.get("status") or SourceStatus.UNKNOWN)
 
     def _selected_source_label(self) -> str:
+        """Human-readable name of the selected source."""
         source = self._selected_source()
-        return str(source.get("name") or "Replay Folder")
+        return str(source.get("name") or "Recorded Dataset")
 
     def _ensure_session(self) -> Tuple[bool, str]:
+        """Make sure the ONNX session exists. Returns ``(ok, error_message)``."""
         return self.model_backend.ensure_loaded()
 
     def _emit_event(self, event_type: str, description: str, severity: str = "info", meta: Optional[Dict[str, Any]] = None) -> None:
+        """Record an ``EASY_INFERENCE`` event; failures to log never break inference."""
         if not self.events:
             return
         try:
@@ -221,10 +252,11 @@ class InferenceWorker:
             pass
 
     def _snapshot_payload(self) -> Dict[str, Any]:
+        """Build the status dictionary exposed by ``status()`` and stored on disk."""
         source = self._selected_source()
         if self._mode in {"replay", "demo", "loop", "single", "once"}:
             source_name = str(source.get("id") or "replay")
-            source_label = str(source.get("name") or "Replay / Demo")
+            source_label = str(source.get("name") or "Recorded Dataset")
         elif self._mode == "manual":
             source_name = "manual"
             source_label = "Manual image"
@@ -258,11 +290,14 @@ class InferenceWorker:
             "config_error": self._config_error,
             "session_loaded": self.model_backend.loaded,
             "backend_status": self.model_backend.status(),
-            "fallback_model_path": str(self.fallback_model_path),
             "frame_provider": self.frame_provider.status(),
         }
 
     def _load_previous_state(self) -> None:
+        """Restore the last result from ``current_detections.json`` after a restart.
+
+        Skipped when a DetectionManager owns persistence.
+        """
         if self.detection_manager is not None:
             return
         if not self.current_detections_path.exists():
@@ -300,6 +335,7 @@ class InferenceWorker:
             pass
 
     def _write_current_state(self) -> None:
+        """Persist the current status snapshot (no-op when a DetectionManager owns persistence)."""
         if self.detection_manager is not None:
             return
         payload = self._snapshot_payload()
@@ -308,6 +344,7 @@ class InferenceWorker:
         _atomic_write_json(self.current_detections_path, payload)
 
     def status(self) -> Dict[str, Any]:
+        """Return a consistent snapshot of the worker state for the API."""
         with self._state_lock:
             payload = self._snapshot_payload()
             payload["ok"] = True
@@ -317,6 +354,7 @@ class InferenceWorker:
             return payload
 
     def get_current_detections(self) -> Dict[str, Any]:
+        """Return the latest detections from the manager, from disk, or from the live status."""
         if self.detection_manager is not None:
             return self.detection_manager.get_current_detections()
         if self.current_detections_path.exists():
@@ -327,25 +365,33 @@ class InferenceWorker:
         return self.status()
 
     def _source_payload(self) -> Tuple[str, str]:
+        """Return ``(source_id, label)`` describing where the current frames come from."""
         source = self._selected_source()
         if self._mode in {"replay", "demo", "loop", "single", "once"}:
-            return str(source.get("id") or "replay"), str(source.get("name") or "Replay Folder")
+            return str(source.get("id") or "replay"), str(source.get("name") or "Recorded Dataset")
         if self._mode == "manual":
             return "manual", "Manual image"
         label = self._mode.replace("_", " ").title() if self._mode else "Unknown"
         return self._mode, label
 
     def _frame_source_payload(self, frame: FrameObject | None = None) -> Tuple[str, str]:
+        """Same as ``_source_payload`` but taken from a specific frame when available."""
         if frame is not None:
             return frame.source_type, frame.source_name
         return self._source_payload()
 
     def _provider_mode(self) -> str:
+        """Lower-case source type reported by the frame provider (``replay`` by default)."""
         status = self.frame_provider.status()
         source_type = str(status.get("source_type") or "UNKNOWN").strip().lower()
         return source_type or "replay"
 
     def _normalize_image_path(self, image_path: str | Path) -> Path:
+        """Resolve a user-supplied image path and ensure it stays inside the replay or sessions folder.
+
+        The check is a path-traversal guard: anything outside the allowed roots raises
+        ``ValueError`` and is never opened.
+        """
         path = Path(image_path)
         allowed_roots = [
             self.replay_dir.resolve(),
@@ -378,6 +424,7 @@ class InferenceWorker:
         raise ValueError(f"Image path not in allowed directories: {image_path}")
 
     def _temporary_frame_path(self, frame: FrameObject) -> Path:
+        """Path where an in-memory frame is cached on disk (the original path if it has one)."""
         if frame.image_path:
             return Path(frame.image_path)
         temp_dir = self.sessions_dir / "frame_provider_cache"
@@ -386,6 +433,7 @@ class InferenceWorker:
         return temp_dir / f"{frame.frame_id}{suffix}"
 
     def _image_path_for_frame(self, frame: FrameObject) -> Path:
+        """Return a readable file path for a frame, writing the cached JPEG if needed."""
         if frame.image_path:
             return Path(frame.image_path)
         path = self._temporary_frame_path(frame)
@@ -394,6 +442,13 @@ class InferenceWorker:
         return path
 
     def _execute_inference(self, image_path: Path, *, save_artifacts: bool = True, frame: FrameObject | None = None) -> Dict[str, Any]:
+        """Run the complete detection pipeline on one image or frame.
+
+        Stages are timed individually (preprocess, backend, postprocess, preview,
+        persistence). With ``save_artifacts`` the preview image and JSON are written
+        and the DetectionManager is notified. Returns the result payload, or
+        ``{"ok": False, "error": ...}`` when the model or image is unavailable.
+        """
         execute_started = time.perf_counter()
         ok, error = self._ensure_session()
         if not ok:
@@ -480,6 +535,7 @@ class InferenceWorker:
                 _atomic_write_json(self.current_detections_path, payload)
             timings["persistence_ms"] = round((time.perf_counter() - persistence_started) * 1000.0, 2)
 
+        # # With a DetectionManager the event is raised there, to avoid duplicates.
         if detections and self.detection_manager is None:
             summary = ", ".join(f"{item['class_name']}:{item['confidence']:.2f}" for item in detections_payload[:5])
             self._emit_event(
@@ -499,6 +555,7 @@ class InferenceWorker:
         return payload
 
     def run_on_image(self, image_path: str | Path | None = None) -> Dict[str, Any]:
+        """Run inference on a specific image, or on the first replay image when none is given."""
         self._refresh_active_source()
         if image_path is None:
             try:
@@ -546,6 +603,7 @@ class InferenceWorker:
         return result
 
     def run_on_frame(self, frame: FrameObject) -> Dict[str, Any]:
+        """Run inference on a ``FrameObject`` and update the worker state."""
         image_path = self._image_path_for_frame(frame)
         result = self._execute_inference(image_path, save_artifacts=True, frame=frame)
         with self._state_lock:
@@ -570,10 +628,12 @@ class InferenceWorker:
         return result
 
     def next_frame(self) -> Dict[str, Any]:
+        """Fetch the next frame from the provider without running inference."""
         frame = self._next_frame_object()
         return {"ok": True, "frame": frame.to_dict(), "provider": self.frame_provider.status()}
 
     def _next_frame_object(self) -> FrameObject:
+        """Pull the next frame, attaching it to the active session when a DetectionManager is present."""
         session_id = None
         if self.detection_manager is not None and getattr(self.detection_manager, "session_manager", None) is not None:
             try:
@@ -593,6 +653,7 @@ class InferenceWorker:
         loop: bool | None = None,
         save_temp_frames: bool | None = None,
     ) -> Dict[str, Any]:
+        """Reconfigure the frame provider (source type, path, looping, temporary frame storage)."""
         return self.frame_provider.configure(
             source_type=source_type,
             source_path=source_path,
@@ -602,13 +663,18 @@ class InferenceWorker:
         )
 
     def reset_frame_provider(self) -> Dict[str, Any]:
+        """Reset the frame provider to its first frame."""
         return self.frame_provider.reset()
 
     def frame_provider_status(self) -> Dict[str, Any]:
+        """Return the frame provider status."""
         return self.frame_provider.status()
 
     def sync_selected_source(self) -> Dict[str, Any]:
-        """Align the unified provider with the operator-selected source."""
+        """Align the unified provider with the operator-selected source.
+
+        Raises ``ValueError`` for sources the RGB model cannot consume (e.g. thermal).
+        """
         source = self._selected_source()
         source_id = str(source.get("id") or "replay")
         if source_id == "replay":
@@ -616,16 +682,17 @@ class InferenceWorker:
             return self.frame_provider.configure(
                 source_type="REPLAY_FOLDER",
                 source_path=replay_dir,
-                source_name=str(source.get("name") or "Replay Folder"),
+                source_name=str(source.get("name") or "Recorded Dataset"),
                 loop=True,
                 save_temp_frames=False,
             )
         source_type = {"rgb_left": "RGB_LEFT", "rgb_right": "RGB_RIGHT"}.get(source_id)
         if not source_type:
-            raise ValueError(f"La sorgente {source.get('name') or source_id} non è compatibile con il modello RGB")
+            raise ValueError(f"Source {source.get('name') or source_id} is not compatible with the RGB model")
         return self.frame_provider.configure_live_source(source_type)
 
     def run_on_next_frame(self) -> Dict[str, Any]:
+        """Fetch the next frame and run inference, adding acquisition and request timings to the result."""
         request_started = time.perf_counter()
         frame_started = time.perf_counter()
         frame = self._next_frame_object()
@@ -637,6 +704,12 @@ class InferenceWorker:
         return result
 
     def _demo_loop(self) -> None:
+        """Background loop: keep running inference on the next frame until stopped.
+
+        The loop stops itself when the source is unavailable or empty. A transient
+        per-frame failure is logged and retried; ``_max_consecutive_loop_failures``
+        failures in a row end the loop so a genuinely broken setup does not spin.
+        """
         while not self._stop_event.is_set():
             provider_status = self.frame_provider.status()
             self._available_images = int(provider_status.get("total_frames") or 0)
@@ -699,6 +772,7 @@ class InferenceWorker:
                     "warning",
                     meta={"provider": provider_status, "consecutive_failures": self._consecutive_loop_failures},
                 )
+                # # Too many failures in a row: the setup is broken, stop instead of spinning forever.
                 if self._consecutive_loop_failures >= self._max_consecutive_loop_failures:
                     LOGGER.error(
                         "Inference loop: stopping after %d consecutive failures",
@@ -738,6 +812,11 @@ class InferenceWorker:
             self._write_current_state()
 
     def start(self, mode: str = "replay", interval_seconds: float | None = None) -> Dict[str, Any]:
+        """Start the background loop in ``replay``/``demo``/``loop`` or ``single``/``once`` mode.
+
+        Validates the model, the frame provider and the selected source first, and
+        returns ``ok: False`` with the reason instead of starting a doomed loop.
+        """
         normalized_mode = str(mode or "replay").strip().lower()
         if normalized_mode not in {"replay", "demo", "loop", "single", "once"}:
             normalized_mode = "replay"
@@ -821,6 +900,7 @@ class InferenceWorker:
         return {"ok": True, "message": "Inference worker started", **self.status()}
 
     def stop(self) -> Dict[str, Any]:
+        """Stop the background loop (waits up to two seconds for the thread to finish)."""
         self._stop_event.set()
         thread = self._thread
         if thread and thread.is_alive():

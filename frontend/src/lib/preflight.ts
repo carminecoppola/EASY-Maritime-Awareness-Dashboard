@@ -1,8 +1,22 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Pre-flight checklist shown before starting a mission.
+ *
+ * Four checks, each ok / warn / fail / unknown: RGB feeds, thermal sensor, free
+ * storage and CPU temperature. They are derived only from the shared dashboard
+ * state, so the checklist never triggers extra requests.
+ */
+
 import type { DashboardState, RgbCamera } from '../api/types'
 import { sensorReadiness } from './readiness'
 
+/** Outcome of one check. */
 export type CheckLevel = 'ok' | 'warn' | 'fail' | 'unknown'
 
+/** One checklist row: label, detail line, state word and level. */
 export interface PreflightCheck {
   id: string
   label: string
@@ -11,6 +25,7 @@ export interface PreflightCheck {
   level: CheckLevel
 }
 
+/** Colour token per level. */
 export const CHECK_COLOR: Record<CheckLevel, string> = {
   ok: 'var(--accent-ok)',
   warn: 'var(--accent-warn)',
@@ -18,6 +33,7 @@ export const CHECK_COLOR: Record<CheckLevel, string> = {
   unknown: 'var(--text-muted)',
 }
 
+/** Glyph per level. */
 export const CHECK_GLYPH: Record<CheckLevel, string> = {
   ok: '✓',
   warn: '!',
@@ -25,13 +41,14 @@ export const CHECK_GLYPH: Record<CheckLevel, string> = {
   unknown: '?',
 }
 
-/** Soglie CPU del Raspberry: oltre 80 °C il SoC inizia a limitare la frequenza. */
+/** Raspberry CPU thresholds: above 80 °C the SoC starts limiting its frequency. */
 const TEMP_WARN_C = 75
 const TEMP_HIGH_C = 80
 
-/** Sotto questa soglia una missione rischia di riempire il disco durante l'acquisizione. */
+/** Below this amount a mission risks filling the disk during acquisition. */
 const DISK_LOW_GB = 5
 
+/** Placeholder rows shown until the first status payload arrives. */
 const UNKNOWN_CHECKS: PreflightCheck[] = [
   { id: 'rgb', label: 'RGB feeds current', detail: 'Waiting for the first status payload', state: 'UNKNOWN', level: 'unknown' },
   { id: 'thermal', label: 'Thermal available', detail: 'Waiting for the first status payload', state: 'UNKNOWN', level: 'unknown' },
@@ -39,9 +56,10 @@ const UNKNOWN_CHECKS: PreflightCheck[] = [
   { id: 'temperature', label: 'System temperature', detail: 'Waiting for the first status payload', state: 'UNKNOWN', level: 'unknown' },
 ]
 
+/** Compute the four checks from the dashboard state (all `unknown` before the first payload). */
 export function preflightChecks(data: DashboardState | null): PreflightCheck[] {
-  // Nessun payload ancora ricevuto non è un guasto: dichiararlo "fallito"
-  // farebbe sembrare l'hardware rotto durante il normale caricamento.
+  // No payload received yet is not a failure: reporting it as "failed" would
+  // make the hardware look broken during normal loading.
   if (!data || !data.health) return UNKNOWN_CHECKS
 
   const sensors = sensorReadiness(data)
@@ -95,8 +113,8 @@ export function preflightChecks(data: DashboardState | null): PreflightCheck[] {
       ? {
           id: 'temperature',
           label: 'System temperature',
-          // Il backend non espone lo stato di throttling: si riporta la
-          // temperatura misurata, senza dichiarare "no throttling".
+          // The backend does not expose the throttling state: report the measured
+          // temperature without claiming "no throttling".
           detail: `${temp.toFixed(1)}°C · throttling state not reported`,
           state: temp >= TEMP_HIGH_C ? 'HIGH' : temp >= TEMP_WARN_C ? 'WARM' : 'NORMAL',
           level: temp >= TEMP_HIGH_C ? 'fail' : temp >= TEMP_WARN_C ? 'warn' : 'ok',
@@ -112,12 +130,14 @@ export function preflightChecks(data: DashboardState | null): PreflightCheck[] {
   return [rgbCheck, thermalCheck, storageCheck, tempCheck]
 }
 
+/** One-line verdict on the whole checklist. */
 export interface PreflightSummary {
   level: CheckLevel
   label: string
   detail: string
 }
 
+/** Reduce the checks to a verdict: blocking failures, degraded checks, missing data or ready. */
 export function preflightSummary(checks: PreflightCheck[]): PreflightSummary {
   const failed = checks.filter((c) => c.level === 'fail')
   const warned = checks.filter((c) => c.level === 'warn')

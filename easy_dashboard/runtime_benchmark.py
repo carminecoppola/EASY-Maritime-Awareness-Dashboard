@@ -1,11 +1,29 @@
-from __future__ import annotations
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
 
-"""Scientific runtime measurements for EASY on Raspberry Pi.
+"""Scientific runtime measurements for EASY on a Raspberry Pi.
 
 The collector is intentionally external to Flask. It observes the running
 service through its public API and the operating system, so enabling the
 benchmark does not change the dashboard runtime or its hardware ownership.
+
+A run goes through these phases, sampling CPU, memory, temperature, throttling
+flags, per-process usage and sensor state at a fixed interval:
+
+    startup   repeated stop/start of the systemd unit, timing readiness
+    warmup    unrecorded settling time
+    steady    the measured window
+    stress    optional synthetic CPU load to observe throttling
+    api       latency of read-only endpoints
+    inference latency of ``/api/inference/run-on-next-frame``, stage by stage
+
+Outputs (JSON, CSV, Markdown and LaTeX tables) go to ``<output-dir>/<run-id>/``.
+Safety: the run aborts and stops the service if the CPU reaches the configured
+temperature limit. The command line lives in ``scripts/benchmark_raspberry_runtime.py``.
 """
+
+from __future__ import annotations
 
 import csv
 import hashlib
@@ -28,6 +46,8 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import psutil
 
+from inference_config import DEFAULT_MODEL_PATH
+
 
 DEFAULT_API_PATHS = (
     "/health",
@@ -38,10 +58,12 @@ DEFAULT_API_PATHS = (
 
 
 def utc_now() -> str:
+    """Current UTC time with millisecond precision."""
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 def percentile(values: Sequence[float], percentile_value: float) -> Optional[float]:
+    """Nearest-rank percentile of ``values`` (None when empty)."""
     if not values:
         return None
     ordered = sorted(float(value) for value in values)
@@ -50,6 +72,7 @@ def percentile(values: Sequence[float], percentile_value: float) -> Optional[flo
 
 
 def numeric_summary(values: Iterable[Any]) -> Dict[str, Any]:
+    """Count, min, mean, median, p95, max and standard deviation of the finite numbers in ``values``."""
     numbers = []
     for value in values:
         if value is None:
@@ -74,6 +97,7 @@ def numeric_summary(values: Iterable[Any]) -> Dict[str, Any]:
 
 
 def latex_escape(value: Any) -> str:
+    """Escape the characters that are special in LaTeX."""
     text = str(value)
     replacements = {
         "\\": r"\textbackslash{}",
@@ -89,6 +113,7 @@ def latex_escape(value: Any) -> str:
 
 
 def sha256_file(path: Path) -> Optional[str]:
+    """SHA-256 of a file, or None if it does not exist."""
     if not path.is_file():
         return None
     digest = hashlib.sha256()
@@ -99,6 +124,7 @@ def sha256_file(path: Path) -> Optional[str]:
 
 
 def run_command(command: Sequence[str], timeout: float = 10.0) -> Dict[str, Any]:
+    """Run a command and return its exit code and output; never raises."""
     try:
         completed = subprocess.run(list(command), capture_output=True, text=True, timeout=timeout, check=False)
         return {
@@ -112,6 +138,7 @@ def run_command(command: Sequence[str], timeout: float = 10.0) -> Dict[str, Any]
 
 
 def read_cpu_temperature() -> Optional[float]:
+    """CPU temperature in Celsius from sysfs or ``vcgencmd`` (None if unavailable)."""
     thermal_path = Path("/sys/class/thermal/thermal_zone0/temp")
     try:
         if thermal_path.is_file():
@@ -178,11 +205,14 @@ def _thermal_stress_worker(stop_event: Any) -> None:
 
 
 class HttpClient:
+    """Minimal JSON HTTP client that also measures latency."""
     def __init__(self, base_url: str, timeout: float) -> None:
+        """``base_url`` is the dashboard address; ``timeout`` is in seconds."""
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
 
     def request(self, path: str, method: str = "GET") -> Tuple[Dict[str, Any], float, int, int]:
+        """Perform a request and return ``(json_body, latency_ms, status_code, response_bytes)``."""
         request = urllib.request.Request(
             f"{self.base_url}{path}",
             method=method,
@@ -208,14 +238,16 @@ class HttpClient:
 
 
 class ProcessTreeSampler:
-    """Calculate CPU and RSS for the systemd service process tree."""
+    """Measures CPU and memory of the EASY process and all its children."""
 
     def __init__(self, pid: int) -> None:
+        """``pid`` is the service main process."""
         self.pid = int(pid)
         self.previous_cpu_seconds: Optional[float] = None
         self.previous_timestamp: Optional[float] = None
 
     def _processes(self) -> List[psutil.Process]:
+        """The main process plus every descendant that is still alive."""
         try:
             root = psutil.Process(self.pid)
             return [root] + root.children(recursive=True)
@@ -223,6 +255,7 @@ class ProcessTreeSampler:
             return []
 
     def sample(self, timestamp: float) -> Dict[str, Any]:
+        """CPU percentage (of one core) and resident memory of the whole tree at ``timestamp``."""
         cpu_seconds = 0.0
         rss_bytes = 0
         process_count = 0
@@ -265,6 +298,7 @@ def extract_runtime_fields(
     thermal_payload: Dict[str, Any],
     components_payload: Dict[str, Any],
 ) -> Dict[str, Any]:
+    """Flatten the stream, inference, thermal and component payloads into one sample row."""
     left = (stream_payload.get("rgb_left") or {}).get("state") or {}
     right = (stream_payload.get("rgb_right") or {}).get("state") or {}
     thermal_runtime = thermal_payload.get("runtime_state") or {}
@@ -302,7 +336,9 @@ def extract_runtime_fields(
 
 
 class BenchmarkRunner:
+    """Orchestrates one complete benchmark run and writes its reports."""
     def __init__(self, args: Any, project_root: Path) -> None:
+        """Create the output folder (it must not exist) and the HTTP client."""
         self.args = args
         self.project_root = project_root.resolve()
         self.client = HttpClient(args.url, args.http_timeout)
@@ -320,10 +356,12 @@ class BenchmarkRunner:
         psutil.cpu_percent(interval=None)
 
     def systemctl_command(self, action: str, *extra: str) -> List[str]:
+        """``systemctl`` command line, with non-interactive ``sudo`` when not root."""
         prefix = [] if os.geteuid() == 0 else ["sudo", "-n"]
         return prefix + ["systemctl", action, self.args.service_name] + list(extra)
 
     def service_pid(self) -> int:
+        """Main PID of the service (or the explicit ``--pid``)."""
         explicit_pid = int(getattr(self.args, "pid", 0) or 0)
         if explicit_pid > 0:
             if not psutil.pid_exists(explicit_pid):
@@ -339,6 +377,7 @@ class BenchmarkRunner:
         return pid
 
     def service_status(self) -> Dict[str, Any]:
+        """Main PID, active/sub state and restart count of the service."""
         explicit_pid = int(getattr(self.args, "pid", 0) or 0)
         if explicit_pid > 0:
             return {
@@ -379,6 +418,7 @@ class BenchmarkRunner:
         }
 
     def endpoint_reachable(self, timeout: float = 1.0) -> bool:
+        """True if the readiness endpoint answers at all (any HTTP status)."""
         request = urllib.request.Request(f"{self.client.base_url}/health/ready", method="GET")
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
@@ -390,6 +430,7 @@ class BenchmarkRunner:
             return False
 
     def wait_until_stopped(self, timeout: float = 8.0) -> None:
+        """Wait for the service to stop; fail if something else still answers on its port."""
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             status = self.service_status()
@@ -405,6 +446,7 @@ class BenchmarkRunner:
         raise RuntimeError(f"Service did not stop cleanly: {status}")
 
     def wait_until_ready(self, timeout: float) -> Tuple[float, Dict[str, Any]]:
+        """Poll ``/health/ready`` until the orchestrator is RUNNING; returns the monotonic time and payload."""
         deadline = time.monotonic() + timeout
         last_error = "service not queried"
         while time.monotonic() < deadline:
@@ -423,6 +465,7 @@ class BenchmarkRunner:
         raise RuntimeError(f"Dashboard did not become ready within {timeout:.1f}s: {last_error}")
 
     def measure_startup(self) -> None:
+        """Stop and start the service ``startup_runs`` times, recording the time to readiness and checking it stays stable."""
         for run_number in range(1, self.args.startup_runs + 1):
             temperature_before = read_cpu_temperature()
             self.enforce_temperature(temperature_before, "startup")
@@ -468,6 +511,7 @@ class BenchmarkRunner:
             )
 
     def enforce_temperature(self, value: Optional[float], stage: str) -> None:
+        """Stop the service and abort the run when the CPU reaches the safety limit."""
         if value is not None and value >= self.args.stop_temperature_limit:
             # Temperature safety takes precedence over leaving the benchmark
             # target running. The command is best-effort and the failure is
@@ -478,7 +522,8 @@ class BenchmarkRunner:
             )
 
     def collect_environment(self) -> Dict[str, Any]:
-        model_path = self.project_root / "runtime/models/easy_v1_best_rgb.onnx"
+        """Record hardware, software, model checksum, configuration hashes and benchmark parameters."""
+        model_path = self.project_root / DEFAULT_MODEL_PATH
         config_path = self.project_root / "config.yaml"
         requirements_path = self.project_root / "requirements.txt"
         commands = {
@@ -513,6 +558,7 @@ class BenchmarkRunner:
         }
 
     def _query_runtime(self) -> Dict[str, Any]:
+        """Fetch the stream, inference, thermal and component state."""
         payloads = {}
         for name, path in (
             ("stream", "/api/stream-state"),
@@ -524,6 +570,7 @@ class BenchmarkRunner:
         return payloads
 
     def sample_once(self, phase: str, elapsed_seconds: float) -> None:
+        """Take one sample: system, process tree, throttling flags and sensor state."""
         timestamp = time.monotonic()
         memory = psutil.virtual_memory()
         load_average = os.getloadavg() if hasattr(os, "getloadavg") else (None, None, None)
@@ -577,6 +624,7 @@ class BenchmarkRunner:
         self.samples.append(sample)
 
     def sample_phase(self, phase: str, duration: float) -> None:
+        """Sample every ``interval`` seconds for ``duration`` seconds under the label ``phase``."""
         started = time.monotonic()
         next_sample = started
         while True:
@@ -611,6 +659,7 @@ class BenchmarkRunner:
                     process.join(timeout=5)
 
     def measure_api_latency(self) -> None:
+        """Time ``api_runs`` GETs of each configured endpoint."""
         for run_number in range(1, self.args.api_runs + 1):
             for path in self.args.api_paths:
                 record = {"timestamp": utc_now(), "run": run_number, "endpoint": path, "method": "GET"}
@@ -634,6 +683,7 @@ class BenchmarkRunner:
             self.sample_once("api", float(run_number))
 
     def measure_inference(self) -> None:
+        """Time ``inference_runs`` inferences, keeping the per-stage timings reported by the worker."""
         if self.args.inference_runs <= 0:
             return
         for run_number in range(1, self.args.inference_runs + 1):
@@ -677,6 +727,7 @@ class BenchmarkRunner:
             time.sleep(self.args.inference_delay)
 
     def capture_snapshot(self, label: str) -> None:
+        """Store the raw payload of the main endpoints under a label."""
         snapshot = {"label": label, "timestamp": utc_now(), "payloads": {}}
         for path in ("/health", "/api/stream-state", "/api/inference/status", "/api/system/components", "/thermal/status"):
             try:
@@ -692,6 +743,7 @@ class BenchmarkRunner:
         self.raw_snapshots.append(snapshot)
 
     def run(self) -> Dict[str, Any]:
+        """Execute every phase, always producing a summary even when a phase fails."""
         environment = self.collect_environment()
         self._write_json("environment.json", environment)
         try:
@@ -721,6 +773,7 @@ class BenchmarkRunner:
         return summary
 
     def build_summary(self, environment: Dict[str, Any]) -> Dict[str, Any]:
+        """Aggregate samples and measurements into per-metric statistics."""
         steady = [sample for sample in self.samples if sample.get("phase") == "steady"]
         metric_names = (
             "system_cpu_percent",
@@ -830,14 +883,17 @@ class BenchmarkRunner:
 
     @staticmethod
     def _csv_value(value: Any) -> Any:
+        """Serialise nested values as compact JSON for CSV cells."""
         if isinstance(value, (dict, list)):
             return json.dumps(value, sort_keys=True, separators=(",", ":"))
         return value
 
     def _write_json(self, name: str, payload: Any) -> None:
+        """Write a JSON file in the run folder."""
         (self.output_dir / name).write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     def _write_csv(self, name: str, rows: List[Dict[str, Any]]) -> None:
+        """Write rows as a CSV file with the union of all columns."""
         path = self.output_dir / name
         if not rows:
             path.write_text("\n", encoding="utf-8")
@@ -850,6 +906,7 @@ class BenchmarkRunner:
                 writer.writerow({key: self._csv_value(row.get(key)) for key in fieldnames})
 
     def summary_rows(self, summary: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Flatten the summary into table rows."""
         rows = []
         for metric, values in summary.get("resources", {}).items():
             rows.append({"category": "resource_steady", "metric": metric, **values})
@@ -869,11 +926,13 @@ class BenchmarkRunner:
 
     @staticmethod
     def _format_metric(values: Dict[str, Any], suffix: str = "") -> str:
+        """Format ``mean (median, p95)`` for the report, or ``n/a``."""
         if not values or not values.get("count"):
             return "n/a"
         return f"{values['mean']:.2f}{suffix} (median {values['median']:.2f}, p95 {values['p95']:.2f})"
 
     def markdown_report(self, summary: Dict[str, Any]) -> str:
+        """Human-readable Markdown report of the run."""
         resources = summary["resources"]
         lines = [
             "# EASY Raspberry Pi runtime benchmark",
@@ -914,6 +973,7 @@ class BenchmarkRunner:
             "rgb_right_fps": "RGB right FPS",
         }
         def display(value: Any) -> str:
+            """Text of a statistic, or ``n/a`` when it is missing."""
             return "n/a" if value is None else str(value)
         for key, label in labels.items():
             values = resources[key]
@@ -990,6 +1050,7 @@ class BenchmarkRunner:
         return "\n".join(lines) + "\n"
 
     def latex_tables(self, summary: Dict[str, Any]) -> str:
+        """LaTeX tables ready to paste into a paper."""
         resource_labels = {
             "system_cpu_percent": ("System CPU", r"\%"),
             "easy_cpu_percent": ("EASY CPU", r"\%"),
@@ -1014,6 +1075,7 @@ class BenchmarkRunner:
         for key, (label, unit) in resource_labels.items():
             values = summary["resources"][key]
             def value(name: str) -> str:
+                """Two-decimal number for a LaTeX cell, or ``--`` when missing."""
                 raw = values.get(name)
                 return "--" if raw is None else f"{raw:.2f}"
             lines.append(f"{latex_escape(label)} & {unit} & {value('mean')} & {value('median')} & {value('p95')} & {value('max')} \\\\")
@@ -1045,6 +1107,7 @@ class BenchmarkRunner:
         )
         for label, values in latency_rows:
             def value(name: str) -> str:
+                """Two-decimal number for a LaTeX cell, or ``--`` when missing."""
                 raw = values.get(name)
                 return "--" if raw is None else f"{raw:.2f}"
             lines.append(
@@ -1053,6 +1116,7 @@ class BenchmarkRunner:
         return "\n".join(lines)
 
     def write_outputs(self, summary: Dict[str, Any]) -> None:
+        """Write every output file of the run."""
         self._write_json("raw_samples.json", self.samples)
         self._write_csv("raw_samples.csv", self.samples)
         self._write_json("api_latency.json", self.api_measurements)

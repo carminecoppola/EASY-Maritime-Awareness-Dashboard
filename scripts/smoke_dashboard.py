@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+
 """Fast dashboard smoke test for local development and Raspberry checks.
 
-The goal is intentionally small: import the Flask app, validate the most
-important API/media contracts, confirm the built React SPA is served for
-client routes, and catch backend regressions. It is not a hardware benchmark
-and does not require real cameras.
+Builds the app without hardware, calls the main pages and API endpoints with the
+Flask test client and verifies the response shapes. Exit code 0 means every
+check passed.
 """
 
 from __future__ import annotations
@@ -34,16 +37,19 @@ from runtime_support import error_from_payload, health_from_status, is_active_st
 
 
 def assert_ok(condition: bool, message: str) -> None:
+    """Raise AssertionError with ``message`` when ``condition`` is false."""
     if not condition:
         raise AssertionError(message)
 
 
 def require_keys(payload: dict, keys: Iterable[str], label: str) -> None:
+    """Assert that a payload contains every key in ``keys``."""
     missing = [key for key in keys if key not in payload]
     assert_ok(not missing, f"{label} missing keys: {', '.join(missing)}")
 
 
 def main() -> int:
+    """Run all smoke checks."""
     assert_ok(status_to_health("STREAMING") == "GOOD", "device health compatibility changed")
     assert_ok(health_from_status("INITIALIZING") == "DEGRADED", "initializing health mapping changed")
     assert_ok(status_from_payload({"ok": False}) == "ERROR", "payload status mapping changed")

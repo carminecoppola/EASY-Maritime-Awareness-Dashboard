@@ -1,5 +1,14 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Plain login form (username, password, Caps Lock hint, error alert).
+ */
+
 import { useId, useRef, useState, type KeyboardEvent } from 'react'
 
+/** `onSubmit` should throw on failure; its message is shown to the user. */
 interface LoginFormProps {
   onSubmit: (username: string, password: string) => Promise<void>
   submitLabel?: string
@@ -7,8 +16,8 @@ interface LoginFormProps {
 }
 
 /**
- * Form di login puro — nessuna cornice, nessun logo: quelli li aggiunge chi
- * la usa (LoginGatePage a schermo intero, SignInPage dentro la shell).
+ * Plain login form with no frame and no logo: the user of the component adds
+ * those (LoginGatePage full screen, SignInPage inside the shell).
  */
 export function LoginForm({ onSubmit, submitLabel = 'Sign in', autoFocus = true }: LoginFormProps) {
   const [username, setUsername] = useState('')
@@ -37,8 +46,8 @@ export function LoginForm({ onSubmit, submitLabel = 'Sign in', autoFocus = true 
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Sign in failed'
       setError(message)
-      // Un solo scatto orizzontale su credenziali errate — mai un lampeggio
-      // ripetuto, e disattivato con prefers-reduced-motion via CSS.
+      // A single horizontal shake on wrong credentials, never a repeated flash,
+      // and disabled with prefers-reduced-motion via CSS.
       setShake(true)
       setTimeout(() => setShake(false), 260)
     } finally {

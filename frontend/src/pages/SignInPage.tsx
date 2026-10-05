@@ -1,14 +1,21 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Voluntary sign-in page inside the normal shell.
+ */
+
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { LoginForm } from '../components/auth/LoginForm'
 import { authErrorMessage, useAuth } from '../hooks/AuthContext'
 
 /**
- * Login raggiungibile volontariamente (dentro la shell normale) quando
- * l'enforcement è spento — es. un operatore che vuole farsi attribuire le
- * proprie azioni nell'audit log, o un Admin che deve raggiungere Users &
- * Roles. Quando l'enforcement è acceso, non serve: LoginGatePage sostituisce
- * l'intera app prima ancora che questa rotta sia raggiungibile.
+ * Login reachable voluntarily (inside the normal shell) when enforcement is off,
+ * e.g. an operator who wants their actions attributed in the audit log, or an
+ * Admin who needs to reach Users & Roles. When enforcement is on it is not needed:
+ * LoginGatePage replaces the whole app before this route can even be reached.
  */
 export function SignInPage() {
   const auth = useAuth()

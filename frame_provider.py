@@ -1,3 +1,23 @@
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Unified frame providers: one interface for replay images, folders, videos and live cameras.
+
+The inference worker never cares where a frame comes from. It asks the
+``UnifiedFrameProvider`` for the next ``FrameObject`` and the active provider
+returns it:
+
+    ImageFrameProvider         one still image          (REPLAY_IMAGE)
+    FolderFrameProvider        a folder of images       (REPLAY_FOLDER / DATASET)
+    VideoFrameProvider         a video file via OpenCV  (REPLAY_VIDEO)
+    LiveCallbackFrameProvider  a callback into the runtime that owns the camera
+                               (RGB_LEFT / RGB_RIGHT)
+    CameraFrameProvider        placeholder for a source with no live callback
+
+The provider status is persisted to ``runtime/sessions/frame_provider_status.json``.
+"""
+
 from __future__ import annotations
 
 import json
@@ -38,15 +58,18 @@ SOURCE_TYPES = {
 
 
 def utc_now_iso() -> str:
+    """Current UTC time as ``YYYY-MM-DDTHH:MM:SSZ``."""
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
 def _load_json(path: Path) -> dict:
+    """Parse a JSON configuration file."""
     with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
 
 
 def _load_yaml(path: Path) -> dict:
+    """Parse a YAML configuration file (requires PyYAML)."""
     try:
         import yaml  # type: ignore
     except ImportError as exc:  # pragma: no cover
@@ -59,6 +82,7 @@ def _load_yaml(path: Path) -> dict:
 
 
 def load_frame_provider_config(config_path: Path | None = None) -> dict:
+    """Load the provider configuration, or return replay-folder defaults when no file exists."""
     candidates = [config_path] if config_path else list(DEFAULT_CONFIG_CANDIDATES)
     for candidate in candidates:
         if not candidate or not candidate.exists():
@@ -82,6 +106,7 @@ def load_frame_provider_config(config_path: Path | None = None) -> dict:
 
 
 def resolve_project_path(path_value: str | Path | None) -> Path | None:
+    """Resolve a configured path against the project root (absolute paths are kept; None stays None)."""
     if path_value is None:
         return None
     path = Path(path_value)
@@ -91,6 +116,7 @@ def resolve_project_path(path_value: str | Path | None) -> Path | None:
 
 
 def image_paths_from_folder(folder: Path) -> List[Path]:
+    """List the image files under ``folder`` in a stable, sorted order."""
     if not folder.exists():
         return []
     return [
@@ -102,6 +128,11 @@ def image_paths_from_folder(folder: Path) -> List[Path]:
 
 @dataclass
 class FrameObject:
+    """One frame travelling through the pipeline, with its provenance.
+
+    ``image`` is an in-memory RGB array (None for metadata-only copies); the
+    optional thermal/stereo/calibration fields are reserved for sensor fusion.
+    """
     frame_id: str
     timestamp: str
     source_type: str
@@ -120,6 +151,7 @@ class FrameObject:
     calibration_id: Optional[str] = None
 
     def to_dict(self, *, include_image: bool = False) -> Dict[str, Any]:
+        """Serialise the frame; the pixel array is omitted unless ``include_image`` is set."""
         payload = asdict(self)
         if not include_image:
             payload["image"] = None
@@ -128,10 +160,12 @@ class FrameObject:
 
 
 class FrameProviderError(RuntimeError):
+    """Raised when a provider cannot deliver a frame (missing file, closed camera, ...)."""
     pass
 
 
 class BaseFrameProvider:
+    """Common state and bookkeeping shared by every provider."""
     source_type = "UNKNOWN"
 
     def __init__(
@@ -142,6 +176,7 @@ class BaseFrameProvider:
         loop: bool = False,
         save_temp_frames: bool = False,
     ) -> None:
+        """Store the source path/name and the loop and temporary-frame options."""
         self.source_path = resolve_project_path(source_path)
         self.source_name = source_name or (Path(source_path).name if source_path else self.source_type)
         self.loop = bool(loop)
@@ -151,12 +186,14 @@ class BaseFrameProvider:
         self._lock = threading.RLock()
 
     def reset(self) -> Dict[str, Any]:
+        """Forget the last frame and error; subclasses also rewind their position."""
         with self._lock:
             self._last_frame = None
             self._last_error = ""
         return self.status()
 
     def next_frame(self, *, session_id: str | None = None) -> FrameObject:
+        """Return the next frame. Implemented by each concrete provider."""
         raise NotImplementedError
 
     def _build_frame(
@@ -170,6 +207,7 @@ class BaseFrameProvider:
         sequence_id: str | None = None,
         camera_id: str | None = None,
     ) -> FrameObject:
+        """Wrap an RGB array into a ``FrameObject`` with a fresh id and UTC timestamp."""
         h, w = image.shape[:2]
         frame = FrameObject(
             frame_id=f"frame-{uuid.uuid4().hex[:12]}",
@@ -195,6 +233,7 @@ class BaseFrameProvider:
         return frame
 
     def status(self) -> Dict[str, Any]:
+        """Describe the provider and its last frame for the status API."""
         with self._lock:
             last = self._last_frame.to_dict() if self._last_frame else None
             return {
@@ -214,9 +253,11 @@ class BaseFrameProvider:
 
 
 class ImageFrameProvider(BaseFrameProvider):
+    """Always returns the same still image."""
     source_type = "REPLAY_IMAGE"
 
     def next_frame(self, *, session_id: str | None = None) -> FrameObject:
+        """Load ``source_path`` as RGB and return it as frame 0."""
         if self.source_path is None:
             raise FrameProviderError("ImageFrameProvider requires source_path")
         if not self.source_path.exists():
@@ -233,20 +274,24 @@ class ImageFrameProvider(BaseFrameProvider):
 
 
 class FolderFrameProvider(BaseFrameProvider):
+    """Iterates over the images of a folder, optionally looping forever."""
     source_type = "REPLAY_FOLDER"
 
     def __init__(self, **kwargs: Any) -> None:
+        """Scan the folder once at construction time."""
         super().__init__(**kwargs)
         self._images = image_paths_from_folder(self.source_path) if self.source_path else []
         self._index = 0
 
     def reset(self) -> Dict[str, Any]:
+        """Rescan the folder and restart from the first image."""
         with self._lock:
             self._images = image_paths_from_folder(self.source_path) if self.source_path else []
             self._index = 0
         return super().reset()
 
     def next_frame(self, *, session_id: str | None = None) -> FrameObject:
+        """Return the next image; rescans the folder so new files are picked up."""
         if self.source_path is None:
             raise FrameProviderError("FolderFrameProvider requires source_path")
         self._images = image_paths_from_folder(self.source_path)
@@ -270,6 +315,7 @@ class FolderFrameProvider(BaseFrameProvider):
         return frame
 
     def status(self) -> Dict[str, Any]:
+        """Provider status plus the image count and next index."""
         payload = super().status()
         payload["total_frames"] = len(self._images)
         payload["next_frame_index"] = self._index
@@ -277,15 +323,18 @@ class FolderFrameProvider(BaseFrameProvider):
 
 
 class VideoFrameProvider(BaseFrameProvider):
+    """Reads frames sequentially from a video file with OpenCV."""
     source_type = "REPLAY_VIDEO"
 
     def __init__(self, **kwargs: Any) -> None:
+        """Prepare the provider; the video is opened lazily on the first frame."""
         super().__init__(**kwargs)
         self._capture: Any | None = None
         self._frame_index = 0
         self._total_frames: int | None = None
 
     def _open_capture(self) -> None:
+        """Open the video capture once and record the frame count when known."""
         if self._capture is not None:
             return
         if self.source_path is None:
@@ -302,6 +351,7 @@ class VideoFrameProvider(BaseFrameProvider):
         self._total_frames = total if total > 0 else None
 
     def reset(self) -> Dict[str, Any]:
+        """Release the capture and rewind to the start."""
         with self._lock:
             if self._capture is not None:
                 try:
@@ -314,6 +364,7 @@ class VideoFrameProvider(BaseFrameProvider):
         return super().reset()
 
     def next_frame(self, *, session_id: str | None = None) -> FrameObject:
+        """Decode the next frame to RGB, restarting the video when ``loop`` is set."""
         self._open_capture()
         capture = self._capture
         if capture is None:
@@ -358,6 +409,7 @@ class VideoFrameProvider(BaseFrameProvider):
         return frame_obj
 
     def status(self) -> Dict[str, Any]:
+        """Provider status plus the video length and next frame index."""
         payload = super().status()
         payload["total_frames"] = self._total_frames
         payload["next_frame_index"] = self._frame_index
@@ -365,25 +417,34 @@ class VideoFrameProvider(BaseFrameProvider):
 
 
 class CameraFrameProvider(BaseFrameProvider):
+    """Placeholder provider for a camera source that has no live callback registered."""
     def __init__(self, *, source_type: str = "UNKNOWN", **kwargs: Any) -> None:
+        """Accept only known source types, otherwise fall back to UNKNOWN."""
         super().__init__(**kwargs)
         self.source_type = source_type if source_type in SOURCE_TYPES else "UNKNOWN"
 
     def next_frame(self, *, session_id: str | None = None) -> FrameObject:
+        """Always raises: a live source must be registered through ``register_live_source``."""
         camera_label = self.source_name or self.source_type
-        raise FrameProviderError(f"Camera provider placeholder for {camera_label} is not available in this phase")
+        raise FrameProviderError(f"Camera provider for {camera_label} has no live source registered")
 
 
 class LiveCallbackFrameProvider(BaseFrameProvider):
-    """Read a frame from the runtime that already owns the physical camera."""
+    """Read frames from the runtime that already owns the physical camera.
+
+    The camera is opened exactly once by the capture runtime; this provider only
+    asks it for the most recent JPEG, so inference never competes for the device.
+    """
 
     def __init__(self, *, source_type: str, frame_supplier: Callable[[], tuple[bytes, bool]], **kwargs: Any) -> None:
+        """``frame_supplier`` returns ``(jpeg_bytes, usable)`` for the latest camera frame."""
         super().__init__(**kwargs)
         self.source_type = source_type
         self.frame_supplier = frame_supplier
         self._frame_index = 0
 
     def next_frame(self, *, session_id: str | None = None) -> FrameObject:
+        """Decode the latest live JPEG into a frame; raise if the camera has no usable frame."""
         jpeg_bytes, usable = self.frame_supplier()
         if not usable:
             raise FrameProviderError(f"Live source {self.source_name} is not delivering a usable frame")
@@ -405,8 +466,10 @@ class LiveCallbackFrameProvider(BaseFrameProvider):
 
 
 class FrameProviderFactory:
+    """Creates the right provider for a source type."""
     @staticmethod
     def normalize_source_type(source_type: str | None) -> str:
+        """Upper-case a source type and map unknown values to ``UNKNOWN``."""
         candidate = str(source_type or "UNKNOWN").strip().upper()
         return candidate if candidate in SOURCE_TYPES else "UNKNOWN"
 
@@ -420,6 +483,7 @@ class FrameProviderFactory:
         loop: bool = False,
         save_temp_frames: bool = False,
     ) -> BaseFrameProvider:
+        """Build a provider for ``source_type`` (camera types get the placeholder provider)."""
         normalized = cls.normalize_source_type(source_type)
         common = {
             "source_path": source_path,
@@ -439,7 +503,9 @@ class FrameProviderFactory:
 
 
 class UnifiedFrameProvider:
+    """Thread-safe facade that owns the active provider and the registered live sources."""
     def __init__(self, config_path: Path | None = None) -> None:
+        """Load the configuration and start with its default source (a replay folder)."""
         self.config_path = config_path
         self.config = load_frame_provider_config(config_path)
         self._lock = threading.RLock()
@@ -459,6 +525,7 @@ class UnifiedFrameProvider:
         source_name: str,
         frame_supplier: Callable[[], tuple[bytes, bool]],
     ) -> None:
+        """Register the callback that supplies frames for RGB_LEFT, RGB_RIGHT or THERMAL."""
         normalized = FrameProviderFactory.normalize_source_type(source_type)
         if normalized not in {"RGB_LEFT", "RGB_RIGHT", "THERMAL"}:
             raise ValueError(f"Unsupported live source type: {source_type}")
@@ -466,6 +533,7 @@ class UnifiedFrameProvider:
             self._live_sources[normalized] = (source_name, frame_supplier)
 
     def configure_live_source(self, source_type: str) -> Dict[str, Any]:
+        """Switch the active provider to a registered live source."""
         normalized = FrameProviderFactory.normalize_source_type(source_type)
         with self._lock:
             registered = self._live_sources.get(normalized)
@@ -484,6 +552,7 @@ class UnifiedFrameProvider:
             return self.status()
 
     def _persist_status(self) -> None:
+        """Write the current status to ``frame_provider_status.json``."""
         atomic_write_json(FRAME_PROVIDER_STATUS_PATH, self.status())
 
     def configure(
@@ -495,6 +564,7 @@ class UnifiedFrameProvider:
         loop: bool | None = None,
         save_temp_frames: bool | None = None,
     ) -> Dict[str, Any]:
+        """Replace the active provider; unspecified options fall back to the configuration file."""
         with self._lock:
             self.provider = FrameProviderFactory.create(
                 source_type=source_type,
@@ -508,6 +578,7 @@ class UnifiedFrameProvider:
             return self.status()
 
     def next_frame(self, *, session_id: str | None = None) -> FrameObject:
+        """Return the next frame from the active provider, remembering the last error."""
         with self._lock:
             try:
                 frame = self.provider.next_frame(session_id=session_id)
@@ -518,12 +589,14 @@ class UnifiedFrameProvider:
                 raise
 
     def reset(self) -> Dict[str, Any]:
+        """Rewind the active provider."""
         with self._lock:
             payload = self.provider.reset()
             self._last_error = ""
             return payload
 
     def status(self) -> Dict[str, Any]:
+        """Active provider status merged with the facade's error and default-source information."""
         with self._lock:
             provider_payload = self.provider.status()
             provider_payload.update(

@@ -1,7 +1,15 @@
 /**
- * Normalizza i timestamp del backend: ISO string oppure epoch (il runtime
- * hardware usa time.time(), quindi secondi in virgola mobile, dove 0 =
- * "mai acquisito"). Restituisce null quando non c'è un istante reale.
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Timestamp helpers: normalisation, relative time ("2h ago") and time with relative age.
+ */
+
+/**
+ * Normalises backend timestamps: ISO strings or epoch values (the hardware
+ * runtime uses time.time(), i.e. floating-point seconds, where 0 means "never
+ * acquired"). Returns null when there is no real instant.
  */
 export function toDate(value: string | number | null | undefined): Date | null {
   if (value === null || value === undefined || value === '') return null

@@ -1,3 +1,21 @@
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""System orchestrator: builds, supervises and reports on every runtime component.
+
+The orchestrator is the composition root of the backend. It creates the managers
+in dependency order and registers each one as a *component* with a status getter:
+
+    DeviceManager -> SourceManager -> SessionManager -> AcquisitionManager
+    -> DatasetExporter -> EventManager -> DetectionManager -> InferenceWorker
+
+The RGB capture, the thermal sensor and the system probe are external components
+that are injected from ``app.py``. ``health()`` and ``components()`` aggregate the
+state of all of them for the diagnostics API; the system is healthy unless a
+*critical* component reports ERROR.
+"""
+
 from __future__ import annotations
 
 import threading
@@ -23,16 +41,19 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 
 
 def utc_now_iso() -> str:
+    """Current UTC time as ``YYYY-MM-DDTHH:MM:SSZ``."""
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
 def format_utc_ts(epoch: float | None) -> str | None:
+    """Format epoch seconds as a UTC ISO string (None stays None)."""
     if epoch is None:
         return None
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(epoch))
 
 
 def human_uptime(seconds: float | int | None) -> str:
+    """Format a duration in seconds as ``Xd Xh Xm Xs`` (``--`` when unknown)."""
     if seconds is None:
         return "--"
     total = max(0, int(seconds))
@@ -45,6 +66,7 @@ def human_uptime(seconds: float | int | None) -> str:
 
 
 def _safe_call(func: Callable[[], Any] | None, default: Any = None) -> Any:
+    """Call ``func`` and return ``default`` if it is missing or raises."""
     if not callable(func):
         return default
     try:
@@ -54,23 +76,28 @@ def _safe_call(func: Callable[[], Any] | None, default: Any = None) -> Any:
 
 
 def _status_from_payload(payload: Any, default: str = "UNKNOWN") -> str:
+    """Alias of ``runtime_support.status_from_payload``."""
     return status_from_payload(payload, default)
 
 
 def _error_from_payload(payload: Any) -> str:
+    """Alias of ``runtime_support.error_from_payload``."""
     return error_from_payload(payload)
 
 
 def _health_from_status(status: str) -> str:
+    """Alias of ``runtime_support.health_from_status``."""
     return health_from_status(status)
 
 
 def _is_active(status: str) -> bool:
+    """Alias of ``runtime_support.is_active_status``."""
     return is_active_status(status)
 
 
 @dataclass
 class RegisteredComponent:
+    """A supervised component: its instance, criticality and optional status/start/stop/restart hooks."""
     component_id: str
     label: str
     kind: str
@@ -87,6 +114,7 @@ class RegisteredComponent:
     restart_hook: Callable[[], Any] | None = None
 
     def snapshot(self) -> Dict[str, Any]:
+        """Query the component and return its current status, health, uptime and error for the API."""
         payload = _safe_call(self.status_getter, default={})
         status = _status_from_payload(payload, self.last_status)
         health = _health_from_status(status)
@@ -115,6 +143,7 @@ class RegisteredComponent:
 
 
 class SystemOrchestrator:
+    """Creates, starts, stops and reports on the whole runtime."""
     def __init__(
         self,
         *,
@@ -126,6 +155,7 @@ class SystemOrchestrator:
         rgb: Any | None = None,
         thermal: Any | None = None,
     ) -> None:
+        """Build every manager, wire the live RGB sources into the frame provider and register all components."""
         self.runtime_root = Path(runtime_root)
         self.replay_root = Path(replay_root)
         self.events = events
@@ -200,6 +230,7 @@ class SystemOrchestrator:
         self._refresh_component_states()
 
     def _probe_hostname(self) -> str:
+        """Host name from the system probe, or ``unknown``."""
         if self.probe and hasattr(self.probe, "hostname"):
             try:
                 return str(self.probe.hostname())
@@ -208,6 +239,7 @@ class SystemOrchestrator:
         return "unknown"
 
     def _build_device_status_providers(self) -> Dict[str, Callable[[], Dict[str, Any]]]:
+        """Map each live endpoint to the callable that reports its hardware status."""
         return {
             "rgb_left": lambda: self._rgb_device_status("rgb_left"),
             "rgb_right": lambda: self._rgb_device_status("rgb_right"),
@@ -215,9 +247,11 @@ class SystemOrchestrator:
         }
 
     def _rgb_device_status(self, feed_id: str) -> Dict[str, Any]:
+        """Device status of one RGB feed."""
         return build_rgb_device_status(self.rgb, feed_id)
 
     def _thermal_device_status(self) -> Dict[str, Any]:
+        """Device status of the thermal sensor."""
         return build_thermal_device_status(self.thermal)
 
     def _register_component(
@@ -233,6 +267,7 @@ class SystemOrchestrator:
         stop_hook: Callable[[], Any] | None = None,
         restart_hook: Callable[[], Any] | None = None,
     ) -> RegisteredComponent:
+        """Register a component and return its record."""
         component = RegisteredComponent(
             component_id=component_id,
             label=label,
@@ -248,6 +283,7 @@ class SystemOrchestrator:
         return component
 
     def _register_managed_components(self) -> None:
+        """Register the managers, the frame provider and the inference worker (all critical)."""
         self._register_component(
             "device_manager",
             "Device Manager",
@@ -312,6 +348,7 @@ class SystemOrchestrator:
         )
 
     def _register_external_components(self) -> None:
+        """Register the system probe, RGB and thermal sources; their failure is not critical."""
         if self.probe is not None:
             self._register_component(
                 "probe",
@@ -347,6 +384,7 @@ class SystemOrchestrator:
             )
 
     def _probe_status(self) -> Dict[str, Any]:
+        """Host name, IP address and CPU temperature from the system probe."""
         if self.probe is None:
             return {"ok": True, "status": "UNKNOWN", "health": "UNKNOWN"}
         return {
@@ -359,6 +397,7 @@ class SystemOrchestrator:
         }
 
     def _rgb_status(self) -> Dict[str, Any]:
+        """Latest RGB capture state."""
         if self.rgb is None:
             return {"ok": False, "status": "UNKNOWN", "error": "RGB component missing"}
         payload = _safe_call(getattr(self.rgb, "latest_state", None), default={}) or {}
@@ -368,6 +407,7 @@ class SystemOrchestrator:
         return payload
 
     def _thermal_status(self) -> Dict[str, Any]:
+        """Thermal status, read without touching the sensor (``refresh=False``)."""
         if self.thermal is None:
             return {"ok": False, "status": "UNKNOWN", "error": "Thermal component missing"}
         status_payload = getattr(self.thermal, "status_payload", None)
@@ -379,6 +419,7 @@ class SystemOrchestrator:
         return payload
 
     def _inference_status(self) -> Dict[str, Any]:
+        """Condensed inference worker status: RUNNING, READY or ERROR plus model and timing."""
         payload = _safe_call(getattr(self.inference, "status", None), default={}) or {}
         if not isinstance(payload, dict):
             payload = {"status": str(payload)}
@@ -403,6 +444,7 @@ class SystemOrchestrator:
         }
 
     def _restart_inference(self) -> Dict[str, Any]:
+        """Stop the inference loop (it is restarted by the operator or the mission) and return its status."""
         try:
             self.inference.stop()
         except Exception:
@@ -410,33 +452,40 @@ class SystemOrchestrator:
         return self.inference.status()
 
     def _rgb_start(self) -> Any:
+        """Make sure the RGB capture process is running."""
         if self.rgb is not None and hasattr(self.rgb, "ensure_running"):
             return self.rgb.ensure_running()
         return None
 
     def _rgb_stop(self) -> Any:
+        """Stop the RGB capture process."""
         if self.rgb is not None and hasattr(self.rgb, "stop"):
             return self.rgb.stop()
         return None
 
     def _rgb_restart(self) -> Any:
+        """Stop and restart the RGB capture."""
         self._rgb_stop()
         return self._rgb_start()
 
     def _thermal_start(self) -> Any:
+        """Start the thermal worker."""
         if self.thermal is not None and hasattr(self.thermal, "start"):
             return self.thermal.start()
         return None
 
     def _thermal_stop(self) -> Any:
+        """Stop the thermal worker."""
         if self.thermal is not None and hasattr(self.thermal, "stop"):
             return self.thermal.stop()
         return None
 
     def _thermal_restart(self) -> Any:
+        """Restart the thermal worker."""
         return self._thermal_start()
 
     def _refresh_component_states(self) -> None:
+        """Poll every component and cache its latest status, health and error."""
         for component in self._components.values():
             snapshot = component.snapshot()
             component.last_status = str(snapshot.get("status") or "UNKNOWN")
@@ -444,6 +493,7 @@ class SystemOrchestrator:
             component.last_error = str(snapshot.get("error") or "")
 
     def ensure_running(self) -> Dict[str, Any]:
+        """Mark the system RUNNING and (re)start RGB and thermal if needed. Safe to call periodically."""
         with self._lock:
             self._status = "RUNNING"
             self._last_error = ""
@@ -454,11 +504,13 @@ class SystemOrchestrator:
             return self.health()
 
     def _component_list(self) -> list[Dict[str, Any]]:
+        """Snapshot of every component, taken under the lock."""
         with self._lock:
             snapshots = [component.snapshot() for component in self._components.values()]
         return snapshots
 
     def start(self) -> Dict[str, Any]:
+        """Start the runtime and log ``SYSTEM_START``."""
         with self._lock:
             self.ensure_running()
             _safe_call(self.source_manager.refresh_status)
@@ -472,6 +524,7 @@ class SystemOrchestrator:
             return self.health()
 
     def stop(self) -> Dict[str, Any]:
+        """Stop inference and RGB, flush buffered session data to disk and log ``SYSTEM_STOP``."""
         with self._lock:
             _safe_call(self.inference.stop)
             _safe_call(self._rgb_stop)
@@ -489,6 +542,7 @@ class SystemOrchestrator:
             return self.health()
 
     def restart(self) -> Dict[str, Any]:
+        """Stop and start the runtime again."""
         with self._lock:
             self._last_restart_at = time.time()
             self.events.add(
@@ -503,6 +557,7 @@ class SystemOrchestrator:
         return self.health()
 
     def components(self) -> Dict[str, Any]:
+        """Component list with active and error counts."""
         component_payloads = self._component_list()
         active_count = sum(1 for item in component_payloads if item.get("active"))
         error_count = sum(1 for item in component_payloads if item.get("error"))
@@ -517,6 +572,7 @@ class SystemOrchestrator:
         }
 
     def health(self) -> Dict[str, Any]:
+        """Overall health: ``ok`` is false when stopped/failed or when a critical component is in ERROR."""
         component_payloads = self._component_list()
         critical_errors = [
             item

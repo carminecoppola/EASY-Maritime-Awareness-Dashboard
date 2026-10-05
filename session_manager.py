@@ -1,3 +1,28 @@
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Session manager: lifecycle and on-disk layout of acquisition missions.
+
+A *session* (mission) groups everything collected during one acquisition
+period. Each one lives in ``runtime/sessions/session_<UTC timestamp>/``:
+
+    metadata.json              id, times, operator, model, notes, status
+    manifest.json              every captured item (snapshots, inferences)
+    detections.json (+ .jsonl) detections, with an append-only journal
+    events.json     (+ .jsonl) events and the activity log, same scheme
+    metrics.json               counters and average inference time
+    snapshots/ rgb_left/ rgb_right/ thermal/ replay/   captured files
+
+A global ``index.json`` lists all sessions. A session survives a restart: the
+last RUNNING one is restored on start-up.
+
+Performance design: detections and events of the active session are kept in
+memory and appended to a journal (O(1) per inference). The full JSON files are
+rewritten ("compacted") only when the journal is large and old enough, or when
+the session stops or the process shuts down gracefully (``flush_all``).
+"""
+
 from __future__ import annotations
 
 import json
@@ -8,6 +33,8 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from easy_dashboard import __version__
+from inference_config import DEFAULT_MODEL_PATH
 from runtime_support import atomic_write_json, parse_utc_ts, read_json, utc_now_iso
 
 # status() reads every session's metadata.json from disk (list_sessions()) and,
@@ -39,7 +66,10 @@ RUNTIME_ROOT = PROJECT_ROOT / "runtime"
 SESSIONS_ROOT = RUNTIME_ROOT / "sessions"
 SESSION_STATUSES = {"CREATED", "RUNNING", "STOPPED"}
 SESSION_SUBDIRS = ("snapshots", "replay", "rgb_left", "rgb_right", "thermal")
+
+
 def session_timestamp() -> str:
+    """UTC timestamp used in session ids, ``YYYYMMDD_HHMMSS``."""
     return time.strftime("%Y%m%d_%H%M%S", time.gmtime())
 
 
@@ -52,10 +82,14 @@ class SessionManager:
         *,
         events: Any | None = None,
         hostname: str | None = None,
-        model_name: str = "easy_v1_best_rgb.onnx",
+        model_name: str = Path(DEFAULT_MODEL_PATH).name,
         model_type: str = "onnx",
-        project_version: str = "EASY Dashboard Phase 6",
+        project_version: str = f"EASY Dashboard {__version__}",
     ) -> None:
+        """Load the session index and restore the running session, if any.
+
+        ``model_name``/``model_type``/``project_version`` are recorded in the metadata of every session.
+        """
         self.sessions_root = Path(sessions_root)
         self.index_path = self.sessions_root / "index.json"
         self.events = events
@@ -75,12 +109,14 @@ class SessionManager:
         self._restore_running_session()
 
     def _load_session_index(self) -> None:
+        """Read ``index.json`` (tolerating a missing or malformed file) and rewrite it."""
         payload = read_json(self.index_path, {"sessions": []})
         sessions = payload.get("sessions", [])
         self._index = sessions if isinstance(sessions, list) else []
         self._persist_session_index()
 
     def _persist_session_index(self) -> None:
+        """Atomically write ``index.json``."""
         atomic_write_json(
             self.index_path,
             {
@@ -92,6 +128,7 @@ class SessionManager:
         )
 
     def _restore_running_session(self) -> None:
+        """After a restart, resume the most recent session still marked RUNNING."""
         for item in reversed(self._index):
             if str(item.get("status") or "").upper() != "RUNNING":
                 continue
@@ -104,6 +141,7 @@ class SessionManager:
     def _session_dir(self, session_id: str) -> Path:
         # Prevent path traversal: validate session_id format and resolved path
         # Valid format: session_YYYYMMDD_HHMMSS (or from index)
+        """Return the folder of a session, rejecting ids that could escape ``sessions_root`` (path traversal)."""
         if ".." in session_id or "/" in session_id or "\\" in session_id:
             raise ValueError(f"Invalid session_id format: {session_id}")
 
@@ -118,6 +156,7 @@ class SessionManager:
         return session_dir
 
     def _paths(self, session_id: str) -> Dict[str, Path]:
+        """Map the names of a session's files to their paths."""
         root = self._session_dir(session_id)
         return {
             "root": root,
@@ -131,6 +170,7 @@ class SessionManager:
         }
 
     def _ensure_structure(self, session_id: str) -> None:
+        """Create the session folders and the empty detections, events, metrics and manifest files."""
         paths = self._paths(session_id)
         paths["root"].mkdir(parents=True, exist_ok=True)
         for folder in SESSION_SUBDIRS:
@@ -148,6 +188,7 @@ class SessionManager:
             atomic_write_json(paths["manifest"], self._empty_manifest(session_id))
 
     def _empty_metrics(self, session_id: str) -> Dict[str, Any]:
+        """Metrics of a session with no data yet."""
         return {
             "ok": True,
             "session_id": session_id,
@@ -164,9 +205,10 @@ class SessionManager:
         }
 
     def _empty_manifest(self, session_id: str) -> Dict[str, Any]:
+        """Manifest (schema ``easy.session.manifest.v2``) of a session with no items yet."""
         return {
             "ok": True,
-            "schema": "easy.session.manifest.v1",
+            "schema": "easy.session.manifest.v2",
             "session_id": session_id,
             "counts": {
                 "items": 0,
@@ -175,6 +217,9 @@ class SessionManager:
                 "detections": 0,
                 "samples": 0,
                 "paired_items": 0,
+                "paired_capture_sets": 0,
+                "within_tolerance_samples": 0,
+                "synchronized_samples": 0,
                 "by_feed": {},
             },
             "items": [],
@@ -192,6 +237,7 @@ class SessionManager:
         operator: str = "operator",
         notes: str = "",
     ) -> Dict[str, Any]:
+        """Build the metadata document, computing the duration from the start/end times."""
         start_ts = parse_utc_ts(start_time)
         end_ts = parse_utc_ts(end_time) if end_time else time.time()
         duration = round(max(0.0, (end_ts or 0.0) - (start_ts or end_ts or 0.0)), 2)
@@ -221,6 +267,7 @@ class SessionManager:
         }
 
     def _update_index_item(self, metadata: Dict[str, Any]) -> None:
+        """Insert or replace the summary of a session in the index."""
         session_id = str(metadata.get("session_id") or "")
         summary = {
             "session_id": session_id,
@@ -238,11 +285,13 @@ class SessionManager:
         self._persist_session_index()
 
     def _write_metadata(self, metadata: Dict[str, Any]) -> None:
+        """Persist a session's metadata and refresh its index entry."""
         session_id = str(metadata["session_id"])
         atomic_write_json(self._paths(session_id)["metadata"], metadata)
         self._update_index_item(metadata)
 
     def _current_id(self) -> str | None:
+        """Id of the running session, or None."""
         if not self._current:
             return None
         return str(self._current.get("session_id") or "")
@@ -256,6 +305,7 @@ class SessionManager:
         model_type: str | None = None,
         notes: str = "",
     ) -> Dict[str, Any]:
+        """Start a new session, or return the running one if there already is one."""
         with self._lock:
             if self._current and self._current.get("status") == "RUNNING":
                 return {"ok": True, "message": "Session already running", "session": self.get_current_session()}
@@ -281,12 +331,14 @@ class SessionManager:
             return {"ok": True, "message": "Session started", "session": self.get_current_session()}
 
     def ensure_session(self, *, mode: str = "replay", operator: str = "auto", model_name: str | None = None, model_type: str | None = None) -> Dict[str, Any]:
+        """Return the running session, starting an ``auto`` one when needed."""
         with self._lock:
             if self._current and self._current.get("status") == "RUNNING":
                 return self.get_current_session()
         return self.start_session(mode=mode, operator=operator, model_name=model_name, model_type=model_type).get("session", {})
 
     def stop_session(self) -> Dict[str, Any]:
+        """Stop the running session: finalise metadata and metrics and flush the buffered detections and events to disk."""
         with self._lock:
             if not self._current:
                 return {"ok": True, "message": "No running session", "session": None}
@@ -316,6 +368,7 @@ class SessionManager:
             return {"ok": True, "message": "Session stopped", "session": payload}
 
     def get_current_session(self) -> Dict[str, Any] | None:
+        """Refresh and return the running session (None when idle)."""
         with self._lock:
             if not self._current:
                 return None
@@ -334,6 +387,7 @@ class SessionManager:
             return self._session_payload(metadata)
 
     def status(self) -> Dict[str, Any]:
+        """Return the overall session status, cached for ``STATUS_CACHE_SECONDS`` to spare disk reads during polling."""
         with self._lock:
             if self._status_cache is not None:
                 cached_at, cached_value = self._status_cache
@@ -344,6 +398,7 @@ class SessionManager:
             return value
 
     def _status_uncached(self) -> Dict[str, Any]:
+        """Compute the status payload: running flag, current, latest and recent sessions."""
         current = self.get_current_session()
         recent_sessions = self.list_sessions().get("sessions", [])[:3]
         return {
@@ -359,6 +414,7 @@ class SessionManager:
         }
 
     def list_sessions(self) -> Dict[str, Any]:
+        """List all sessions, newest first, with metrics and manifest summary."""
         with self._lock:
             sessions = []
             for item in reversed(self._index):
@@ -368,11 +424,12 @@ class SessionManager:
             return {"ok": True, "count": len(sessions), "sessions": sessions, "index_path": str(self.index_path)}
 
     def read_manifest(self, session_id: str | None = None) -> Dict[str, Any]:
+        """Read the manifest of a session (default: the running one, else the latest) with recomputed counts."""
         with self._lock:
             latest_session_id = str(self._index[-1].get("session_id") or "") if self._index else ""
             resolved_session_id = session_id or self._current_id() or latest_session_id
             if not resolved_session_id:
-                return {"ok": False, "error": "Nessuna missione disponibile", "manifest": None}
+                return {"ok": False, "error": "No mission available", "manifest": None}
             try:
                 session_dir = self._session_dir(resolved_session_id)
             except ValueError as e:
@@ -389,6 +446,7 @@ class SessionManager:
             return payload
 
     def append_manifest_item(self, session_id: str, item: Dict[str, Any]) -> Dict[str, Any]:
+        """Append one captured item to a session manifest and update its counts."""
         with self._lock:
             if not session_id:
                 return {"ok": False, "error": "session_id is required"}
@@ -409,7 +467,7 @@ class SessionManager:
             payload.update(
                 {
                     "ok": True,
-                    "schema": "easy.session.manifest.v1",
+                    "schema": "easy.session.manifest.v2",
                     "session_id": session_id,
                     "counts": counts,
                     "items": items,
@@ -427,6 +485,7 @@ class SessionManager:
 
     @staticmethod
     def _replay_journal(path: Path) -> List[Dict[str, Any]]:
+        """Read a JSONL journal, skipping empty and corrupted lines."""
         if not path.exists():
             return []
         try:
@@ -447,6 +506,7 @@ class SessionManager:
         return replayed
 
     def _get_detections_cache(self, session_id: str) -> List[Dict[str, Any]]:
+        """Return the in-memory detections of a session, loading the snapshot plus any leftover journal on first use."""
         cached = self._detections_cache.get(session_id)
         if cached is None:
             paths = self._paths(session_id)
@@ -461,6 +521,7 @@ class SessionManager:
         return cached
 
     def _get_events_cache(self, session_id: str) -> Dict[str, Any]:
+        """Return the in-memory events and activity log of a session, loading them on first use."""
         cached = self._events_cache.get(session_id)
         if cached is None:
             paths = self._paths(session_id)
@@ -480,6 +541,7 @@ class SessionManager:
 
     @staticmethod
     def _append_journal(path: Path, records: List[Dict[str, Any]]) -> None:
+        """Append records to a JSONL journal."""
         if not records:
             return
         with path.open("a", encoding="utf-8") as stream:
@@ -487,6 +549,7 @@ class SessionManager:
                 stream.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
 
     def _compaction_due(self, session_id: str, journal_path: Path, *, force: bool) -> bool:
+        """Decide whether a journal should be folded into its snapshot now."""
         if force:
             return True
         last_flush = self._cache_last_flush.get(session_id, 0.0)
@@ -498,11 +561,11 @@ class SessionManager:
             return False
 
     def _flush_session_cache(self, session_id: str, *, force: bool = False) -> None:
-        """Append-only on the hot path: every call above this appends the new
-        record(s) directly to a .jsonl journal (O(1)), never rewriting the
-        whole growing file. This only compacts (rewrites detections.json /
-        events.json in full and truncates the journal) when due, or when
-        force=True (session stop, graceful shutdown)."""
+        """Compact the detections/events snapshots of a session when due (or when ``force``).
+
+        The hot path only appends to the journals; this is the only place where the
+        complete files are rewritten and the journals truncated.
+        """
         paths = self._paths(session_id)
         detections = self._detections_cache.get(session_id)
         if detections is not None and self._compaction_due(session_id, paths["detections_journal"], force=force):
@@ -536,19 +599,19 @@ class SessionManager:
         self._cache_last_flush[session_id] = time.monotonic()
 
     def flush_all(self) -> None:
-        """Force-compact every active session's cache to disk. Call this on
-        graceful shutdown so buffered detections/events are never left only
-        in the journal."""
+        """Force-compact every active session. Call on graceful shutdown so nothing stays only in a journal."""
         with self._lock:
             for session_id in list(self._detections_cache.keys() | self._events_cache.keys()):
                 self._flush_session_cache(session_id, force=True)
 
     def _evict_session_cache(self, session_id: str) -> None:
+        """Drop the in-memory data of a session that has ended."""
         self._detections_cache.pop(session_id, None)
         self._events_cache.pop(session_id, None)
         self._cache_last_flush.pop(session_id, None)
 
     def record_inference_result(self, result: Dict[str, Any], detections: List[Dict[str, Any]]) -> None:
+        """Store the detections of one inference in the running session and update its metrics and activity log."""
         mode = str(result.get("source") or result.get("mode") or "replay")
         session = self.ensure_session(mode=mode, operator="auto")
         session_id = str(session.get("session_id") or "")
@@ -571,9 +634,15 @@ class SessionManager:
         self._refresh_metrics(session_id, inference_time_ms=result.get("inference_time_ms"))
 
     def _manifest_counts(self, items: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Summarise manifest items: totals, per feed, RGB/thermal pairing and synchronisation.
+
+        A sample counts as ``within_tolerance`` only when its RGB and thermal captures
+        were measured to be close enough in time.
+        """
         by_feed: Dict[str, int] = {}
         sample_ids = set()
         sample_modalities: Dict[str, set[str]] = {}
+        sample_pairing_statuses: Dict[str, set[str]] = {}
         paired_items = 0
         for item in items:
             feed = str(item.get("feed") or "")
@@ -586,6 +655,9 @@ class SessionManager:
                 modality = str(item.get("modality") or "")
                 if modality and item.get("usable", True):
                     sample_modalities.setdefault(resolved_sample_id, set()).add(modality)
+                synchronization = item.get("synchronization") if isinstance(item.get("synchronization"), dict) else {}
+                pairing_status = str(synchronization.get("pairing_status") or "legacy_unmeasured")
+                sample_pairing_statuses.setdefault(resolved_sample_id, set()).add(pairing_status)
             if item.get("paired_with"):
                 paired_items += 1
         return {
@@ -599,11 +671,22 @@ class SessionManager:
             ),
             "samples": len(sample_ids),
             "paired_items": paired_items,
-            "synchronized_samples": sum(1 for modalities in sample_modalities.values() if {"rgb", "thermal"} <= modalities),
+            "paired_capture_sets": sum(1 for modalities in sample_modalities.values() if {"rgb", "thermal"} <= modalities),
+            "within_tolerance_samples": sum(
+                1 for sample_id, modalities in sample_modalities.items()
+                if {"rgb", "thermal"} <= modalities and "within_tolerance" in sample_pairing_statuses.get(sample_id, set())
+            ),
+            # Compatibility field: now means measured temporal validity, not
+            # merely that RGB and thermal share a capture_set_id.
+            "synchronized_samples": sum(
+                1 for sample_id, modalities in sample_modalities.items()
+                if {"rgb", "thermal"} <= modalities and "within_tolerance" in sample_pairing_statuses.get(sample_id, set())
+            ),
             "by_feed": by_feed,
         }
 
     def _refresh_metrics(self, session_id: str, inference_time_ms: Any | None = None) -> Dict[str, Any]:
+        """Recompute and write ``metrics.json`` (detection counts per class, duration, average inference time)."""
         paths = self._paths(session_id)
         detections = self._get_detections_cache(session_id)
         previous = read_json(paths["metrics"], self._empty_metrics(session_id))
@@ -641,6 +724,7 @@ class SessionManager:
         return metrics
 
     def _session_payload(self, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """Merge metadata with metrics, manifest summary and file paths for the API."""
         session_id = str(metadata.get("session_id") or "")
         paths = self._paths(session_id)
         metrics = read_json(paths["metrics"], self._empty_metrics(session_id))
@@ -657,6 +741,7 @@ class SessionManager:
         }
 
     def _append_session_event(self, session_id: str, event_type: str, meta: Dict[str, Any]) -> None:
+        """Add an entry to the session activity log (journalled)."""
         events = self._get_events_cache(session_id)
         entry = {"timestamp": utc_now_iso(), "type": event_type, "meta": meta}
         events["activity_log"].append(entry)
@@ -664,6 +749,7 @@ class SessionManager:
         self._flush_session_cache(session_id)
 
     def _emit(self, event_type: str, description: str, severity: str, meta: Dict[str, Any]) -> None:
+        """Add a ``SESSION_MANAGER`` event to the global activity log; failures are ignored."""
         if not self.events:
             return
         try:

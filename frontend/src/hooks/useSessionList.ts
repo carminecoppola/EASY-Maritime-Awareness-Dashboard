@@ -1,9 +1,17 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Mission (session) list, loaded on mount and refreshed on demand.
+ */
+
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { api, ApiError } from '../api/client'
 
 /**
- * Forma reale di una sessione dal /api/session/list endpoint.
- * Non modificare per rimanere sincronizzato con i dati reali.
+ * Real shape of a session as returned by /api/session/list.
+ * Keep it in sync with the backend payload.
  */
 export interface SessionListItem {
   ok: boolean
@@ -33,6 +41,8 @@ export interface SessionListItem {
       inference: number
       items: number
       paired_items: number
+      paired_capture_sets?: number
+      within_tolerance_samples?: number
       samples: number
       snapshots: number
       synchronized_samples: number
@@ -45,6 +55,7 @@ export interface SessionListItem {
   updated_at: string
 }
 
+/** The sessions plus loading and error state and a manual refresh. */
 interface UseSessionListResult {
   sessions: SessionListItem[]
   error: unknown
@@ -53,18 +64,17 @@ interface UseSessionListResult {
 }
 
 /**
- * Hook per la lista sessioni — non serve polling aggressivo perché cambia raramente.
- * Fetch on-mount + refresh manuale via bottone nella UI.
+ * Hook for the session list. It needs no aggressive polling because the list
+ * rarely changes: it fetches on mount and refreshes manually from a UI button.
  */
 export function useSessionList(): UseSessionListResult {
   const [sessions, setSessions] = useState<SessionListItem[]>([])
   const [error, setError] = useState<unknown>(null)
   const [loading, setLoading] = useState(true)
-  // Incrementato ad ogni refresh: se due richieste sono in volo (es. click
-  // rapido su "Refresh" più il refresh automatico dopo uno start/stop),
-  // solo la risposta della richiesta più recente viene applicata — senza
-  // questo, una risposta più vecchia arrivata più tardi poteva sovrascrivere
-  // dati più freschi già mostrati.
+  // Incremented on every refresh: when two requests are in flight (e.g. a quick
+  // click on "Refresh" plus the automatic refresh after a start/stop), only the
+  // answer of the most recent request is applied. Without this, an older answer
+  // arriving later could overwrite fresher data already shown.
   const requestIdRef = useRef(0)
 
   const refresh = useCallback(async () => {
@@ -74,7 +84,7 @@ export function useSessionList(): UseSessionListResult {
     try {
       const response = await api.getSessionList()
       if (requestId !== requestIdRef.current) return
-      // Cast sicuro perché il tipo di ritorno è { sessions: unknown[] }
+      // Safe cast: the declared return type is { sessions: unknown[] }
       const sessionsList = (response as { sessions: unknown[] }).sessions as SessionListItem[]
       setSessions(sessionsList)
     } catch (e) {

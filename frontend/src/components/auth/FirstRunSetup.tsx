@@ -1,13 +1,22 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Form that creates the first Admin account.
+ */
+
 import { useId, useState } from 'react'
 import { authErrorMessage, useAuth } from '../../hooks/AuthContext'
 
+/** Same minimum as the backend. */
 const MIN_PASSWORD_LENGTH = 8
 
 /**
- * Crea il primo Admin. Non blocca l'app (l'enforcement resta spento finché
- * l'Admin non lo attiva esplicitamente altrove in questa pagina) — è
- * un'azione che un operatore interessato trova qui, non un muro imposto a
- * chi aggiorna un dispositivo già in uso.
+ * Creates the first Admin. It does not block the app (enforcement stays off until
+ * the Admin turns it on explicitly elsewhere on this page): it is an action an
+ * interested operator finds here, not a wall imposed on whoever updates a device
+ * already in use.
  */
 export function FirstRunSetup({ onDone }: { onDone?: () => void }) {
   const auth = useAuth()

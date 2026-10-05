@@ -1,21 +1,34 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Step-up authentication dialog.
+ *
+ * Sensitive actions (changing users, security settings, restarting services) need
+ * the password typed again. `runElevated` wraps an action: when the server answers
+ * `step_up_required` it opens the dialog and, once confirmed, retries once.
+ */
+
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api, ApiError } from '../../api/client'
 import { authErrorMessage } from '../../hooks/AuthContext'
 import { isStepUpRequiredBody } from '../../api/types'
 
 interface StepUpContextValue {
-  /** Mostra il dialogo di conferma password; risolve true se sbloccata, false se annullata. */
+  /** Shows the password confirmation dialog; resolves true when unlocked, false when cancelled. */
   requestStepUp: (reason?: string) => Promise<boolean>
   /**
-   * Esegue `action`; se fallisce con "step_up_required", apre il dialogo e,
-   * se confermato, ritenta una sola volta. Così ogni azione distruttiva non
-   * deve gestire il codice 403 a mano — solo passare per questo wrapper.
+   * Runs `action`; if it fails with "step_up_required", opens the dialog and, once
+   * confirmed, retries exactly once. A destructive action therefore never has to
+   * handle the 403 by hand: it only goes through this wrapper.
    */
   runElevated: <T,>(action: () => Promise<T>, reason?: string) => Promise<T>
 }
 
 const StepUpContext = createContext<StepUpContextValue | null>(null)
 
+/** Provides `requestStepUp` and `runElevated` and renders the confirmation dialog. */
 export function StepUpProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false)
   const [reason, setReason] = useState<string | undefined>(undefined)
@@ -135,6 +148,7 @@ export function StepUpProvider({ children }: { children: ReactNode }) {
   )
 }
 
+/** Read the step-up helpers (must be used inside `StepUpProvider`). */
 export function useStepUp(): StepUpContextValue {
   const ctx = useContext(StepUpContext)
   if (!ctx) {

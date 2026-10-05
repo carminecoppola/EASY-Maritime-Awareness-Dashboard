@@ -1,6 +1,16 @@
-from __future__ import annotations
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
 
-"""Read-only host and camera diagnostics used by the dashboard runtime."""
+"""Read-only host and camera diagnostics.
+
+``SystemProbe`` collects hardware and OS facts (model, memory, disk, CPU
+temperature, camera tooling, USB and video devices) for the System page and the
+pre-flight report. It never owns a runtime process and never touches the
+cameras beyond listing them.
+"""
+
+from __future__ import annotations
 
 import logging
 import os
@@ -29,6 +39,7 @@ LOGGER = logging.getLogger("easy-dashboard")
 
 
 def _module_available(name: str) -> bool:
+    """True if a Python module can be imported."""
     try:
         __import__(name)
         return True
@@ -40,12 +51,15 @@ class SystemProbe:
     """Collect system information without owning any runtime process."""
 
     def hostname(self) -> str:
+        """Host name."""
         return get_hostname()
 
     def ip_address(self) -> str:
+        """Primary IPv4 address."""
         return get_ip_address()
 
     def model(self) -> str:
+        """Board model from the device tree (e.g. ``Raspberry Pi 4 Model B``), or ``unknown``."""
         model_file = Path("/proc/device-tree/model")
         if model_file.exists():
             raw = model_file.read_bytes().replace(b"\x00", b"").decode("utf-8", errors="ignore").strip()
@@ -54,10 +68,10 @@ class SystemProbe:
         return read_text_file(model_file) or "unknown"
 
     def os_release(self) -> str:
-        # /etc/os-release ha anche HOME_URL/SUPPORT_URL/BUG_REPORT_URL oltre
-        # a una decina di altre chiavi: mostrare il file intero in una card
-        # della dashboard è illeggibile. PRETTY_NAME è la label pensata
-        # apposta per la UI da tool come neofetch/screenfetch.
+        # /etc/os-release carries HOME_URL, SUPPORT_URL, BUG_REPORT_URL and about a
+        # dozen other keys: showing the whole file in a dashboard card is
+        # unreadable. PRETTY_NAME is the label meant for user interfaces.
+        """Human-readable OS name (``PRETTY_NAME``) from ``/etc/os-release``."""
         raw = read_text_file(Path("/etc/os-release"))
         for line in raw.splitlines():
             if line.startswith("PRETTY_NAME="):
@@ -65,16 +79,20 @@ class SystemProbe:
         return raw
 
     def os_release_full(self) -> str:
+        """Complete content of ``/etc/os-release``."""
         return read_text_file(Path("/etc/os-release"))
 
     def python_version(self) -> str:
+        """Output of ``python3 --version``."""
         completed = subprocess.run(["python3", "--version"], capture_output=True, text=True, check=False)
         return completed.stdout.strip() or "unknown"
 
     def cpu_temperature(self) -> Optional[float]:
+        """CPU temperature in degrees Celsius, or None."""
         return read_cpu_temperature()
 
     def memory(self) -> dict[str, Any]:
+        """Used, available and total RAM in MB plus the usage percentage."""
         memory = psutil.virtual_memory()
         return {
             "used_mb": round(memory.used / 1024 / 1024, 1),
@@ -84,6 +102,7 @@ class SystemProbe:
         }
 
     def disk(self) -> dict[str, Any]:
+        """Used, free and total space in GB of the volume holding the project."""
         usage = psutil.disk_usage(str(PROJECT_ROOT))
         return {
             "used_gb": round(usage.used / 1024 / 1024 / 1024, 2),
@@ -93,6 +112,7 @@ class SystemProbe:
         }
 
     def camera_tools(self) -> dict[str, bool]:
+        """Which camera tools (libcamera, rpicam, picamera2) are installed."""
         return {
             "libcamera_hello": which("libcamera-hello") is not None,
             "rpicam_hello": which("rpicam-hello") is not None,
@@ -102,6 +122,7 @@ class SystemProbe:
         }
 
     def camera_list(self) -> str:
+        """List the cameras seen by libcamera/rpicam, with a 3 s limit and process-group kill so a hung tool cannot block the dashboard."""
         for command in (["libcamera-hello", "--list-cameras"], ["rpicam-hello", "--list-cameras"]):
             if not which(command[0]):
                 continue
@@ -132,6 +153,7 @@ class SystemProbe:
         return "No camera tooling available"
 
     def lsusb(self) -> str:
+        """Output of ``lsusb``."""
         _, output = run_command(["lsusb"], timeout=10)
         return output
 
@@ -141,23 +163,28 @@ class SystemProbe:
         return output
 
     def video_devices(self) -> list[str]:
+        """Paths of the ``/dev/video*`` nodes."""
         return safe_device_listing("/dev/video*")
 
     def get_camera(self) -> str:
+        """Output of ``vcgencmd get_camera`` when available."""
         if which("vcgencmd") is None:
             return "vcgencmd not available"
         _, output = run_command(["vcgencmd", "get_camera"], timeout=8)
         return output
 
     def uname(self) -> str:
+        """Output of ``uname -a``."""
         _, output = run_command(["uname", "-a"], timeout=8)
         return output
 
     def uptime(self) -> str:
+        """Human-readable uptime."""
         _, output = run_command(["uptime", "-p"], timeout=8)
         return output or human_uptime(get_boot_seconds())
 
     def preflight_summary(self) -> dict[str, Any]:
+        """Every fact above in one dictionary, used by the pre-flight report."""
         return {
             "hostname": self.hostname(),
             "ip_address": self.ip_address(),

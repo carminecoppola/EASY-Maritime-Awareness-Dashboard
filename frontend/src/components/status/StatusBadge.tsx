@@ -1,11 +1,20 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Small pill showing a status as a coloured dot plus text.
+ */
+
 import type { Tone } from './severityColors'
 
 interface StatusBadgeProps {
   tone: Tone
-  /** Testo esplicito da mostrare oltre al colore — mai comunicare stato solo via colore. */
+  /** Explicit text shown in addition to the colour: never communicate state by colour alone. */
   text?: string
 }
 
+/** Badge for a tone, with the tone label unless `text` is given. */
 export function StatusBadge({ tone, text }: StatusBadgeProps) {
   return (
     <span

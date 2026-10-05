@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Acquisition status: whether the saving process runs and the RGB/thermal pairing summary.
+ */
+
 import { StatusCard } from '../status/StatusCard'
 import { StatusBadge } from '../status/StatusBadge'
 import type { AcquisitionStatus } from '../../api/types'
@@ -6,6 +14,7 @@ interface AcquisitionStatusSectionProps {
   acquisitionStatus: AcquisitionStatus | null
 }
 
+/** Running badge plus the readable dataset-summary cards (no raw JSON is shown to the operator). */
 export function AcquisitionStatusSection({ acquisitionStatus }: AcquisitionStatusSectionProps) {
   if (!acquisitionStatus) {
     return (
@@ -27,7 +36,9 @@ export function AcquisitionStatusSection({ acquisitionStatus }: AcquisitionStatu
   const DATASET_SUMMARY_LABELS: Record<string, string> = {
     paired_items: 'RGB/thermal pairs',
     samples: 'Samples',
-    synchronized_samples: 'Synchronized samples',
+    paired_capture_sets: 'Paired capture sets',
+    within_tolerance_samples: 'Within time tolerance',
+    synchronized_samples: 'Measured synchronized samples',
     pair_window_seconds: 'Pairing window',
   }
 

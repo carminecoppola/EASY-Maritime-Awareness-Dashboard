@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Vite configuration: React and Tailwind plugins, the `@` alias and the development proxy to the Flask backend.
+ */
+
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { fileURLToPath, URL } from 'node:url'
@@ -22,7 +30,7 @@ const PROXY_PATTERNS: string[] = [
   '^/snapshots/', // media route has a required /<feed>/<filename> subpath
   '^/snapshot/', // singular action route, always has a /<feed> subpath
   '^/health(/|$)',
-  '^/events(/|$)', // log attività: senza questa entry finiva nel fallback SPA
+  '^/events(/|$)', // activity log: without this entry it fell through to the SPA fallback
 
   '^/system$', // exact: the diagnostics API, not /system-diagnostics
   '^/cameras$',

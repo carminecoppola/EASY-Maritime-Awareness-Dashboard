@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Unit tests for sorting.
+ */
+
 import { describe, expect, it } from 'vitest'
 import { mostRecentFirst } from './sorting'
 

@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Notice shown when a signed-in user lacks the role a page requires (403).
+ */
+
 import type { AuthRole } from '../../api/types'
 
 const ROLE_LABEL: Record<AuthRole, string> = { viewer: 'Viewer', operator: 'Operator', admin: 'Admin' }

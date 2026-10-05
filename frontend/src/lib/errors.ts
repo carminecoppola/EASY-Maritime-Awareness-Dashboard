@@ -1,17 +1,31 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Translation of network and API errors into operator-facing messages.
+ *
+ * The UI never shows a raw exception: `normalizeApiError` maps timeouts, HTTP
+ * statuses (400/422, 401/403, 404, 409, 429, 5xx), unreadable answers and network
+ * failures to a title, a message, a safe next action and a separate technical detail.
+ */
+
 import { ApiError } from '../api/client'
 
+/** How serious a message is; drives its colour and icon. */
 export type Severity = 'info' | 'success' | 'warning' | 'critical' | 'neutral'
 
+/** A suggested next step shown as a link or button. */
 export interface OperatorAction {
   label: string
-  /** Rotta interna verso cui indirizzare l'operatore. */
+  /** Internal route the operator is sent to. */
   to?: string
 }
 
 /**
- * Errore tradotto in termini operativi: cosa è fallito, cosa resta
- * disponibile, quale azione è sicura. Il dettaglio tecnico resta separato e
- * non viene mai mostrato come messaggio principale.
+ * An error translated into operational terms: what failed, what is still
+ * available, which action is safe. The technical detail stays separate and is
+ * never shown as the main message.
  */
 export interface OperatorError {
   severity: Severity
@@ -29,6 +43,7 @@ export interface OperatorError {
 const DIAGNOSTICS: OperatorAction = { label: 'Open Diagnostics', to: '/system-diagnostics' }
 const SETTINGS: OperatorAction = { label: 'Open Settings', to: '/settings' }
 
+/** The `error` string of a JSON error body, if any. */
 function bodyMessage(body: unknown): string | null {
   if (body && typeof body === 'object' && 'error' in body) {
     const value = (body as { error?: unknown }).error
@@ -37,14 +52,15 @@ function bodyMessage(body: unknown): string | null {
   return null
 }
 
+/** True for an aborted request (the client timeout). */
 function isAbort(error: unknown): boolean {
   return error instanceof DOMException ? error.name === 'AbortError' : (error as { name?: string })?.name === 'AbortError'
 }
 
 /**
- * Traduce qualunque errore di rete/API nella forma che l'interfaccia mostra.
- * Gli status con un significato operativo preciso (401, 409, 429…) hanno un
- * messaggio dedicato: un generico "Errore" non dice all'operatore cosa fare.
+ * Translates any network or API error into the form the interface shows.
+ * Statuses with a precise operational meaning (401, 409, 429...) get a dedicated
+ * message: a generic "Error" does not tell the operator what to do.
  */
 export function normalizeApiError(error: unknown, component?: string): OperatorError {
   const now = new Date().toISOString()
@@ -155,7 +171,7 @@ export function normalizeApiError(error: unknown, component?: string): OperatorE
   }
 }
 
-/** Età leggibile di un dato non più aggiornato. */
+/** Readable age of data that is no longer being refreshed (e.g. "3m old"). */
 export function formatStaleAge(lastSuccessfulAt: Date | number | null | undefined): string | null {
   if (lastSuccessfulAt === null || lastSuccessfulAt === undefined) return null
   const ms = Date.now() - (lastSuccessfulAt instanceof Date ? lastSuccessfulAt.getTime() : lastSuccessfulAt)
@@ -169,7 +185,7 @@ export function formatStaleAge(lastSuccessfulAt: Date | number | null | undefine
   return `${Math.floor(hours / 24)}d old`
 }
 
-/** Chiave di deduplica: lo stesso guasto ripetuto a ogni polling è una sola notifica. */
+/** Deduplication key: the same failure repeated on every poll is a single notification. */
 export function dedupeNotificationKey(component: string, code?: string | number): string {
   return `${component}::${code ?? 'none'}`
 }

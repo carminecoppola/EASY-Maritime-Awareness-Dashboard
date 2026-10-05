@@ -1,23 +1,31 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Thermal hooks: status polling, the cached live frame and the manual capture.
+ */
+
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, withCacheBuster } from '../api/client'
 import type { ThermalStatusResponse } from '../api/types'
 import { usePolling } from './usePolling'
 
+/** Poll the thermal status every `intervalMs` (default 3 s). */
 export function useThermalStatus(intervalMs = 3000) {
   return usePolling<ThermalStatusResponse>(() => api.getThermalStatus(), { intervalMs })
 }
 
 /**
- * `/thermal/last-frame` è economico (usa la cache lato server, 204 se
- * assente) ed è pollabile. `/thermal/frame` cattura un NUOVO frame ad ogni
- * chiamata (costoso): va invocato solo a trigger manuale, mai in polling.
+ * `/thermal/last-frame` is cheap (it uses the server cache, 204 when absent) and
+ * can be polled. `/thermal/frame` captures a NEW frame on every call (expensive):
+ * call it only on a manual trigger, never in a polling loop.
  */
 export function useThermalLastFrame(intervalMs = 2500, enabled = true) {
-  // L'URL va rigenerato SOLO ad ogni tick di polling, non ad ogni render:
-  // prima il cache-buster (Date.now()) veniva ricalcolato a ogni render
-  // del componente, quindi un re-render qualsiasi (non legato al polling)
-  // faceva ripartire il fetch dell'immagine anche fuori dall'intervallo
-  // previsto.
+  // The URL must be regenerated ONLY on each polling tick, not on each render:
+  // the cache buster (Date.now()) used to be recomputed on every render, so any
+  // re-render unrelated to polling restarted the image fetch outside the
+  // intended interval.
   const [url, setUrl] = useState(() => withCacheBuster('/thermal/last-frame'))
 
   usePolling(
@@ -31,8 +39,10 @@ export function useThermalLastFrame(intervalMs = 2500, enabled = true) {
   return { url }
 }
 
+/** How long a manual capture stays on screen before returning to the live frame. */
 const MANUAL_CAPTURE_DISPLAY_MS = 4000
 
+/** Manual thermal capture: fetches a new frame (15 s limit), shows it for a few seconds and releases its blob URL. */
 export function useThermalManualCapture() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<unknown>(null)
@@ -46,9 +56,9 @@ export function useThermalManualCapture() {
     () => () => {
       mountedRef.current = false
       clearTimeout(revertTimerRef.current)
-      // Una cattura hardware dura fino a 15 s: se l'operatore cambia pagina
-      // nel frattempo, senza abort il blob veniva allocato su un componente
-      // già smontato e non veniva mai revocato.
+      // A hardware capture lasts up to 15 s: if the operator changes page in the
+      // meantime, without an abort the blob would be allocated for an already
+      // unmounted component and never revoked.
       abortRef.current?.abort()
       if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current)
     },
@@ -60,15 +70,14 @@ export function useThermalManualCapture() {
     setError(null)
     const controller = new AbortController()
     abortRef.current = controller
-    // Senza timeout, un sensore termico bloccato lascia il bottone su
-    // "Capturing..." indefinitamente: fetch() da solo non ha un limite.
+    // Without a timeout, a stuck thermal sensor leaves the button on
+    // "Capturing..." indefinitely: fetch() alone has no limit.
     const timeout = setTimeout(() => controller.abort(), 15000)
     try {
-      // Deve attendere davvero la cattura hardware (fetch del blob), non
-      // solo assegnare un URL: prima loading passava true->false in modo
-      // sincrono nello stesso handler, quindi il cooldown/UI di caricamento
-      // non diventava mai osservabile — il bottone non si disabilitava mai
-      // durante una cattura reale.
+      // It must really wait for the hardware capture (fetching the blob), not just
+      // assign a URL: loading used to go true->false synchronously in the same
+      // handler, so the loading UI never became observable and the button was
+      // never disabled during a real capture.
       const response = await fetch('/thermal/frame', { signal: controller.signal })
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
       const blob = await response.blob()
@@ -77,12 +86,11 @@ export function useThermalManualCapture() {
       const objectUrl = URL.createObjectURL(blob)
       objectUrlRef.current = objectUrl
       setUrl(objectUrl)
-      // Il frame catturato manualmente non veniva mai rimosso: restava
-      // "congelato" in UI per sempre anche se il polling di /thermal/last-frame
-      // proseguiva in background. Dopo una finestra di visualizzazione,
-      // torna al frame live pollato — revocando anche l'object URL, che
-      // altrimenti restava allocato fino alla cattura successiva o
-      // all'unmount (piccolo ma reale memory leak).
+      // The manually captured frame used to stay "frozen" in the UI forever even
+      // though /thermal/last-frame polling continued in the background. After a
+      // display window it returns to the polled live frame, also revoking the
+      // object URL, which would otherwise stay allocated until the next capture or
+      // unmount (a small but real memory leak).
       clearTimeout(revertTimerRef.current)
       revertTimerRef.current = setTimeout(() => {
         setUrl(null)

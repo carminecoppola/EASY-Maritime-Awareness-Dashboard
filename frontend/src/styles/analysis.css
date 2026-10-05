@@ -1,4 +1,12 @@
-/* Sezioni specifiche della pagina AI Analysis. */
+/*
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Styles of the AI Analysis page.
+ */
+
+/* Styles specific to the AI Analysis page. */
 
 .easy-workspace {
   display: grid;
@@ -28,8 +36,8 @@
   display: block;
   width: 100%;
   height: 100%;
-  /* contain: l'anteprima serve a verificare i bounding box, un ritaglio
-     sposterebbe ciò che l'operatore sta valutando. */
+  /* contain: the preview exists to verify the bounding boxes; cropping would
+     shift what the operator is evaluating. */
   object-fit: contain;
 }
 

@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Thermal sensor card: latest frame, readiness, and the capture actions.
+ */
+
 import { useState } from 'react'
 import { api } from '../../api/client'
 import { normalizeApiError } from '../../lib/errors'
@@ -5,16 +13,18 @@ import { useThermalLastFrame, useThermalManualCapture } from '../../hooks/useThe
 import { toDate } from '../../utils/formatTime'
 import type { DashboardState, RuntimeState } from '../../api/types'
 
+/** The part of the thermal status this panel reads. */
 interface ThermalPayload {
   status?: string
   device?: string
   error?: string
   mode?: string
-  /** Epoch in secondi (time.time()); 0 = nessun frame acquisito. */
+  /** Epoch in seconds (time.time()); 0 means no frame acquired. */
   last_frame_ts?: number | string | null
   runtime_state?: RuntimeState
 }
 
+/** Headline text and colour for an availability value. */
 function headline(availability: string, detected: boolean): { text: string; color: string } {
   if (availability === 'READY' || availability === 'STREAMING') {
     return { text: 'Ready for capture', color: 'var(--accent-ok)' }
@@ -24,6 +34,7 @@ function headline(availability: string, detected: boolean): { text: string; colo
   return { text: detected ? 'Not available' : 'Sensor not detected', color: 'var(--text-muted)' }
 }
 
+/** Shows the cached live frame, device and status, plus *Capture thermal* and *Save paired set* (needs a running mission). */
 export function ThermalReadinessPanel({ data }: { data: DashboardState | null }) {
   const thermal = (data?.health?.thermal ?? {}) as ThermalPayload
   const runtime = data?.health?.runtime_state?.thermal
@@ -38,8 +49,8 @@ export function ThermalReadinessPanel({ data }: { data: DashboardState | null })
   const [setMessage, setSetMessage] = useState<string | null>(null)
 
   const state = headline(availability, Boolean(runtime?.detected))
-  // L'ora di cattura viene dal backend, non dal momento in cui l'URL
-  // cambia: un frame vecchio non deve sembrare appena acquisito.
+  // The capture time comes from the backend, not from when the URL changes: an
+  // old frame must not look freshly acquired.
   const lastFrameAt = toDate(thermal.last_frame_ts)
   const frameUrl = manual.url ?? (ready ? liveUrl : null)
 
@@ -65,8 +76,8 @@ export function ThermalReadinessPanel({ data }: { data: DashboardState | null })
     <article className="easy-panel easy-thermal">
       <div className="easy-thermalimg">
         {frameUrl && !frameMissing ? (
-          // /thermal/last-frame risponde 204 finché non esiste un frame:
-          // senza onError restava l'icona di immagine rotta.
+          // /thermal/last-frame answers 204 until a frame exists: without onError the
+          // broken-image icon would remain.
           <img src={frameUrl} alt="Latest thermal capture" onError={() => setFrameMissing(true)} />
         ) : (
           <p className="easy-thermal-placeholder">No thermal frame available</p>
@@ -77,15 +88,12 @@ export function ThermalReadinessPanel({ data }: { data: DashboardState | null })
       </div>
 
       <div className="easy-thermalcopy">
-        <div className="easy-kicker">Thermal sensor · on demand</div>
+        <div className="easy-kicker">Thermal sensor · continuous</div>
         <h3>
           <span aria-hidden style={{ width: 10, height: 10, borderRadius: '50%', background: state.color, display: 'inline-block' }} />
           {state.text}
         </h3>
-        <p>
-          The thermal sensor is captured on request and releases the device between frames — it is not a continuous
-          stream.
-        </p>
+        <p>The persistent thermal worker runs beside both RGB views. Saving a snapshot does not interrupt acquisition.</p>
 
         <div className="easy-thermalmeta">
           <div>
@@ -117,9 +125,9 @@ export function ThermalReadinessPanel({ data }: { data: DashboardState | null })
             className="easy-btn"
             onClick={handleCaptureSet}
             disabled={!missionRunning || setPending}
-            title={missionRunning ? undefined : 'Start a mission before capturing a synchronized sensor set'}
+            title={missionRunning ? undefined : 'Start a mission before capturing a paired sensor set'}
           >
-            {setPending ? 'Saving…' : 'Save synchronized set'}
+            {setPending ? 'Saving…' : 'Save paired set'}
           </button>
         </div>
       </div>

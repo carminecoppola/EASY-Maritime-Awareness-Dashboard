@@ -1,3 +1,11 @@
+/*
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Global base styles and element defaults.
+ */
+
 @import './tokens.css';
 /* Utilities for registry components; omit Preflight to preserve existing controls. */
 @layer theme, base, components, utilities;
@@ -43,10 +51,10 @@ h4 {
   letter-spacing: -0.01em;
 }
 
-/* Titolo di pagina — deve leggersi come intestazione di un pannello
-   strumenti (mono, filo d'accento), non come un titolo di sito web
-   qualunque a 18px senza carattere. Applicato una sola volta qui invece
-   che ripetuto in ogni pagina. */
+/* Page title: it must read as the heading of an instrument panel
+   (mono, accent line), not as an ordinary website title
+   at 18px with no character. Applied once here instead
+   of repeated on every page. */
 h1 {
   font-family: var(--font-mono);
   font-size: var(--font-size-page-title);

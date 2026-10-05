@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * End-to-end smoke test: loads the application against the hardware-less backend started by e2e_backend.py and checks the main pages.
+ */
+
 import { test, expect, type Page } from '@playwright/test'
 
 const PAGES: { path: string; heading: string }[] = [

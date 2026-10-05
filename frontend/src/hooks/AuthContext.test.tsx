@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Unit tests for AuthContext.
+ */
+
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { AuthProvider, roleAtLeast, useAuth } from './AuthContext'
@@ -94,8 +102,8 @@ describe('AuthProvider', () => {
     )
 
     await waitFor(() => expect(screen.getByTestId('status').textContent).toBe('ready'))
-    // Non presume che l'auth sia richiesta solo perché non si è potuto
-    // verificarlo — altrimenti un blip di rete mostrerebbe un login inutile.
+    // It must not assume authentication is required just because it could not
+    // be verified, otherwise a network blip would show a pointless login.
     expect(screen.getByTestId('enforcement').textContent).toBe('false')
   })
 

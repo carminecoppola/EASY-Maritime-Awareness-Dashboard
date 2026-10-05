@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Playwright configuration for the end-to-end tests.
+ */
+
 import { defineConfig, devices } from '@playwright/test'
 
 // Runs against the built frontend/dist served BY FLASK (not the Vite dev

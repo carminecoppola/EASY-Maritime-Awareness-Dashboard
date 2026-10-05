@@ -1,8 +1,16 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Browser-local preferences (stored in `localStorage`).
+ */
+
 import { useCallback, useEffect, useState } from 'react'
 
 /**
- * Preferenze locali del browser. Solo opzioni che cambiano davvero il
- * comportamento della UI: niente interruttori decorativi.
+ * Local browser preferences. Only options that really change the behaviour of
+ * the UI: no decorative switches.
  */
 export const PREFERENCES = {
   confirmEndMission: {
@@ -13,6 +21,7 @@ export const PREFERENCES = {
   },
 } as const
 
+/** Name of a defined preference. */
 export type PreferenceName = keyof typeof PREFERENCES
 
 function read(name: PreferenceName): boolean {
@@ -21,27 +30,29 @@ function read(name: PreferenceName): boolean {
     const raw = localStorage.getItem(spec.key)
     return raw === null ? spec.default : raw === 'true'
   } catch {
-    // Private mode o storage bloccato: si torna al default invece di rompere.
+    // Private mode or blocked storage: fall back to the default instead of failing.
     return spec.default
   }
 }
 
+/** Current value of a preference (its default when unset or storage is unavailable). */
 export function getPreference(name: PreferenceName): boolean {
   return read(name)
 }
 
 const EVENT = 'easy:preference-change'
 
+/** Store a preference and notify every component that reads it. */
 export function setPreference(name: PreferenceName, value: boolean): void {
   try {
     localStorage.setItem(PREFERENCES[name].key, String(value))
   } catch {
-    // Ignorato: la preferenza resta valida per la sessione corrente.
+    // Ignored: the preference stays valid for the current session.
   }
   window.dispatchEvent(new CustomEvent(EVENT, { detail: name }))
 }
 
-/** Tiene allineati più componenti che leggono la stessa preferenza. */
+/** Keeps several components that read the same preference in sync. */
 export function usePreference(name: PreferenceName): [boolean, (value: boolean) => void] {
   const [value, setValue] = useState(() => read(name))
 

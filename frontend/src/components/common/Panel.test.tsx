@@ -1,3 +1,11 @@
+/**
+ * EASY Maritime Awareness Dashboard
+ * Copyright (c) 2026 Carmine Coppola and EASY contributors.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Unit tests for Panel.
+ */
+
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { Panel } from './Panel'
@@ -12,9 +20,9 @@ describe('Panel', () => {
     const { container: plain } = render(<Panel>x</Panel>)
     const { container: emphasized } = render(<Panel emphasis>x</Panel>)
     expect((plain.firstChild as HTMLElement).style.borderRight).toContain('1px')
-    // L'emphasis mette un filo d'accento sul solo lato superiore (brand
-    // color) — i quattro lati non sono più uniformi, li controlliamo
-    // separatamente invece di affidarci allo shorthand `border`.
+    // Emphasis puts an accent line on the top side only (brand
+    // colour): the four sides are no longer uniform, so we check them
+    // separately instead of relying on the `border` shorthand.
     expect((emphasized.firstChild as HTMLElement).style.borderRight).toContain('2px')
     expect((emphasized.firstChild as HTMLElement).style.borderTop).toContain('var(--accent-brand)')
   })
