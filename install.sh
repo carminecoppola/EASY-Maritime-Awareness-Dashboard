@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# Install the dashboard on the Raspberry Pi: build (or verify) the frontend, install Python
+# dependencies and register the systemd service rendered for this checkout.
+#
+# Usage: ./install.sh        (EASY_FRONTEND_PREBUILT=1 skips the npm build)
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SERVICE_SRC="${ROOT_DIR}/services/easy-dashboard.service"
-SERVICE_DST="/etc/systemd/system/easy-dashboard.service"
 PYTHON_BIN="${ROOT_DIR}/.venv/bin/python"
 
 cd "${ROOT_DIR}"
@@ -31,11 +37,9 @@ else
   python3 -m pip install --user -r requirements.txt
 fi
 
-chmod +x "${ROOT_DIR}/start.sh" "${ROOT_DIR}/scripts/run_service.sh" "${ROOT_DIR}/scripts/validate_raspberry_runtime.sh"
+chmod +x "${ROOT_DIR}/start.sh" "${ROOT_DIR}/scripts/run_service.sh" "${ROOT_DIR}/scripts/validate_raspberry_runtime.sh" "${ROOT_DIR}/scripts/install_service.sh"
 
-sudo install -m 644 "${SERVICE_SRC}" "${SERVICE_DST}"
-sudo systemctl daemon-reload
-sudo systemctl enable easy-dashboard.service
+"${ROOT_DIR}/scripts/install_service.sh"
 
 mkdir -p data/logs data/reports data/captures/rgb_left data/captures/rgb_right data/captures/thermal data/snapshots
 

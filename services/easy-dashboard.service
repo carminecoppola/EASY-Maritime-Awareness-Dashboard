@@ -1,3 +1,10 @@
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# systemd unit TEMPLATE. Do not copy it by hand: scripts/install_service.sh renders
+# @PROJECT_DIR@ (this checkout) and @SERVICE_USER@ (the installing user) and installs
+# it as /etc/systemd/system/easy-dashboard.service.
 [Unit]
 Description=EASY Maritime Awareness Dashboard
 After=network-online.target
@@ -5,12 +12,12 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=pi
-WorkingDirectory=/home/pi/Desktop/carmine/easy-dashboard
+User=@SERVICE_USER@
+WorkingDirectory=@PROJECT_DIR@
 Environment=PYTHONUNBUFFERED=1
 Environment=EASY_OPEN_BROWSER=0
 Environment=EASY_ONNX_THREADS=4
-ExecStart=/home/pi/Desktop/carmine/easy-dashboard/scripts/run_service.sh
+ExecStart=@PROJECT_DIR@/scripts/run_service.sh
 Restart=always
 RestartSec=3
 KillMode=control-group

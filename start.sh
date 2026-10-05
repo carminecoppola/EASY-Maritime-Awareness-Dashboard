@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# Start the dashboard in the foreground on the Raspberry Pi (manual mode, without systemd).
+# Runs the pre-flight report, prints the access URLs and opens a browser when a desktop
+# session is available (EASY_OPEN_BROWSER=0 disables it).
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,19 +25,13 @@ echo
 echo "EASY Dashboard"
 echo "=============="
 echo "Raspberry LAN: http://${RASPBERRY_IP}:${REMOTE_APP_PORT}"
-if systemctl is-active --quiet rainbow-tunnel.service 2>/dev/null; then
-  echo "Tunnel Raspberry -> Purple: ACTIVE"
-else
-  echo "Tunnel Raspberry -> Purple: NOT ACTIVE"
-  echo "Check it with: systemctl status rainbow-tunnel.service"
-fi
 echo
 echo "REMOTE ACCESS FROM THE MAC"
 echo "--------------------------"
 echo
 echo "From the Mac repository run:"
 echo "   ./scripts/easy_dashboard_mac.sh"
-echo "It manages systemd, readiness, the SSH tunnel and Safari."
+echo "It manages systemd, readiness, the SSH tunnel and the browser."
 echo
 
 if [[ "${EASY_OPEN_BROWSER:-1}" == "1" && -n "${DISPLAY:-}" ]]; then

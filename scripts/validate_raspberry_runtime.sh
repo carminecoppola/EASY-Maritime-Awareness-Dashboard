@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# Validate a running dashboard on the Raspberry: smoke test, readiness wait and a
+# check of the main HTTP endpoints. Exit code 0 means the runtime is usable.
 set -euo pipefail
 
 BASE_URL="${EASY_DASHBOARD_URL:-http://127.0.0.1:5000}"

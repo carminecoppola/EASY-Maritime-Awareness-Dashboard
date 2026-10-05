@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# Run the Raspberry Pi runtime benchmark (scripts/benchmark_raspberry_runtime.py) with
+# temperature guards. It restarts easy-dashboard.service, so only run it when no mission
+# is active. Parameters are the EASY_BENCHMARK_* environment variables below.
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

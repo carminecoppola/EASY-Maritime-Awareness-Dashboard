@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# Full local validation before a release: frontend build and tests, Python compile,
+# regression tests, smoke test and shell syntax checks.
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

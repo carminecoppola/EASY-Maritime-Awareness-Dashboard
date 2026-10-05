@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# Write a hardware and OS pre-flight report to data/reports/preflight_report.txt:
+# host, network, model, OS, Python, temperature, memory, disk, camera tools and devices,
+# USB, I2C adapters and recent kernel messages. It only reads; it never changes the system.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

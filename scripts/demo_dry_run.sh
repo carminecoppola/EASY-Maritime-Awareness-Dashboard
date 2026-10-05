@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+#
 set -euo pipefail
 
 # End-to-end rehearsal of the exact flow a live demo would follow: healthcheck

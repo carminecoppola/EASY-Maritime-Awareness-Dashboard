@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# Exercise the inference API with curl: status, start, run on one image, current
+# detections and stop. Usage: scripts/test_inference_api.sh [base-url] [image-path]
 set -euo pipefail
 
 BASE_URL="${1:-http://127.0.0.1:5000}"

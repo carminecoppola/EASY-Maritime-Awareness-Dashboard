@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+#
 set -euo pipefail
 
 # Toggle the Pi's onboard Wi-Fi (wlan0) between its normal home-network
@@ -95,7 +99,7 @@ enable_hotspot() {
 
   echo
   echo "Hotspot should be up: SSID from services/demo-hotspot/hostapd.conf, Pi at ${AP_IP%%/*}."
-  echo "CHANGE THE DEFAULT PASSPHRASE in services/demo-hotspot/hostapd.conf before Naples."
+  echo "CHANGE THE DEFAULT PASSPHRASE in services/demo-hotspot/hostapd.conf before using it in public."
   status
 }
 
