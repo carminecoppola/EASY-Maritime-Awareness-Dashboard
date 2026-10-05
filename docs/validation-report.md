@@ -1,8 +1,10 @@
-# Validation report — 19 July 2026
+# Validation report
 
-## Current validation scope
+Historical record of the validation runs. Dates are in the headings.
 
-The latest Raspberry field check established the stable hardware behavior now
+## Raspberry field check (19 July 2026)
+
+That check established the stable hardware behavior now
 represented by the runtime contract:
 
 - RGB left and right: online, frames available, approximately 10 fps.
@@ -17,10 +19,10 @@ The next hardware release check must confirm that `frame_seq` increases after
 `/thermal/frame`, RGB resumes after the brief thermal acquisition, and no camera
 process remains after `systemctl stop`.
 
-## Local regression for the current change
+## Local regression (July 2026 snapshot; the suites have grown since)
 
 - Python compilation: PASS through `scripts/validate_local_release.sh`.
-- Unit and integration suite: PASS, 41 tests.
+- Unit and integration suite: PASS (41 tests at the time; 155 Python and 157 frontend tests today).
 - Dashboard smoke suite: PASS.
 - JavaScript syntax checks: PASS.
 - Shell syntax checks: PASS.
@@ -51,7 +53,7 @@ continuous stream. Hardware payloads retain their existing fields and add
 ## Runtime benchmark status
 
 The repeatable replay-based Raspberry Pi 4 benchmark is complete for the paper
-evaluation. On the currently deployed sequence-safe/ABOships model, a fresh
+evaluation. On the deployed sequence-safe/ABOships model (`easy_v3_aboships_640.onnx`), a fresh
 50-request run (session freshly started, no prior accumulated history)
 measured a mean backend time of 593 ms and a mean end-to-end request-pipeline
 latency of 967 ms — consistent with the original paper's 574 ms / 908 ms on
@@ -65,7 +67,7 @@ Generated measurement directories are intentionally excluded from source
 history. The paper evaluation archive must preserve the complete raw run,
 environment metadata, exact dependency versions and checksums.
 
-### Session-length confound (found and fixed 17 September 2026)
+### Session-length confound (found and fixed in September 2026)
 
 Re-running this benchmark against a session that had accumulated 16+ hours of
 unattended replay history showed persistence latency growing from the ~140 ms

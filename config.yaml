@@ -1,3 +1,17 @@
+# EASY Maritime Awareness Dashboard
+# Copyright (c) 2026 Carmine Coppola and EASY contributors.
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# Dashboard configuration. Missing keys fall back to easy_dashboard/constants.py
+# (DEFAULT_CONFIG). Only simple nested "key: value" pairs are supported (see
+# easy_dashboard/config.py): no lists and no multi-line values.
+#
+#   app      Flask host and port (the launcher and the systemd unit expect 5000)
+#   rgb      the stereo camera: one process, 1280x480 side by side, cropped into two views
+#   thermal  the PureThermal / FLIR Lepton sensor (mock mode simulates it without hardware)
+#   events   how many events the in-memory log keeps
+#   security optional shared token for state-changing requests
+
 app:
   host: 0.0.0.0
   port: 5000
@@ -16,6 +30,11 @@ rgb:
 thermal:
   enabled: true
   mode: real
+  # The persistent Y16 worker passed the 30-minute recovery test and the
+  # two-hour RGB+thermal endurance gate on the target Raspberry.
+  capture_mode: continuous
+  stream_fps: 9
+  preview_fps: 5
   threshold_celsius: 35.0
   delta_threshold: 8.0
   device: auto

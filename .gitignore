@@ -5,9 +5,14 @@ __pycache__/
 .venv313/
 venv/
 env/
-.playwright-cli/
-.agents/
-skills-lock.json
+node_modules/
+/node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+.mcp.json
+*.bak
 
 # Paper-writing scratch/output, not part of the software project.
 /artifacts/

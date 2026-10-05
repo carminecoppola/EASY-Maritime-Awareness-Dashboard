@@ -2,34 +2,65 @@
 
 ## Remote model
 
-The Flask service runs on the Raspberry under systemd. Safari connects from the
-Mac through an SSH local forward. The browser does not access cameras directly.
+The Flask service runs on the Raspberry under systemd. A browser on the operator's
+Mac reaches it through an SSH local forward (optionally through a jump host); the
+browser never talks to the cameras.
 
-Use the Mac launcher for normal operation:
-
-```bash
-./scripts/easy_dashboard_mac.sh
-```
-
-Optional Mac home launcher:
+### One-command launch (macOS)
 
 ```bash
+./scripts/easy_dashboard_mac.sh                      # from the repository
 ./scripts/easy_dashboard_mac.sh --install-home-launcher
-~/easy_dashboard_mac.sh
+~/easy_dashboard_mac.sh                              # from anywhere afterwards
 ```
 
-The launcher retries transient SSH and tunnel failures automatically. Override the
-defaults with `EASY_SSH_RETRIES` and `EASY_SSH_RETRY_DELAY_SECONDS` if the jump host
-is temporarily unstable.
+The launcher opens **one** authenticated SSH connection and reuses it for every step
+(OpenSSH `ControlMaster`), so credentials or a key passphrase are asked for at most
+once. It then:
 
-Full readiness (`/health/ready`) requires the expected sensors to be operational.
-If Flask is reachable through `/health` but a sensor is unavailable, the launcher
-opens the dashboard after a short delay and reports that it is running in degraded
-mode instead of blocking access to diagnostics.
+1. starts the service only if `/health/ready` is not already answering (a running
+   mission is never interrupted);
+2. waits for `/health/ready`, or for `/health` plus a short delay when a sensor is
+   unavailable, and opens the interface in degraded mode instead of blocking
+   diagnostics;
+3. adds a local port forward (from 5500 upwards) to the open connection;
+4. opens the browser only when the local endpoint really answers.
 
-The automatic preflight lists available I2C adapters but deliberately does not
-scan every bus address. Active `i2cdetect -y` scans can interfere with camera or
-multiplexer control buses and must only be run during isolated hardware diagnosis.
+Configuration lives in `~/.config/easy/launcher.env` (copy
+`scripts/easy_dashboard_mac.env.example`): jump host, Raspberry address, project path
+on the Raspberry, browser, timeouts. Environment variables override the file.
+
+```bash
+~/easy_dashboard_mac.sh --print-config   # show the effective settings
+~/easy_dashboard_mac.sh --stop           # close the shared SSH connection
+```
+
+**If nothing opens.** Run the launcher in a terminal and read its step number
+(0/4 to 4/4). Step 0 failing means the SSH route is wrong or unreachable (check the
+network or VPN to the jump host and `EASY_TARGET_PORT`); step 1 or 2 failing means
+the service on the Raspberry did not start (the launcher prints its journal). To
+avoid typing the key passphrase, run `ssh-add --apple-use-keychain ~/.ssh/<key>`.
+
+## First installation on the Raspberry
+
+```bash
+git clone https://github.com/carminecoppola/EASY-Maritime-Awareness-Dashboard.git ~/easy-dashboard
+cd ~/easy-dashboard
+./install.sh
+sudo systemctl restart easy-dashboard.service
+curl http://127.0.0.1:5000/health/ready
+```
+
+`install.sh` builds the React frontend (needs Node.js 24 and npm), installs the
+Python requirements and registers the service through `scripts/install_service.sh`,
+which renders `services/easy-dashboard.service` for this checkout and user. Without
+Node.js on the Raspberry, build on the Mac (`cd frontend && npm ci --include=dev &&
+npm run build`), copy the whole `frontend/dist/` to the Raspberry and run
+`EASY_FRONTEND_PREBUILT=1 ./install.sh`. Do not run `install.sh` from an active
+virtual environment.
+
+To update later: `git pull --ff-only`, rebuild or copy `frontend/dist/`, then
+`sudo systemctl restart easy-dashboard.service`.
 
 ## Service commands
 
@@ -39,104 +70,99 @@ journalctl -u easy-dashboard.service -n 100 --no-pager
 sudo systemctl stop easy-dashboard.service
 ```
 
-## Recovering an unreadable user database
-
-If the auth users JSON is malformed or unreadable, the application refuses to
-start instead of reopening setup. Stop the service, preserve the damaged file
-for diagnosis, and restore a known-good backup of the configured
-`EASY_DASHBOARD_AUTH_USERS_FILE` (default `data/auth_users.json`). Check ownership
-and read permissions, then
-restart the service. `EASY_DASHBOARD_ENABLE_AUTH=0` does not bypass a damaged
-database. Do not delete the database as a routine recovery step: a missing
-database is treated as first-run setup.
-
 ## Temperature policy
 
 - Start controlled hardware validation only below 70 °C.
-- Thermal capture is paused at 78 °C.
+- Thermal capture pauses at 78 °C CPU temperature.
 - Stop the service immediately at or above 78 °C.
-- PureThermal uses bounded, on-demand captures and releases `/dev/video0`
-  between requests. Do not run a second FFmpeg or `v4l2-ctl` capture while the
-  service owns the device.
-
-Read temperature with:
-
-```bash
-vcgencmd measure_temp
-```
+- `vcgencmd measure_temp` reads the temperature; `vcgencmd get_throttled` reports
+  under-voltage and throttling since boot (`0x0` is clean). Use the official 5 V / 3 A
+  power supply and a good cable: under-voltage is the most common field problem.
 
 ## PureThermal checks
 
 ```bash
 v4l2-ctl --list-devices
-v4l2-ctl -d /dev/video0 --list-formats-ext
 curl http://127.0.0.1:5000/thermal/status
 curl -o /tmp/easy-thermal.jpg http://127.0.0.1:5000/thermal/frame
 curl http://127.0.0.1:5000/thermal/status
 ```
 
-`detected: true` confirms USB enumeration. The normal idle result is
-`runtime_state.availability: READY`, `runtime_state.capture_mode: on_demand`,
-and `streaming: false`. A successful request to `/thermal/frame` must return a
-JPEG and increase `frame_seq`; the sensor then returns to `READY`. If the frame
-request fails while the node is free, inspect the PureThermal firmware and
-physical Lepton seating instead of repeatedly restarting FFmpeg.
+`detected: true` confirms USB enumeration. With the default `continuous` capture mode
+the normal state is `runtime_state.availability: STREAMING` with an increasing
+`frame_seq`; `READY` means detected and waiting for its first frame. Do not run a
+second FFmpeg or `v4l2-ctl` capture while the service owns the device. If frames fail
+while the node is free, inspect the PureThermal firmware and the Lepton seating
+instead of repeatedly restarting FFmpeg.
 
-## Controlled final validation
+The automatic pre-flight lists I2C adapters but deliberately does not scan every bus
+address: an active `i2cdetect -y` scan can hold the camera control bus low and must be
+used only during isolated hardware diagnosis.
 
-1. Stop the service and pull with `git pull --ff-only`.
-2. Confirm CPU temperature below 70 °C.
-3. Start the service once and run `scripts/validate_raspberry_runtime.sh`.
-4. The validator requires real RGB frames, captures one thermal JPEG, checks
-   that `frame_seq` increases, and waits for RGB to resume.
-5. Record temperature and stop immediately on the 78 °C threshold.
-6. Stop the service after the short test unless temperature and frames remain stable.
+## Controlled validation
 
-Use `EASY_SKIP_THERMAL_VALIDATION=1` only when deliberately checking RGB without
-opening PureThermal. The default validation refuses to begin at 70 °C or above.
+1. Stop the service, `git pull --ff-only`, confirm the CPU is below 70 °C.
+2. Start the service once and run `scripts/validate_raspberry_runtime.sh`.
+3. For the camera/thermal runtime run `python scripts/check_raspberry_runtime.py`: it
+   requires real RGB frames, one valid thermal JPEG with an increasing `frame_seq`,
+   and RGB still streaming afterwards (`--skip-thermal` checks RGB only).
+4. Record the temperature and stop at the 78 °C threshold.
 
-## Paper runtime benchmark
+## Runtime benchmark
 
-After hardware validation, use the dedicated, temperature-aware runtime
-protocol. It measures startup, resources, REST latency, inference timing, FPS
-and component states without triggering thermal capture:
+After validation, the temperature-aware protocol measures startup, resources, REST
+latency, inference timing, FPS and component states:
 
 ```bash
 ./scripts/run_raspberry_benchmark.sh
 ```
 
-The complete protocol, output schema and experimental limitations are in
+The protocol, output schema and limitations are in
 [`runtime-benchmark.md`](runtime-benchmark.md).
+`scripts/endurance_inference.py` keeps continuous inference running for hours to watch
+for drift or overheating; its results are not comparable with the benchmark's.
 
-## Demo hotspot (on-site, no home network available)
+## Recovering an unreadable user database
 
-For a demo away from the home network (e.g. a conference), the Pi can create
-its own Wi-Fi network so a laptop connects to it directly, instead of relying
-on the "Remote model" tunnel above, which needs the home network to reach the
-Pi in the first place.
+If the users file is malformed or unreadable, the application refuses to start
+instead of reopening first-run setup (which would let anyone create an admin). Stop
+the service, keep the damaged file for diagnosis and restore a known-good backup of
+`EASY_DASHBOARD_AUTH_USERS_FILE` (default `data/auth_users.json`). Check ownership
+and permissions, then restart. `EASY_DASHBOARD_ENABLE_AUTH=0` does not bypass a
+damaged database. Never delete the file as routine recovery: a missing file is treated
+as first-run setup.
 
-**This Pi has a single Wi-Fi radio and no Ethernet connected.** Enabling the
-hotspot takes `wlan0` away from the home network, which is also how it is
-normally reached over SSH. There is no remote fallback if something goes
-wrong -- only run `scripts/demo_hotspot.sh enable` with a monitor and keyboard
-plugged directly into the Pi, never over the SSH session you are trying to
-keep. `scripts/demo_hotspot.sh status` is read-only and always safe to run
-remotely.
+## systemd hardening: what was tried
+
+A hardened drop-in (`NoNewPrivileges`, `ProtectKernel*`, `ProtectControlGroups`,
+`RestrictSUIDSGID`, `RestrictRealtime`, `ProtectHostname`, `LockPersonality`,
+`ProtectClock`) was bisected directive by directive against the live service. Every
+directive passed except `ProtectClock=true`, which makes `libcamera-vid` fail with
+"Operation not permitted" on `/dev/media*`. Nine directives are therefore safe
+individually; they were not tested in combination. Apply them together without
+`ProtectClock` only in an isolated test cycle, never during active use of the
+hardware, and verify that RGB returns to `STREAMING`.
+
+## Demo hotspot (no network available)
+
+For an on-site demo the Pi can create its own Wi-Fi network instead of relying on the
+tunnel. **The Pi has a single Wi-Fi radio and no Ethernet:** enabling the hotspot
+takes `wlan0` away from the network used for SSH and there is no remote fallback.
+Run `enable` only with a monitor and keyboard attached; `status` is read-only and
+always safe.
 
 ```bash
-# Always safe, read-only:
 ./scripts/demo_hotspot.sh status
-
-# Physical access to the Pi only:
-./scripts/demo_hotspot.sh enable --i-am-physically-at-the-pi
+./scripts/demo_hotspot.sh enable  --i-am-physically-at-the-pi
 ./scripts/demo_hotspot.sh disable --i-am-physically-at-the-pi   # back to home Wi-Fi
 ```
 
-Before Naples:
-- Change the default passphrase in `services/demo-hotspot/hostapd.conf`.
-- Rehearse `enable` and `disable` at least once at home first, with the
-  monitor/keyboard connected, so a problem shows up before travel rather than
-  on-site.
-- Turn on `security.shared_token` (see the developer guide's security model
-  section) once the hotspot is up, since the Wi-Fi password is the only
-  access control otherwise.
+Before using it in public:
+
+- change the passphrase in `services/demo-hotspot/hostapd.conf`;
+- rehearse `enable` and `disable` once with a monitor attached;
+- set `security.shared_token` or enable accounts, because the Wi-Fi passphrase is
+  otherwise the only access control.
+
+`scripts/demo_dry_run.sh` rehearses the whole demo flow (start a replay mission, run
+inferences, check focus assist, stop, verify the manifest).

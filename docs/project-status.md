@@ -1,172 +1,80 @@
 # Project status
 
-EASY is being developed as a local maritime-awareness system running on a
-Raspberry Pi. Its dashboard provides a single interface for viewing RGB and
-FLIR/PureThermal feeds, organizing acquisition missions, running object
-detection, and reviewing the resulting images and activity records.
+## What works today
 
-## Current capabilities
+- Continuous monitoring of two RGB views and a persistent PureThermal (FLIR Lepton)
+  thermal stream, both on one Raspberry Pi 4.
+- Mission-based collection: paired RGB+thermal capture sets, AI detections and
+  activity logs recorded in one manifest per mission.
+- ONNX inference on RGB images (CPU only).
+- Validation and export of datasets (deterministic train/validation split, ZIP).
+- Searchable archive of captures and activity.
+- Optional accounts, roles, step-up authentication and an audit log.
+- Remote operation from a Mac: capture and storage stay on the Raspberry.
 
-- Continuous monitoring of two RGB inputs and on-demand PureThermal capture.
-- Mission-based collection of photographs, AI detections, and activity logs.
-- Structured session manifests and dataset validation/export.
-- ONNX inference on RGB maritime images.
-- Searchable archive of captures and activity, with CSV export for logs.
-- Remote operation from a Mac while capture and storage remain on the Raspberry.
+Camera and thermal availability in a deployment still depends on the connected
+hardware, the USB/V4L2 state and the operating temperature of the Raspberry Pi.
 
-The camera and thermal integrations are implemented. Their availability during
-a deployment still depends on the connected hardware, USB/V4L2 state, and the
-operating temperature of the Raspberry Pi.
+## Model
 
-## Model and dataset
+The dashboard runs `runtime/models/easy_v3_aboships_640.onnx` (YOLOv8n, 640 px; classes
+`boat`, `ship`, `buoy`). It is the same file, byte for byte, that the
+[model repository](https://github.com/carminecoppola/easy-maritime-awareness) releases
+and documents in its model card (SHA-256
+`7b7caf0dd6990cccd4cbbc52ec71026ac1e6183b7df6bebfa1ff0d971f2b87c9`).
 
-The dashboard uses `best.onnx` (YOLOv8n, 640px), exported from the model
-developed in the
-[EASY Maritime Awareness model repository](https://github.com/carminecoppola/easy-maritime-awareness).
-It recognizes three classes: `boat`, `ship`, `buoy`.
+| Measure (sequence-safe internal test set) | Value |
+| --- | ---: |
+| Precision / recall | 0.699 / 0.592 |
+| mAP50 / mAP50-95 | 0.627 / 0.314 |
+| Buoy recall | 0.485 |
 
-### Known limitation: v1 baseline data leakage (superseded)
+**Known limitations.** The model is not validated for open water: on the external MODD2
+benchmark the best EASY model detects 3.87% of obstacles. Early EASY-v1 figures
+(mAP50 0.942) were inflated by sequence-level data leakage and are superseded. The model
+accepts RGB input only; thermal frames are collected for future work and are not
+inference inputs. Details and sources:
+[model repository](https://github.com/carminecoppola/easy-maritime-awareness).
 
-The original baseline, `EASY-v1-rgb3-buoy-rebalanced`, reported mAP50 0.942 on
-its internal test set, but a sequence-level audit found data leakage in the
-official train/val/test split (video sequences split across sets during a
-buoy-rebalancing pass). On a corrected sequence-safe split, the same model
-measures mAP50 0.382, recall 0.369, buoy recall 0.000. External validation on
-MODD2 (open-water, never used in training) confirmed the gap: only 1.05% of
-real obstacles detected.
+## Runtime measurements (Raspberry Pi 4, laboratory)
 
-The currently deployed model adds the public ABOships dataset (9038 images,
-13 sequences, CC BY 4.0) to a sequence-safe split. Measured on the corrected
-test set: mAP50 0.627, recall 0.592, buoy recall 0.485 (vs 0.000). On MODD2 it
-still detects only 3.87% of obstacles -- better, but the open-water/small-object
-domain remains underrepresented in all currently available data, public or
-internal. A proprietary acquisition campaign in the real operating domain is
-required before recall numbers can be trusted at sea; see the model
-repository's `docs/proprietary_acquisition_spec.md`.
+Replay benchmark of 50 inference requests on a freshly started session: mean model time
+593 ms, mean end-to-end request-pipeline latency 967 ms (the original paper measured
+574 ms / 908 ms on the earlier model). Two hours of concurrent RGB and thermal
+acquisition completed without lost RGB views or service restarts, at about 53% of one
+CPU core and 450 MiB of memory; no throttling under CPU stress (77.4 °C peak). These
+figures describe the laboratory prototype only. Sustained inference on both live RGB
+views needs a dedicated, cooled field test, and the replay numbers do not claim it.
+See [validation report](validation-report.md) and [benchmark protocol](runtime-benchmark.md).
 
-The official training baseline is `EASY-v1-rgb3-buoy-rebalanced`. Its repository
-records the following public sources:
+A benchmark taken on a session that had been running unattended for 16+ hours showed
+persistence latency growing from about 140 ms to 280-370 ms, because the session
+manager rewrote the whole detections file on every request. It now appends to a journal
+and compacts periodically. Start every benchmark from a freshly started session: session
+length is a confound.
 
-- **Singapore Maritime Dataset (SMD)** — primary RGB maritime source.
-- **SeaShips** — supporting RGB source for ship and boat imagery; see the
-  [SeaShips paper](https://sites.ucmerced.edu/files/wdu/files/seaship.pdf).
-- **MassMIND (Massachusetts Maritime Infrared Dataset)** — thermal maritime
-  companion and reference for future thermal development; see the
-  [MassMIND repository](https://github.com/uml-marine-robotics/MassMIND).
+## Field readiness check (September 2026)
 
-The deployed ONNX model is currently RGB-only. MassMIND and images acquired
-from the FLIR sensor are not presented as inputs to the current RGB weights;
-they form part of the planned thermal and multimodal extension.
+A combined-load pass (inference, temperature and memory sampled every ~18 s for about
+five minutes) kept the temperature at 57.9-61.3 °C with no throttling event, memory
+steady near 1.6 GB of 7.8 GB, 17 of 17 inference calls succeeding (0.96-1.5 s) and zero
+errors in the service log. Twenty back-to-back thermal captures all succeeded.
 
-## Operational workflow
+**Open item before sea deployment.** `vcgencmd get_throttled` reported `0x50000`:
+under-voltage and throttling have occurred since boot (not during the test). The likely
+cause is a power supply or cable not rated for the combined camera and inference load:
+check the official 5 V / 3 A supply, the cable and any USB hub sharing the rail.
 
-The Analysis page supports the stable test/replay workflow and can select the
-live RGB providers exposed by the camera runtime. Replay remains the repeatable
-validation source. The most recent 50-request replay benchmark, run on the
-currently deployed sequence-safe/ABOships model (see "Model and dataset"
-above) on a freshly started session, measured a mean backend time of 593 ms
-and a mean end-to-end request-pipeline latency of 967 ms — in line with the
-original paper's 574 ms / 908 ms on the earlier model. Sustained live-RGB
-inference still requires a dedicated cooled field test and is not claimed by
-those replay measurements. The deployed model accepts RGB input only.
-
-An earlier re-measurement on a session that had been running unattended for
-16+ hours showed persistence latency growing from ~140 ms to 280-370 ms. The
-cause was `session_manager.py` rewriting the session's entire growing
-detections/events file on every request; fixed by switching to an
-append-only journal with periodic compaction (the same pattern
-`detection_manager.py` already used). Benchmark comparisons across sessions
-should start from a freshly stopped/started session — accumulated session
-length is a confound, not just wall-clock time since deployment.
-
-The Mission page groups one acquisition period into a session. While a mission
-is active, EASY can associate captured images, inference results, detections,
-and logs with the same manifest. The resulting material can then be reviewed,
-validated, and exported for future dataset growth and fine-tuning.
-
-The Archive page keeps saved images and activity records accessible after a
-mission. Operators can filter the records and export logs in CSV format. The
-Live page remains focused on the current camera feeds and their availability.
+Not testable on a bench: wave motion and vibration, real glare and lighting, and
+detection against real open-water objects (the purpose of the planned acquisition
+campaign).
 
 ## Next steps
 
-1. Complete a cooled endurance test of continuous RGB plus repeated on-demand
-   thermal captures.
-2. Benchmark sustained ONNX inference from both live RGB views.
-3. Collect new RGB and thermal samples with the EASY apparatus.
-4. Review and label the acquired material before adding it to a versioned dataset.
-5. Evaluate fine-tuning and, separately, a thermal or multimodal model extension.
-
-New field data must not be added directly to the frozen EASY-v1 baseline. Any
-future training dataset should have its own version, documented provenance,
-label policy, and leakage-safe train/validation/test split.
-
-## Nota: tentativo di hardening systemd (2026-08-28)
-
-Tentato un drop-in di hardening sicuro (`NoNewPrivileges`, `ProtectKernelTunables`,
-`ProtectKernelModules`, `ProtectKernelLogs`, `ProtectControlGroups`,
-`RestrictSUIDSGID`, `RestrictRealtime`, `ProtectClock`, `ProtectHostname`,
-`LockPersonality`) sul servizio `easy-dashboard.service` per migliorare il
-punteggio `systemd-analyze security` (9.2/10 UNSAFE, nessun hardening
-presente). Il tentativo ha rotto l'accesso alla camera RGB reale
-(`libcamera-vid`: "Operation not permitted" su `/dev/media*`), pur non
-toccando esplicitamente device/filesystem/rete. Causa probabile: una delle
-direttive `Protect*`/`NoNewPrivileges` interferisce col modello di permessi
-gestito da udev per i device multimediali (verosimilmente richiede
-appartenenza a gruppi supplementari applicata a runtime). Ripristinato
-immediatamente e verificato che RGB torni STREAMING. Non ritentare senza un
-ciclo di test isolato (bisect delle singole direttive) fuori da un momento
-di utilizzo attivo dell'hardware — non è più stato ritentato in questa sessione.
-
-## Bisection hardening systemd (2026-08-28, seguito)
-
-Bisect completo delle 10 direttive del tentativo precedente, testate una alla
-volta contro il servizio live reale (systemd restart + verifica STREAMING
-della camera RGB dopo ogni singola direttiva):
-
-PASS (sicure singolarmente): `NoNewPrivileges`, `ProtectKernelTunables`,
-`ProtectKernelModules`, `ProtectKernelLogs`, `ProtectControlGroups`,
-`RestrictSUIDSGID`, `RestrictRealtime`, `ProtectHostname`, `LockPersonality`.
-
-FAIL: `ProtectClock=true` — rompe l'acquisizione camera RGB da sola
-("Operation not permitted" su `/dev/media*`, stesso sintomo del tentativo
-combinato). Causa probabile: `ProtectClock` nega l'accesso a
-`CAP_SYS_TIME`/`CAP_WAKE_ALARM` e ad alcune interfacce clock del kernel;
-libcamera/il pipeline handler RPi potrebbe richiedere accesso a interfacce
-correlate all'orologio di sistema per la sincronizzazione dei frame o la
-gestione dei device V4L2/media, sebbene la causa esatta non sia stata
-isolata a livello di syscall.
-
-Le altre 9 direttive sono state confermate sicure singolarmente. Non sono
-state testate in combinazione tra loro in questa sessione: se si vuole
-applicare l'hardening in futuro, applicarle insieme (escludendo
-`ProtectClock`) e verificare comunque l'accesso camera con un ciclo di
-restart dedicato, dato che un'interazione tra più direttive non è esclusa
-a priori.
-
-
-## Ground-readiness check (2026-09-10, remote)
-
-Combined-load endurance pass (~5 min, 17 cycles: inference + temperature +
-memory sampling every ~18s): temperature stable 57.9-61.3C, no throttling
-event during the window, memory stable ~1.6GB/7.8GB, 17/17 inference calls
-succeeded (955-1500ms), zero errors in the service log.
-
-Repeated thermal capture (20 back-to-back `/thermal/refresh` calls, ~1s
-apart): 20/20 succeeded, no degradation, status stayed READY throughout.
-
-**Open issue found**: `vcgencmd get_throttled` reports `0x50000` --
-under-voltage and throttling have occurred since last boot (not during this
-test, but at some point). Likely cause: power supply/USB-C cable not rated
-for the combined camera + inference load. Needs physical check before sea
-deployment: official Pi 4 power supply (5V/3A), cable quality, any USB hub
-drawing current from the same rail.
-
-7-day log review: no recurring errors beyond normal per-boot camera
-initialization sequence (NOT_PRESENT -> ERROR -> INITIALIZING -> STREAMING,
-self-resolves in under a second, expected behavior).
-
-Not testable without the actual sea environment: wave motion/vibration,
-real water glare and lighting conditions, detection validation against real
-open-water objects (this is the object of the planned proprietary
-acquisition campaign, not a bench test).
+1. Benchmark the 960 px model on the Raspberry Pi 4 and decide whether to deploy it.
+2. Cooled endurance test of continuous RGB plus thermal capture, and sustained inference
+   from both live RGB views.
+3. Collect RGB and thermal samples with the EASY apparatus in the real operating domain.
+4. Review and label them before adding them to a *versioned* dataset (never to a frozen
+   baseline), with documented provenance, label policy and a sequence-safe split.
+5. Evaluate fine-tuning and, separately, a thermal or multimodal model.

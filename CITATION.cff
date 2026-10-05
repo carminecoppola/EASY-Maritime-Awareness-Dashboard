@@ -1,0 +1,39 @@
+cff-version: 1.2.0
+message: "If you use the EASY Maritime Awareness Dashboard in your work, please cite it as below and, where relevant, the associated papers."
+title: "EASY Maritime Awareness Dashboard: an edge node for dual-sensor (RGB and thermal) maritime monitoring on Raspberry Pi"
+type: software
+version: 1.0.0
+date-released: 2026-10-05
+license: BSD-3-Clause
+repository-code: "https://github.com/carminecoppola/EASY-Maritime-Awareness-Dashboard"
+authors:
+  - family-names: Coppola
+    given-names: Carmine
+keywords:
+  - maritime awareness
+  - edge computing
+  - Raspberry Pi
+  - thermal imaging
+  - object detection
+  - dataset acquisition
+references:
+  - type: conference-paper
+    title: "An Edge Node for Citizen-Contributed Maritime Observations"
+    authors:
+      - family-names: Coppola
+        given-names: Carmine
+      - family-names: Bucciero
+        given-names: V.
+      - family-names: Perrotta
+        given-names: S.
+      - family-names: Montella
+        given-names: R.
+    collection-title: "INSTIL Workshop, IEEE eScience 2026"
+    year: 2026
+  - type: software
+    title: "EASY - Environmental Awareness by the Sea and beYond (model repository)"
+    authors:
+      - family-names: Coppola
+        given-names: Carmine
+    repository-code: "https://github.com/carminecoppola/easy-maritime-awareness"
+    year: 2026

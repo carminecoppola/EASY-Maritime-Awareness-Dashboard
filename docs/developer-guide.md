@@ -1,15 +1,27 @@
 # Developer guide
 
-## Runtime ownership
+## Architecture in one page
 
-`app.py` builds stores, hardware adapters, and `SystemOrchestrator`, then
-registers Flask blueprints. The orchestrator owns manager lifecycle; routes
-retrieve collaborators through `DashboardRuntime` and remain thin.
+```text
+Raspberry Pi                                              Operator's Mac
+┌──────────────────────────────────────────────┐          ┌──────────────┐
+│ app.py (Flask)                               │          │ browser      │
+│  ├─ easy_dashboard/routes/   HTTP API + SPA  │ ◄─ SSH ─►│ React SPA    │
+│  ├─ DashboardRuntime         payload builders│  tunnel  └──────────────┘
+│  └─ SystemOrchestrator       supervises:     │
+│      DeviceManager · SourceManager           │
+│      SessionManager · AcquisitionManager     │
+│      EventManager · DetectionManager         │
+│      DatasetExporter · InferenceWorker       │
+│ hardware: RgbMasterSource · ThermalState     │
+└──────────────────────────────────────────────┘
+```
 
-The React frontend lives in `frontend/src/`. Shared dashboard state and polling
-are owned by its hooks; page components render the results. User actions use
-`frontend/src/api/client.ts` for consistent timeouts, authentication and errors.
-Flask serves the production build from `frontend/dist/`.
+`app.py` builds the stores, the hardware adapters and the `SystemOrchestrator`,
+registers the Flask blueprints and installs the authentication hook. Slow start-up
+work (pre-flight, sensor detection, starting the cameras) runs in a background
+thread, so Flask answers `/health` immediately while the sensors come up. Routes
+stay thin: they reach their collaborators through `DashboardRuntime`.
 
 ## Data flow
 
@@ -22,102 +34,108 @@ sensor or replay frame
   → DatasetExporter validation and ZIP
 ```
 
-RGB live providers consume callbacks from the existing camera owner, avoiding a
-second camera process. PureThermal performs a bounded FFmpeg capture on demand,
-caches the resulting JPEG, and releases the V4L2 node. RGB (CSI/libcamera) and
-thermal (USB/UVC) go through independent V4L2 paths, so RGB capture is not
-paused during thermal capture; a concurrent capture test showed RGB was never
-interrupted. Thermal capture is refused above the configured CPU temperature
-limit.
+* **RGB.** One `rpicam-vid`/`libcamera-vid` process outputs a side-by-side MJPEG
+  stereo image. `RgbMasterSource` owns it and crops the left and right views, so
+  the camera is opened exactly once; live inference reads frames through a callback
+  instead of opening a second process.
+* **Thermal.** `ThermalState` runs a persistent FFmpeg worker (Y16, 160×120) in
+  `continuous` mode (the default) or bounded single-frame captures in `on_demand`
+  mode. RGB (CSI/libcamera) and thermal (USB/UVC) use independent paths, so RGB is
+  never paused. Capture stops above 78 °C CPU temperature.
+* **Persistence.** Detections and session data are appended to JSONL journals
+  (constant cost per inference) and compacted into JSON snapshots when large and old
+  enough, on stop and on graceful shutdown. See the module docstrings of
+  `detection_manager.py` and `session_manager.py`.
 
-Detection history uses an append-only `detection_history.jsonl` journal on the
-hot path. `detection_history.json` remains the compatible compact snapshot and
-is refreshed when both the age and size thresholds are reached, or when the
-manager starts and clears its state.
+## Module map
+
+| Module | Responsibility |
+| --- | --- |
+| `app.py` | Flask factory, authentication hook, background bootstrap |
+| `system_orchestrator.py` | Builds and supervises every component, health aggregation |
+| `device_manager.py`, `source_manager.py`, `runtime_catalog.py` | Devices, selectable sources, canonical endpoints |
+| `frame_provider.py` | Replay and live frame providers behind one interface |
+| `inference_*.py` | Configuration, ONNX backend, image pipeline, result format, worker |
+| `detection_manager.py`, `event_manager.py` | Detections and mission events |
+| `session_manager.py`, `acquisition_manager.py` | Missions, manifests, RGB/thermal pairing |
+| `dataset_exporter.py` | Validation and export of datasets |
+| `easy_dashboard/` | Config, stores, auth, hardware adapters, runtime status, routes |
+| `frontend/src/` | React application (pages, components, hooks, API client) |
+
+Every module starts with a docstring that explains its role; read it first.
 
 ## Stable interfaces
 
 Public Flask routes and required payload fields are compatibility boundaries.
-Internal refactors should keep adapters for existing imports. Generic manager
-normalization lives in `runtime_support.py`. The shared hardware contract lives
-in `easy_dashboard/runtime_status.py` and distinguishes `READY` from
-`STREAMING`; adapters, `/health`, presentation code, and the browser consume
-that same contract.
+The shared hardware contract lives in `easy_dashboard/runtime_status.py`
+(`STREAMING`, `READY`, `INITIALIZING`, `NOT_PRESENT`, `ERROR`); adapters, `/health`
+and the browser all consume it. Main endpoint groups:
 
-Important endpoint groups:
-
-- `/health/ready` for lightweight service readiness; `/health` for complete diagnostics
+- `/health/ready` (lightweight) and `/health` (full diagnostics)
 - `/api/dashboard/state`, `/api/status/summary`
 - `/video/*`, `/thermal/*`, `/api/stream-state`
-- `/api/session/*`, `/api/acquisition/*`
-- `/api/inference/*`, `/api/detections/*`, `/api/events/*`
-- `/api/dataset/*`
+- `/api/session/*`, `/api/acquisition/*`, `/api/dataset/*`
+- `/api/inference/*`, `/api/detection(s)/*`, `/api/events/*`
+- `/api/auth/*`
 
 ## Extending the project
 
-Add a source by defining its catalog entry, device status provider, frame
-provider adapter, and capability flags. Add a model backend behind the inference
-backend contract; do not put model-specific loading into route handlers.
-
-Inference responsibilities are intentionally separate: `inference_config.py`
-loads paths and thresholds, `inference_backend.py` owns ONNX Runtime,
-`inference_image.py` owns preprocessing, YOLO decoding, NMS, and preview
-drawing, `inference_results.py` preserves the public detection representation,
-and `InferenceWorker` coordinates frames, lifecycle, persistence, and events.
+* **A new source:** add its catalog entry in `runtime_catalog.py`, a status provider
+  for the device manager, a frame provider adapter and its capability flags.
+* **A new model:** put the ONNX file in `runtime/models/`, point
+  `runtime/config/inference_config.json` at it and adjust the class list. Keep
+  model-specific code in `inference_backend.py` and `inference_image.py`, never in
+  route handlers. Record its checksum in the model repository (see
+  *Models* in [Project status](project-status.md)).
+* **A new page:** add the route in `frontend/src/routes.tsx`, the navigation entry in
+  `components/layout/navItems.ts` and use `useSharedDashboardState()` for data
+  instead of adding another poller.
 
 ## Security model
 
-The dashboard has no login and assumes a trusted LAN, matching how it's
-deployed today (Raspberry Pi reachable over LAN and an SSH tunnel from the
-operator's Mac). For a demo on a network with untrusted peers, set
-`security.shared_token` in `config.yaml` (or the `EASY_DASHBOARD_TOKEN` env
-var, which takes precedence) to require an `X-EASY-Token` header on every
-state-changing request; GETs stay open. The token is rendered into the page
-itself (`templates/base.html` → `window.EASY_DASHBOARD_TOKEN`), so it blocks
-requests that never loaded the real dashboard origin — it is not a substitute
-for real authentication. Leave it unset for the default trust model.
+By default the dashboard assumes a trusted LAN reached through an SSH tunnel. Three
+layers can be added:
 
-## Regression strategy
+1. **Accounts and roles** (`easy_dashboard/auth.py`): local users, roles
+   (`viewer < operator < admin`), server-side sessions with CSRF protection, scrypt
+   password hashing, login rate limiting and an audit log. Enforcement is a
+   two-key switch: an Admin enables it in *Users & Roles*, or the
+   `EASY_DASHBOARD_ENABLE_AUTH` environment variable forces it (`1`) or disables it
+   (`0`, the emergency way back in for a locked device). First-run setup never
+   locks anyone out.
+2. **Step-up authentication** for destructive actions (password typed again within
+   five minutes).
+3. **Legacy shared token**: `security.shared_token` in `config.yaml` or
+   `EASY_DASHBOARD_TOKEN` requires an `X-EASY-Token` header on state-changing
+   requests. It is not a substitute for real authentication.
 
-`tests/` covers normalized runtime states, manager propagation, stable API
-payloads, session lifecycle, synchronized capture sets, dataset validation, and
-ZIP export. `scripts/smoke_dashboard.py` remains the fast whole-application
-check. GitHub Actions runs both suites plus Python, JavaScript, and shell syntax
-checks. Raspberry validation stays explicit and separate from CI.
+## Testing
 
-Hardware responsibilities are separated behind the compatibility module
-`easy_dashboard.hardware`, which re-exports `RgbMasterSource` from
-`rgb_hardware.py` and `ThermalState` from `thermal_hardware.py` (split apart
-once their RGB/thermal coordination was removed). `system_probe.py` owns
-read-only host diagnostics, `rgb_capture.py` owns RGB command construction and
-MJPEG framing, and `thermal_discovery.py` owns PureThermal node recognition and
-ranking. Existing `SystemProbe`, `RgbMasterSource`, and `ThermalState` imports
-remain valid for routes and external scripts. `RgbMasterSource.focus_score()`
-reports a Laplacian-variance sharpness estimate for the live page's manual
-focus assist (there is no autofocus actuator on these fixed-lens modules).
+```bash
+python -m unittest discover -s tests -v      # backend (hardware-free)
+python scripts/smoke_dashboard.py            # whole-application smoke test
+cd frontend && npm test                      # unit tests (Vitest)
+cd frontend && npm run test:e2e              # browser tests (Playwright)
+scripts/validate_local_release.sh            # everything above plus shell checks
+```
 
-## Glossary
-
-- **Mission / session** — one bounded operating and persistence period.
-- **Capture set** — one coordinated sensor action.
-- **Sample** — manifest group used as one training example.
-- **Detection** — one model observation for a frame.
-- **Event** — an operator-relevant state derived from runtime or detections.
-- **Manifest** — session index of saved artifacts and metadata.
+GitHub Actions runs the same suites. Raspberry hardware validation is explicit and
+separate from CI (see [Raspberry operations](raspberry-operations.md)).
 
 ## Snapshot archive
 
 `SnapshotStore` keeps JPEGs and JSON sidecars as the source data and a derived
-SQLite index at `data/snapshots/snapshots.sqlite3`. Startup rebuilds the index
-from the archive, including legacy filenames and offline metadata changes.
-Normal captures update the index immediately; polling does not scan image
-directories or read sidecars. Stop the service before editing archive files
-externally and restart afterward to reconcile them. If the derived index is
-damaged, remove only `snapshots.sqlite3` while the service is stopped; startup
-recreates it from the JPEGs and sidecars.
+SQLite index at `data/snapshots/snapshots.sqlite3`, rebuilt at start-up (so offline
+edits and legacy files are picked up). Stop the service before editing archive files
+by hand. If the index is damaged, delete only `snapshots.sqlite3` while the service
+is stopped. `GET /api/snapshots/recent?limit=24&offset=24` pages through the archive;
+`count` and `summary` always cover the whole archive.
 
-`GET /api/snapshots/recent?limit=24&offset=24` supports pagination. `count` and
-`summary` cover the complete archive, independent of the page size. Images are
-ordered by modification time descending, then filename descending for ties.
-Snapshot filenames contain a UUID and are created exclusively; failed saves
-clean up their newly created files instead of advertising partial captures.
+## Glossary
+
+- **Mission / session** — one bounded acquisition period.
+- **Capture set** — one coordinated RGB+thermal capture.
+- **Sample** — the manifest group used as one training example.
+- **Detection** — one model observation in one frame.
+- **Event** — an operator-relevant state derived from detections.
+- **Manifest** — the session index of saved artifacts and metadata.

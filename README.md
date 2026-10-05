@@ -1,172 +1,173 @@
+<div align="center">
+
 # EASY Maritime Awareness Dashboard
 
-EASY is a Raspberry Pi dashboard for RGB and FLIR/PureThermal monitoring,
-mission-based acquisition, ONNX inference, and dataset export. The browser runs
-on the operator's Mac; camera capture and data storage remain on the Raspberry.
+**An edge node for dual-sensor maritime monitoring: RGB + thermal capture, on-device AI and dataset building on a Raspberry Pi**
 
-The two RGB views are continuous streams. PureThermal is acquired on demand so
-the V4L2 node can be released between frames: `READY` means the sensor is found
-and available, while `STREAMING` is only the short interval around a capture.
+[![Quality checks](https://github.com/carminecoppola/EASY-Maritime-Awareness-Dashboard/actions/workflows/quality.yml/badge.svg)](https://github.com/carminecoppola/EASY-Maritime-Awareness-Dashboard/actions/workflows/quality.yml)
+[![License: BSD-3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
+![Platform](https://img.shields.io/badge/runs%20on-Raspberry%20Pi%204-c51a4a)
+![Stack](https://img.shields.io/badge/stack-Flask%20·%20React%20·%20ONNX%20Runtime-1f6feb)
 
-## Start here
+</div>
 
-- [Operator guide](docs/operator-guide.md) — use the dashboard and collect data.
-- [Developer guide](docs/developer-guide.md) — understand the runtime and APIs.
-- [Raspberry operations](docs/raspberry-operations.md) — install, launch, diagnose, and test safely.
-- [Raspberry runtime benchmark](docs/runtime-benchmark.md) — reproduce the IEEE system-performance measurements.
-- [Project status](docs/project-status.md) — current capabilities, model, dataset sources, and next steps.
-- [Latest validation report](docs/validation-report.md) — measured Mac and Raspberry results.
+EASY (*Environmental Awareness by the Sea and beYond*) turns a Raspberry Pi with two RGB
+cameras and a FLIR/PureThermal sensor into a maritime observation node. The operator
+works from a browser on a Mac; capture, inference and storage stay on the Raspberry.
 
-## Installation
+| | |
+| --- | --- |
+| **Live view** | two continuous RGB feeds and a persistent thermal stream, with honest readiness states (`STREAMING`, `READY`, `ERROR`, ...) |
+| **Missions** | a pre-flight checklist, then one manifest per mission that links captures, detections and events |
+| **Paired capture** | RGB left + RGB right + thermal saved under one capture-set id, with the *measured* time skew between sensors |
+| **On-device AI** | YOLOv8n in ONNX Runtime on the CPU, ≈ 0.6 s per frame, classes `boat` · `ship` · `buoy` |
+| **Datasets** | validation of paired samples and export as a ZIP with a deterministic train/validation split |
+| **Operations** | one-command remote launcher for macOS, systemd service, benchmark and validation tools |
+| **Access control** | optional local accounts, roles, step-up authentication and an audit log |
 
-The target runtime is Raspberry Pi OS with Python 3.9. On the Raspberry:
+> **Honest scope.** The detector was trained on public datasets and is **not validated for
+> open water** (3.87% of obstacles found on the external MODD2 benchmark). It assists data
+> collection and research; it is not a navigation or safety system. See
+> [Project status](docs/project-status.md).
 
-The default installer also builds the React frontend and requires Node.js 24
-and npm. For a Raspberry without Node.js, build on the Mac with
-`cd frontend && npm ci --include=dev && npm run build`, copy the complete
-`frontend/dist/` directory from the same revision to the Raspberry, then run
-`EASY_FRONTEND_PREBUILT=1 ./install.sh` there. The installer checks that the
-frontend exists before enabling the service.
-
-```bash
-cd ~/Desktop/carmine/easy-dashboard
-./install.sh
-sudo install -m 644 services/easy-dashboard.service /etc/systemd/system/easy-dashboard.service
-sudo systemctl daemon-reload
-sudo systemctl enable easy-dashboard.service
-```
-
-Do not run `install.sh` from an active virtual environment; the Raspberry
-installer uses the platform-compatible package layout.
-
-## One-command remote launch
-
-From the project clone on the Mac:
-
-```bash
-./scripts/easy_dashboard_mac.sh
-```
-
-To make the launcher available directly from your Mac home directory, run once:
-
-```bash
-./scripts/easy_dashboard_mac.sh --install-home-launcher
-```
-
-After that, launch EASY from any directory with `~/easy_dashboard_mac.sh`. Transient
-SSH or ProxyJump interruptions are retried automatically three times.
-
-The launcher also opens the interface when Flask is available but one or more
-sensors still require attention. In that case it prints a degraded-mode warning;
-the Live and System pages show which sensor prevented full runtime readiness.
-
-The launcher connects through the configured jump host, installs the current
-systemd unit, restarts the Raspberry service, waits for `/health`, creates a
-local SSH tunnel on the first available port from `5500`, and opens Safari only
-after the dashboard responds.
-
-The launcher intentionally does not run `git pull`. Update the Raspberry clone
-explicitly so local changes can never be overwritten silently.
-
-## Paper and presentation preview
-
-Open `/paper-preview` when the physical cameras are unavailable but a stable
-interface figure is needed for a paper or presentation. The view uses two
-recorded SeaShips RGB samples already stored in the repository and a clearly
-labelled illustrative thermal reference. It does not poll the hardware APIs or
-present any of these assets as live measurements.
-
-For a clean figure, open the page at the normal dashboard URL, hide the browser
-toolbar or enter full screen, and capture the dashboard viewport. Keep the
-“Paper preview” banner visible so the provenance of the displayed data remains
-unambiguous.
-
-## Architecture
+## How it fits together
 
 ```text
-RGB cameras / PureThermal / replay
-                │
-                ▼
-        hardware and providers
-                │
-       ┌────────┴────────┐
-       ▼                 ▼
- acquisition         ONNX inference
-       │                 │
-       └────────┬────────┘
-                ▼
-       mission manifest/events
-                │
-                ▼
-      validated dataset export
+ RGB cameras ─┐                                          ┌────────── Mac ──────────┐
+ PureThermal ─┼─► frame providers ─► acquisition ─┐      │  browser (React SPA)    │
+ replay set  ─┘          │                        ├─► mission manifest ─► dataset   │
+                         └──► ONNX inference ─────┘      └─────▲───────────────────┘
+                                                               │ SSH tunnel
+        Raspberry Pi 4: Flask + SystemOrchestrator ────────────┘
 ```
 
-Flask routes are under `easy_dashboard/routes/`. Long-lived services are
-created by `SystemOrchestrator`. Runtime data belongs under `runtime/`; operator
-snapshots belong under `data/snapshots/`.
+The detection model lives in its own repository,
+[**easy-maritime-awareness**](https://github.com/carminecoppola/easy-maritime-awareness),
+with its training, validation and honest results. The file in
+`runtime/models/` is byte-identical to the one released there.
 
-## Local validation
+## Quick start
 
-Local tests do not require Raspberry hardware:
+### Run it on your machine (no hardware needed)
 
 ```bash
-# First time (Node.js 24 and Python dependencies must be installed):
-(cd frontend && npm ci --include=dev && npx playwright install chromium)
-./scripts/validate_local_release.sh
+git clone https://github.com/carminecoppola/EASY-Maritime-Awareness-Dashboard.git
+cd EASY-Maritime-Awareness-Dashboard
+python3 -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt
+(cd frontend && npm ci --include=dev && npm run build)
+EASY_DASHBOARD_PORT=5051 python app.py   # then open http://127.0.0.1:5051
 ```
 
-The validator builds the frontend, runs React and Python tests, checks the
-backend and shell scripts, then runs Chromium smoke tests against Flask.
-Set `EASY_PYTHON_BIN` to select the Python interpreter for both backend tests
-and the browser test server.
+On macOS port 5000 belongs to the AirPlay Receiver, hence the explicit port. On the
+Raspberry the service uses the `app.port` of `config.yaml` (5000).
 
-The same regression suite runs on every push and pull request through
-`.github/workflows/quality.yml`. Hardware tests remain separate because hosted
-CI cannot validate V4L2, libcamera, CPU temperature, or the physical sensors.
+Without cameras the dashboard starts in replay mode with the sample images in
+`runtime/replay/`, so you can try missions, analysis and export.
 
-The paper evaluation also uses scripted Raspberry checks; these are reported separately
-because they depend on physical cameras and the target device.
+### Deploy on the Raspberry Pi
 
-On the Raspberry, use `scripts/validate_raspberry_runtime.sh` only during a
-controlled validation window. Stop the service if CPU temperature reaches
-78 °C or the thermal device fails to produce frames. The validator performs one
-bounded thermal capture and confirms that the RGB process resumes afterward.
+```bash
+git clone https://github.com/carminecoppola/EASY-Maritime-Awareness-Dashboard.git ~/easy-dashboard
+cd ~/easy-dashboard && ./install.sh
+sudo systemctl restart easy-dashboard.service
+```
+
+Requires Raspberry Pi OS with Python 3.9+, `libcamera`/`rpicam` tools for the cameras,
+`ffmpeg` and `v4l2-ctl` for the thermal sensor, and Node.js 24 to build the frontend
+(or build on the Mac and copy `frontend/dist/`). Full procedure:
+[Raspberry operations](docs/raspberry-operations.md).
+
+### Open it from the Mac
+
+```bash
+cp scripts/easy_dashboard_mac.env.example ~/.config/easy/launcher.env   # set your Raspberry address
+./scripts/easy_dashboard_mac.sh --install-home-launcher
+~/easy_dashboard_mac.sh
+```
+
+The launcher opens one SSH connection (through an optional jump host), starts the
+service only if it is not already healthy, waits for readiness, forwards a local port
+and opens the browser once the dashboard really answers.
+
+## Documentation
+
+| Guide | For |
+| --- | --- |
+| [Operator guide](docs/operator-guide.md) | running a mission and reading the status |
+| [Developer guide](docs/developer-guide.md) | architecture, data flow, extending, security model |
+| [Raspberry operations](docs/raspberry-operations.md) | install, launch, diagnose, validate, demo hotspot |
+| [Project status](docs/project-status.md) | capabilities, model, measurements, next steps |
+| [Runtime benchmark](docs/runtime-benchmark.md) | the reproducible Raspberry measurement protocol |
+| [Validation report](docs/validation-report.md) | what was verified, and when |
+| [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) | how to help, how to report a problem |
 
 ## Repository map
 
-- `app.py` — Flask application factory and runtime wiring.
-- `easy_dashboard/` — configuration, hardware adapters, presentation, routes, and shared runtime context.
-- `*_manager.py` — sessions, acquisition, sources, devices, detections, and events.
-- `inference_config.py` / `inference_backend.py` / `inference_image.py` / `inference_results.py` — inference configuration, model execution, image processing, and stable result formatting.
-- `inference_worker.py` — inference lifecycle and frame-provider orchestration.
-- `frontend/` — React operator interface; Flask serves the production build in `frontend/dist/`.
-- `scripts/` — launch, smoke, benchmark, and Raspberry validation tools.
-- `docs/archive/` — historical implementation reports; not current operating instructions.
+```text
+app.py                      Flask application factory
+system_orchestrator.py      builds and supervises every component
+*_manager.py, frame_provider.py, inference_*.py, dataset_exporter.py
+                            sessions, devices, sources, detections, events, inference, export
+easy_dashboard/             config, stores, auth, hardware adapters, runtime status, HTTP routes
+frontend/                   React operator interface (served from frontend/dist)
+runtime/                    model, configuration and replay assets (missions are generated here)
+scripts/                    launcher, install, benchmark, validation and demo tools
+services/                   systemd unit template, demo hotspot configuration
+tests/                      Python regression tests (no hardware needed)
+docs/                       guides and reports
+```
 
-## Compatibility
+Every source file starts with a header and a docstring explaining its role.
 
-Existing HTTP routes and required JSON fields are kept stable. Internal modules
-may be reorganized behind compatibility adapters as the project is simplified.
-Hardware payloads also expose a `runtime_state` object with normalized
-availability, readiness, streaming, health, and capture-mode fields.
+## Tests
 
-Snapshot acquisition endpoints (`/snapshot/rgb_left`, `/snapshot/rgb_right`,
-`/snapshot/thermal`, `/thermal/snapshot`) require POST. GET and HEAD return
-405 and never capture. With role enforcement enabled, capture requires an
-Operator or Admin; cookie sessions also require `X-EASY-CSRF`.
+```bash
+./scripts/validate_local_release.sh
+```
 
-## Reproducibility
+builds the frontend, runs the React and Python suites, the smoke test and shell checks.
+The same checks run on every push (`.github/workflows/quality.yml`). Hardware checks
+stay separate because hosted CI cannot validate libcamera, V4L2 or the sensors.
 
-The Raspberry benchmark writes raw samples, environment metadata, dependency
-versions, summaries, LaTeX tables and checksums. Generated runs are deliberately
-kept outside Git history and must be copied intact into the companion paper
-evaluation archive. `requirements.txt` defines supported installation ranges;
-the exact packages used for a reported experiment belong in that archive's
-`environment.json` or an exported lock file.
+## Publications
 
-## License
+This software is the system described in:
 
-The dashboard software is distributed under the BSD 3-Clause License. See
-[`LICENSE`](LICENSE). Captured images, replay material, model files and other
-third-party assets may have separate provenance and usage conditions; the
-software license does not override those terms.
+- C. Coppola, V. Bucciero, S. Perrotta, R. Montella,
+  *An Edge Node for Citizen-Contributed Maritime Observations*,
+  INSTIL Workshop, IEEE eScience 2026, Naples.
+- C. Coppola, V. Bucciero, S. Perrotta, R. Montella,
+  *An Instrumented Edge Node for Dual-Sensor Maritime Safety Monitoring*,
+  poster, IEEE eScience 2026 (Best Poster Award, participants' selection).
+
+Laboratory results on the Raspberry Pi 4 prototype: two hours of concurrent RGB and
+thermal acquisition without lost RGB views or service restarts, about 53% of one CPU
+core and 450 MiB of memory in steady capture, 1.08 s mean end-to-end latency over 50
+replay requests, and no throttling under CPU stress (77.4 °C peak). These figures refer
+to the laboratory prototype only; thermal fusion and field deployment are future work.
+
+## Citing and credits
+
+If you use this software, the models or ideas from it in your work, **please cite it**.
+GitHub's *Cite this repository* button reads [`CITATION.cff`](CITATION.cff); for a paper,
+cite the INSTIL publication above.
+
+Created and maintained by **Carmine Coppola**, with the EASY project collaborators named
+in the publications. Third-party components and datasets are credited in
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+
+## Licence
+
+Code and original documentation: **BSD 3-Clause**, © 2026 Carmine Coppola and EASY
+contributors ([`LICENSE`](LICENSE), [`NOTICE`](NOTICE)). You may use, modify and
+redistribute them provided the copyright notice and the licence text are kept in your
+source and in the documentation of your binaries, and you may not use the author's name
+to endorse derived products without written permission. For other uses, or if in doubt,
+ask first: contact the author through GitHub
+([@carminecoppola](https://github.com/carminecoppola)).
+
+The licence does **not** cover third-party material: the model weights (derived from
+Ultralytics YOLOv8, AGPL-3.0; trained on datasets such as ABOships, CC BY 4.0), sample
+images and bundled front-end snippets keep their own terms. See
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).

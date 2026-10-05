@@ -62,11 +62,9 @@ that does need such a sensor; this benchmark does not attempt it.
 On the Raspberry:
 
 ```bash
-cd ~/Desktop/carmine/easy-dashboard
+cd ~/easy-dashboard            # your checkout
 git pull --ff-only
-sudo install -m 644 services/easy-dashboard.service /etc/systemd/system/easy-dashboard.service
-sudo systemctl daemon-reload
-sudo systemctl enable easy-dashboard.service
+./scripts/install_service.sh
 ./scripts/validate_raspberry_runtime.sh
 ./scripts/run_raspberry_benchmark.sh
 ```
