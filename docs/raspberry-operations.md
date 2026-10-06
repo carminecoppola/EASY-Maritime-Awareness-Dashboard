@@ -51,7 +51,7 @@ sudo systemctl restart easy-dashboard.service
 curl http://127.0.0.1:5000/health/ready
 ```
 
-`install.sh` builds the React frontend (needs Node.js 24 and npm), installs the
+`install.sh` builds the React frontend (needs Node.js 22 or newer and npm), installs the
 Python requirements and registers the service through `scripts/install_service.sh`,
 which renders `services/easy-dashboard.service` for this checkout and user. Without
 Node.js on the Raspberry, build on the Mac (`cd frontend && npm ci --include=dev &&

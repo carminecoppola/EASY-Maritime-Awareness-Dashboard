@@ -16,3 +16,6 @@ runtime/exports/
 runtime/benchmarks/
 runtime/replay/*
 !runtime/replay/test_inference/
+
+# Paper drafts and exports
+/*.pdf
