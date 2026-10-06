@@ -24,20 +24,20 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
-from acquisition_manager import AcquisitionManager
-from detection_manager import DetectionManager
-from dataset_exporter import DatasetExporter
-from device_manager import DeviceManager
-from event_manager import EventManager
-from frame_provider import UnifiedFrameProvider
-from inference_worker import InferenceWorker
-from session_manager import SessionManager
-from source_manager import SourceManager
-from runtime_support import error_from_payload, health_from_status, is_active_status, status_from_payload
+from easy_dashboard.acquisition_manager import AcquisitionManager
+from easy_dashboard.detection_manager import DetectionManager
+from easy_dashboard.dataset_exporter import DatasetExporter
+from easy_dashboard.device_manager import DeviceManager
+from easy_dashboard.event_manager import EventManager
+from easy_dashboard.frame_provider import UnifiedFrameProvider
+from easy_dashboard.inference_worker import InferenceWorker
+from easy_dashboard.session_manager import SessionManager
+from easy_dashboard.source_manager import SourceManager
+from easy_dashboard.runtime_support import error_from_payload, health_from_status, is_active_status, status_from_payload
 from easy_dashboard.runtime_status import build_rgb_device_status, build_thermal_device_status
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 def utc_now_iso() -> str:

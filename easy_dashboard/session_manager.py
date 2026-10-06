@@ -34,8 +34,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from easy_dashboard import __version__
-from inference_config import DEFAULT_MODEL_PATH
-from runtime_support import atomic_write_json, parse_utc_ts, read_json, utc_now_iso
+from easy_dashboard.inference_config import DEFAULT_MODEL_PATH
+from easy_dashboard.runtime_support import atomic_write_json, parse_utc_ts, read_json, utc_now_iso
 
 # status() reads every session's metadata.json from disk (list_sessions()) and,
 # if a session is running, also rewrites its metadata and recomputes metrics
@@ -61,7 +61,7 @@ DETECTIONS_FLUSH_INTERVAL_SECONDS = 5.0
 DETECTIONS_COMPACTION_BYTES = 65536
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 RUNTIME_ROOT = PROJECT_ROOT / "runtime"
 SESSIONS_ROOT = RUNTIME_ROOT / "sessions"
 SESSION_STATUSES = {"CREATED", "RUNNING", "STOPPED"}

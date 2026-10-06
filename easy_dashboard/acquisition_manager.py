@@ -19,7 +19,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List
 
-from runtime_support import parse_utc_ts, utc_now_iso
+from easy_dashboard.runtime_support import parse_utc_ts, utc_now_iso
 
 
 PAIR_WINDOW_SECONDS = 2.5

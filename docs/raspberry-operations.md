@@ -119,8 +119,6 @@ latency, inference timing, FPS and component states:
 
 The protocol, output schema and limitations are in
 [`runtime-benchmark.md`](runtime-benchmark.md).
-`scripts/endurance_inference.py` keeps continuous inference running for hours to watch
-for drift or overheating; its results are not comparable with the benchmark's.
 
 ## Recovering an unreadable user database
 
@@ -142,27 +140,3 @@ directive passed except `ProtectClock=true`, which makes `libcamera-vid` fail wi
 individually; they were not tested in combination. Apply them together without
 `ProtectClock` only in an isolated test cycle, never during active use of the
 hardware, and verify that RGB returns to `STREAMING`.
-
-## Demo hotspot (no network available)
-
-For an on-site demo the Pi can create its own Wi-Fi network instead of relying on the
-tunnel. **The Pi has a single Wi-Fi radio and no Ethernet:** enabling the hotspot
-takes `wlan0` away from the network used for SSH and there is no remote fallback.
-Run `enable` only with a monitor and keyboard attached; `status` is read-only and
-always safe.
-
-```bash
-./scripts/demo_hotspot.sh status
-./scripts/demo_hotspot.sh enable  --i-am-physically-at-the-pi
-./scripts/demo_hotspot.sh disable --i-am-physically-at-the-pi   # back to home Wi-Fi
-```
-
-Before using it in public:
-
-- change the passphrase in `services/demo-hotspot/hostapd.conf`;
-- rehearse `enable` and `disable` once with a monitor attached;
-- set `security.shared_token` or enable accounts, because the Wi-Fi passphrase is
-  otherwise the only access control.
-
-`scripts/demo_dry_run.sh` rehearses the whole demo flow (start a replay mission, run
-inferences, check focus assist, stop, verify the manifest).

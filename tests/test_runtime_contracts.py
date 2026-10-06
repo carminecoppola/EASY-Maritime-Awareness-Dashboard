@@ -12,13 +12,13 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from device_manager import DeviceManager
+from easy_dashboard.device_manager import DeviceManager
 from easy_dashboard.runtime_status import (
     build_rgb_state_contract,
     build_thermal_state_contract,
     runtime_is_healthy,
 )
-from source_manager import SourceManager
+from easy_dashboard.source_manager import SourceManager
 
 
 class RuntimeStateContractTests(unittest.TestCase):

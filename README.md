@@ -28,7 +28,7 @@ works from a browser on a Mac; capture, inference and storage stay on the Raspbe
 > **Honest scope.** The detector was trained on public datasets and is **not validated for
 > open water** (3.87% of obstacles found on the external MODD2 benchmark). It assists data
 > collection and research; it is not a navigation or safety system. See
-> [Project status](docs/project-status.md).
+> [Project status](docs/validation.md).
 
 ## How it fits together
 
@@ -73,15 +73,15 @@ cd ~/easy-dashboard && ./install.sh
 sudo systemctl restart easy-dashboard.service
 ```
 
-Requires Raspberry Pi OS with Python 3.9+, `libcamera`/`rpicam` tools for the cameras,
-`ffmpeg` and `v4l2-ctl` for the thermal sensor, and Node.js 24 to build the frontend
+Requires Raspberry Pi OS with Python 3.9 or newer (3.9 to 3.13 tested), `libcamera`/`rpicam` tools for the cameras,
+`ffmpeg` and `v4l2-ctl` for the thermal sensor, and Node.js 22 or newer to build the frontend
 (or build on the Mac and copy `frontend/dist/`). Full procedure:
 [Raspberry operations](docs/raspberry-operations.md).
 
 ### Open it from the Mac
 
 ```bash
-cp scripts/easy_dashboard_mac.env.example ~/.config/easy/launcher.env   # set your Raspberry address
+mkdir -p ~/.config/easy && cp scripts/easy_dashboard_mac.env.example ~/.config/easy/launcher.env   # set your Raspberry address
 ./scripts/easy_dashboard_mac.sh --install-home-launcher
 ~/easy_dashboard_mac.sh
 ```
@@ -96,26 +96,22 @@ and opens the browser once the dashboard really answers.
 | --- | --- |
 | [Operator guide](docs/operator-guide.md) | running a mission and reading the status |
 | [Developer guide](docs/developer-guide.md) | architecture, data flow, extending, security model |
-| [Raspberry operations](docs/raspberry-operations.md) | install, launch, diagnose, validate, demo hotspot |
-| [Project status](docs/project-status.md) | capabilities, model, measurements, next steps |
+| [Raspberry operations](docs/raspberry-operations.md) | install, launch, diagnose, validate |
+| [Status and validation](docs/validation.md) | capabilities, model, measurements, next steps |
 | [Runtime benchmark](docs/runtime-benchmark.md) | the reproducible Raspberry measurement protocol |
-| [Validation report](docs/validation-report.md) | what was verified, and when |
 | [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) | how to help, how to report a problem |
 
 ## Repository map
 
 ```text
-app.py                      Flask application factory
-system_orchestrator.py      builds and supervises every component
-*_manager.py, frame_provider.py, inference_*.py, dataset_exporter.py
-                            sessions, devices, sources, detections, events, inference, export
-easy_dashboard/             config, stores, auth, hardware adapters, runtime status, HTTP routes
-frontend/                   React operator interface (served from frontend/dist)
-runtime/                    model, configuration and replay assets (missions are generated here)
-scripts/                    launcher, install, benchmark, validation and demo tools
-services/                   systemd unit template, demo hotspot configuration
-tests/                      Python regression tests (no hardware needed)
-docs/                       guides and reports
+app.py              Flask application factory and entry point
+easy_dashboard/     the backend package: orchestrator, managers, inference, hardware adapters, auth, HTTP routes
+frontend/           React operator interface (served from frontend/dist)
+runtime/            model, configuration and replay assets (missions are generated here)
+scripts/            Mac launcher, service installer, benchmark and validation tools
+services/           systemd unit template
+tests/              Python regression tests (no hardware needed)
+docs/               guides and reports
 ```
 
 Every source file starts with a header and a docstring explaining its role.

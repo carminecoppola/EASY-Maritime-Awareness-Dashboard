@@ -24,7 +24,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 os.environ.setdefault("EASY_DASHBOARD_SKIP_GLOBAL_APP", "1")
 
 from app import create_app
-from device_manager import status_to_health
+from easy_dashboard.device_manager import status_to_health
 from easy_dashboard.runtime_status import (
     build_rgb_device_status,
     build_rgb_state_contract,
@@ -33,7 +33,7 @@ from easy_dashboard.runtime_status import (
     runtime_is_healthy,
 )
 from easy_dashboard.hardware import ThermalState
-from runtime_support import error_from_payload, health_from_status, is_active_status, status_from_payload
+from easy_dashboard.runtime_support import error_from_payload, health_from_status, is_active_status, status_from_payload
 
 
 def assert_ok(condition: bool, message: str) -> None:

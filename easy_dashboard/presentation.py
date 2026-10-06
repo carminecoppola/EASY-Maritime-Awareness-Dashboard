@@ -23,8 +23,8 @@ LOGGER = logging.getLogger("easy-dashboard")
 
 
 def run_preflight_script() -> None:
-    """Run ``preflight_check.sh`` (15 s limit) and log, rather than raise, any problem."""
-    script = PROJECT_ROOT / "preflight_check.sh"
+    """Run ``scripts/preflight_check.sh`` (15 s limit) and log, rather than raise, any problem."""
+    script = PROJECT_ROOT / "scripts" / "preflight_check.sh"
     if not script.exists():
         LOGGER.warning("Preflight script missing: %s", script)
         return

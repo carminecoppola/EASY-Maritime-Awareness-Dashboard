@@ -30,7 +30,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: Install Python dependencies
         run: |
@@ -51,17 +51,7 @@ jobs:
 
       - name: Compile Python
         run: |
-          python -m compileall -q \
-            app.py \
-            easy_dashboard \
-            scripts \
-            tests \
-            *_manager.py \
-            inference_*.py \
-            frame_provider.py \
-            runtime_catalog.py \
-            runtime_support.py \
-            system_orchestrator.py
+          python -m compileall -q app.py easy_dashboard scripts tests
 
       - name: Run unit and integration tests
         env:
@@ -90,4 +80,4 @@ jobs:
           retention-days: 7
 
       - name: Check shell scripts
-        run: bash -n install.sh start.sh preflight_check.sh scripts/*.sh
+        run: bash -n install.sh start.sh scripts/*.sh

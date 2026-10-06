@@ -19,6 +19,5 @@ possible.
   port 5000 to the Internet.
 - Create the first Admin in **Users & Roles** and turn on sign-in before sharing the
   device with other people.
-- Change the demo hotspot passphrase (`services/demo-hotspot/hostapd.conf`) before use.
 - Keep `data/auth_users.json` and `data/logs/audit.jsonl` private and backed up.
 - Use `EASY_DASHBOARD_ENABLE_AUTH=0` only as the documented emergency way back in.

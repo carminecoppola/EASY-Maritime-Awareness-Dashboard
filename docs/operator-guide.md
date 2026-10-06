@@ -49,7 +49,7 @@ Inference runs on the Raspberry CPU and takes about one second per frame.
 > **Limitation.** The model was trained on public datasets and has **not** been
 > validated on open water: on the external MODD2 benchmark it finds only 3.9% of
 > obstacles. Treat detections as assistance for data collection, not as a
-> safety system. See [Project status](project-status.md).
+> safety system. See [Project status](validation.md).
 
 ## Archive and dataset
 

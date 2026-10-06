@@ -24,9 +24,9 @@ export default defineConfig({
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
     // The release validator supplies its selected Python interpreter.
-    command: 'cd .. && "${EASY_PYTHON_BIN:-python3}" e2e_backend.py',
+    command: 'cd .. && "${EASY_PYTHON_BIN:-python3}" scripts/e2e_backend.py',
     // /health/ready needs the orchestrator fully running, which
-    // e2e_backend.py deliberately skips (run_startup_checks=False,
+    // scripts/e2e_backend.py deliberately skips (run_startup_checks=False,
     // start_runtime_services=False — no hardware in CI); /api/config has no
     // such dependency and is a fine "the server is up" probe.
     url: 'http://127.0.0.1:5051/api/config',

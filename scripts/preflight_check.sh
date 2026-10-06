@@ -8,7 +8,7 @@
 # USB, I2C adapters and recent kernel messages. It only reads; it never changes the system.
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DATA_DIR="${ROOT_DIR}/data"
 REPORT_DIR="${DATA_DIR}/reports"
 REPORT="${REPORT_DIR}/preflight_report.txt"

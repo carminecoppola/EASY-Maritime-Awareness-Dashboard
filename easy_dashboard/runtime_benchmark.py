@@ -46,7 +46,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import psutil
 
-from inference_config import DEFAULT_MODEL_PATH
+from easy_dashboard.inference_config import DEFAULT_MODEL_PATH
 
 
 DEFAULT_API_PATHS = (

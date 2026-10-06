@@ -45,13 +45,12 @@ sensor or replay frame
 * **Persistence.** Detections and session data are appended to JSONL journals
   (constant cost per inference) and compacted into JSON snapshots when large and old
   enough, on stop and on graceful shutdown. See the module docstrings of
-  `detection_manager.py` and `session_manager.py`.
+  `easy_dashboard/detection_manager.py` and `easy_dashboard/session_manager.py`.
 
 ## Module map
 
-| Module | Responsibility |
+| Module (in `easy_dashboard/`) | Responsibility |
 | --- | --- |
-| `app.py` | Flask factory, authentication hook, background bootstrap |
 | `system_orchestrator.py` | Builds and supervises every component, health aggregation |
 | `device_manager.py`, `source_manager.py`, `runtime_catalog.py` | Devices, selectable sources, canonical endpoints |
 | `frame_provider.py` | Replay and live frame providers behind one interface |
@@ -59,8 +58,11 @@ sensor or replay frame
 | `detection_manager.py`, `event_manager.py` | Detections and mission events |
 | `session_manager.py`, `acquisition_manager.py` | Missions, manifests, RGB/thermal pairing |
 | `dataset_exporter.py` | Validation and export of datasets |
-| `easy_dashboard/` | Config, stores, auth, hardware adapters, runtime status, routes |
-| `frontend/src/` | React application (pages, components, hooks, API client) |
+| `auth.py`, `stores.py`, `config.py`, `routes/` | Accounts, persistence helpers, configuration, HTTP routes |
+| `hardware.py`, `rgb_*.py`, `thermal_*.py` | Camera and thermal adapters |
+
+`app.py` (repository root) is the Flask factory and entry point; `frontend/src/` holds the
+React application (pages, components, hooks, API client).
 
 Every module starts with a docstring that explains its role; read it first.
 
@@ -86,7 +88,7 @@ and the browser all consume it. Main endpoint groups:
   `runtime/config/inference_config.json` at it and adjust the class list. Keep
   model-specific code in `inference_backend.py` and `inference_image.py`, never in
   route handlers. Record its checksum in the model repository (see
-  *Models* in [Project status](project-status.md)).
+  *Models* in [Project status](validation.md)).
 * **A new page:** add the route in `frontend/src/routes.tsx`, the navigation entry in
   `components/layout/navItems.ts` and use `useSharedDashboardState()` for data
   instead of adding another poller.

@@ -20,7 +20,7 @@ APP_URL="http://127.0.0.1:5000"
 REMOTE_APP_PORT="${EASY_REMOTE_APP_PORT:-5000}"
 RASPBERRY_IP="$(hostname -I | awk '{print $1}')"
 
-./preflight_check.sh || true
+./scripts/preflight_check.sh || true
 echo
 echo "EASY Dashboard"
 echo "=============="

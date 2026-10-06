@@ -25,10 +25,10 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from runtime_support import atomic_write_json, parse_utc_ts, read_json, utc_now_iso
+from easy_dashboard.runtime_support import atomic_write_json, parse_utc_ts, read_json, utc_now_iso
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 RUNTIME_ROOT = PROJECT_ROOT / "runtime"
 SESSIONS_DIR = RUNTIME_ROOT / "sessions"
 EVENT_STATUSES = {"NEW", "ACTIVE", "RESOLVED"}

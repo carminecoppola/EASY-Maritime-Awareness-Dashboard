@@ -12,8 +12,8 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from inference_config import load_runtime_config, resolve_runtime_path
-from inference_results import format_detections
+from easy_dashboard.inference_config import load_runtime_config, resolve_runtime_path
+from easy_dashboard.inference_results import format_detections
 
 
 class InferenceConfigurationTests(unittest.TestCase):

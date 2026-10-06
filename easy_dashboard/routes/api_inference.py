@@ -21,7 +21,7 @@ from typing import Any, Dict
 from flask import Blueprint, jsonify, request, send_file
 
 from easy_dashboard.routes import get_runtime
-from inference_worker import find_first_image
+from easy_dashboard.inference_worker import find_first_image
 
 
 api_inference_bp = Blueprint("api_inference", __name__)

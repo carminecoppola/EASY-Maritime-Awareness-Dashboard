@@ -28,7 +28,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict
 
-from runtime_support import atomic_write_json, utc_now_iso
+from easy_dashboard.runtime_support import atomic_write_json, utc_now_iso
 
 
 class DatasetExporter:

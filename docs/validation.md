@@ -1,4 +1,4 @@
-# Project status
+# Status and validation
 
 ## What works today
 
@@ -45,7 +45,7 @@ acquisition completed without lost RGB views or service restarts, at about 53% o
 CPU core and 450 MiB of memory; no throttling under CPU stress (77.4 °C peak). These
 figures describe the laboratory prototype only. Sustained inference on both live RGB
 views needs a dedicated, cooled field test, and the replay numbers do not claim it.
-See [validation report](validation-report.md) and [benchmark protocol](runtime-benchmark.md).
+See the [benchmark protocol](runtime-benchmark.md).
 
 A benchmark taken on a session that had been running unattended for 16+ hours showed
 persistence latency growing from about 140 ms to 280-370 ms, because the session
@@ -68,6 +68,21 @@ check the official 5 V / 3 A supply, the cable and any USB hub sharing the rail.
 Not testable on a bench: wave motion and vibration, real glare and lighting, and
 detection against real open-water objects (the purpose of the planned acquisition
 campaign).
+
+## Runtime states
+
+`/health` reports service viability; it does not require the thermal camera to hold a
+continuous stream. Hardware payloads carry a `runtime_state`:
+
+- `STREAMING`: a current frame is flowing.
+- `READY`: detected and available for capture (the thermal idle state, by design).
+- `INITIALIZING`: startup or recovery in progress.
+- `NOT_PRESENT`: disabled or not detected.
+- `ERROR`: capture or runtime failure requiring attention.
+
+Run `scripts/validate_local_release.sh` for the full local check (build, unit tests,
+smoke suite, browser tests) and `scripts/check_raspberry_runtime.py` on the Raspberry
+for the camera and thermal contract.
 
 ## Next steps
 

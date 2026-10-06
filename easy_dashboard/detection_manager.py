@@ -29,13 +29,13 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from runtime_support import atomic_write_json, read_json, utc_now_iso
+from easy_dashboard.runtime_support import atomic_write_json, read_json, utc_now_iso
 
 
 LOGGER = logging.getLogger("easy-dashboard")
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 RUNTIME_ROOT = PROJECT_ROOT / "runtime"
 SESSIONS_DIR = RUNTIME_ROOT / "sessions"
 

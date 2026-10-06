@@ -11,9 +11,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from acquisition_manager import AcquisitionManager
-from dataset_exporter import DatasetExporter
-from session_manager import SessionManager
+from easy_dashboard.acquisition_manager import AcquisitionManager
+from easy_dashboard.dataset_exporter import DatasetExporter
+from easy_dashboard.session_manager import SessionManager
 
 
 class SessionDatasetTests(unittest.TestCase):

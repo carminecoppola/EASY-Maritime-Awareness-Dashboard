@@ -32,10 +32,10 @@ from typing import Any, Callable, Dict, List, Optional
 import numpy as np
 from PIL import Image
 
-from runtime_support import atomic_write_json
+from easy_dashboard.runtime_support import atomic_write_json
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 RUNTIME_ROOT = PROJECT_ROOT / "runtime"
 DEFAULT_CONFIG_CANDIDATES = [
     RUNTIME_ROOT / "config" / "frame_provider_config.yaml",

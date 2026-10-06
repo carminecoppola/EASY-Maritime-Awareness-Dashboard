@@ -54,7 +54,7 @@ from easy_dashboard.presentation import append_startup_notice, run_preflight_scr
 from easy_dashboard.routes import register_blueprints
 from easy_dashboard.runtime import DashboardRuntime
 from easy_dashboard.stores import EventStore, SnapshotStore
-from system_orchestrator import SystemOrchestrator
+from easy_dashboard.system_orchestrator import SystemOrchestrator
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")

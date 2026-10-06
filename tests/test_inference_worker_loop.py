@@ -9,7 +9,7 @@ from __future__ import annotations
 import threading
 import unittest
 
-from inference_worker import InferenceWorker
+from easy_dashboard.inference_worker import InferenceWorker
 
 
 class InferenceLoopResilienceTests(unittest.TestCase):

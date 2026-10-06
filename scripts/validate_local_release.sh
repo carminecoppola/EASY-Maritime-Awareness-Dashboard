@@ -28,17 +28,7 @@ echo "[2/7] Running frontend unit tests"
 (cd frontend && npm run test)
 
 echo "[3/7] Compiling Python"
-"${PYTHON_BIN}" -m compileall -q \
-  app.py \
-  easy_dashboard \
-  scripts \
-  tests \
-  *_manager.py \
-  frame_provider.py \
-  inference_*.py \
-  runtime_catalog.py \
-  runtime_support.py \
-  system_orchestrator.py
+"${PYTHON_BIN}" -m compileall -q app.py easy_dashboard scripts tests
 
 echo "[4/7] Running regression tests"
 PYTHONWARNINGS=error::ResourceWarning "${PYTHON_BIN}" -m unittest discover -s tests -v
@@ -47,7 +37,7 @@ echo "[5/7] Running dashboard smoke test"
 "${PYTHON_BIN}" scripts/smoke_dashboard.py
 
 echo "[6/7] Checking shell syntax"
-bash -n install.sh start.sh preflight_check.sh scripts/*.sh
+bash -n install.sh start.sh scripts/*.sh
 
 echo "[7/7] Running browser smoke tests (install Playwright Chromium first)"
 export EASY_PYTHON_BIN

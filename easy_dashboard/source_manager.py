@@ -22,9 +22,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from device_manager import DeviceManager, DeviceStatus
-from runtime_catalog import build_runtime_endpoint_catalog
-from runtime_support import directory_has_frames, normalize_status, utc_now_iso
+from easy_dashboard.device_manager import DeviceManager, DeviceStatus
+from easy_dashboard.runtime_catalog import build_runtime_endpoint_catalog
+from easy_dashboard.runtime_support import directory_has_frames, normalize_status, utc_now_iso
 
 
 class SourceStatus:

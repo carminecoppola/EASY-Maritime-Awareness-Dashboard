@@ -26,9 +26,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from PIL import Image
-from frame_provider import FrameObject, UnifiedFrameProvider
-from inference_backend import OnnxDetectionBackend
-from inference_config import (
+from easy_dashboard.frame_provider import FrameObject, UnifiedFrameProvider
+from easy_dashboard.inference_backend import OnnxDetectionBackend
+from easy_dashboard.inference_config import (
     DEFAULT_CONFIG_CANDIDATES,
     DEFAULT_MODEL_PATH,
     PROJECT_ROOT,
@@ -36,8 +36,8 @@ from inference_config import (
     load_runtime_config,
     resolve_runtime_path,
 )
-from inference_results import format_detections
-from inference_image import (
+from easy_dashboard.inference_results import format_detections
+from easy_dashboard.inference_image import (
     Detection,
     box_iou,
     decode_yolo_output,
@@ -52,7 +52,7 @@ from inference_image import (
     sigmoid,
 )
 
-from source_manager import SourceManager, SourceStatus
+from easy_dashboard.source_manager import SourceManager, SourceStatus
 
 
 LOGGER = logging.getLogger("easy-dashboard")

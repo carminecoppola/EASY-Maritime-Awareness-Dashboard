@@ -10,9 +10,9 @@ import unittest
 
 import numpy as np
 
-from inference_image import Detection, decode_yolo_output, letterbox, nms
-from inference_worker import Detection as WorkerDetection
-from inference_worker import nms as worker_nms
+from easy_dashboard.inference_image import Detection, decode_yolo_output, letterbox, nms
+from easy_dashboard.inference_worker import Detection as WorkerDetection
+from easy_dashboard.inference_worker import nms as worker_nms
 
 
 class InferenceImageTests(unittest.TestCase):

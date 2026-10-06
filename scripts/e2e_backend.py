@@ -11,7 +11,10 @@ so the e2e suite exercises the real serving path, not Vite's dev server.
 from __future__ import annotations
 
 import os
+import sys
+from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ.setdefault("EASY_DASHBOARD_SKIP_GLOBAL_APP", "1")
 
 from app import create_app

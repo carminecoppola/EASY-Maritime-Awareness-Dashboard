@@ -11,14 +11,14 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from detection_manager import DetectionManager
+from easy_dashboard.detection_manager import DetectionManager
 from easy_dashboard.stores import EventStore
-from event_manager import EventManager
+from easy_dashboard.event_manager import EventManager
 
 
 class RuntimePersistenceTests(unittest.TestCase):
     def test_detection_frame_is_persisted_once_and_events_are_batched(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir, patch("detection_manager.atomic_write_json") as write_json:
+        with tempfile.TemporaryDirectory() as temp_dir, patch("easy_dashboard.detection_manager.atomic_write_json") as write_json:
             event_manager = Mock()
             manager = DetectionManager(Path(temp_dir), event_manager=event_manager)
             write_json.reset_mock()
@@ -56,7 +56,7 @@ class RuntimePersistenceTests(unittest.TestCase):
             self.assertEqual((root / "detection_history.jsonl").read_text(encoding="utf-8"), "")
 
     def test_small_journal_does_not_trigger_expensive_periodic_compaction(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir, patch("detection_manager.atomic_write_json") as write_json:
+        with tempfile.TemporaryDirectory() as temp_dir, patch("easy_dashboard.detection_manager.atomic_write_json") as write_json:
             manager = DetectionManager(Path(temp_dir))
             write_json.reset_mock()
             manager._last_history_compaction = 0.0
@@ -94,7 +94,7 @@ class RuntimePersistenceTests(unittest.TestCase):
             self.assertEqual(ids, ["1", "2"])
 
     def test_event_frame_syncs_only_the_affected_session_once(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir, patch("event_manager.atomic_write_json") as write_json:
+        with tempfile.TemporaryDirectory() as temp_dir, patch("easy_dashboard.event_manager.atomic_write_json") as write_json:
             manager = EventManager(Path(temp_dir))
             write_json.reset_mock()
 

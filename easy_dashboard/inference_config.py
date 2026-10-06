@@ -19,13 +19,13 @@ from pathlib import Path
 from typing import Any
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 RUNTIME_ROOT = PROJECT_ROOT / "runtime"
 DEFAULT_MODEL_PATH = "runtime/models/easy_v3_aboships_640.onnx"
 DEFAULT_CONFIG_CANDIDATES = (
     RUNTIME_ROOT / "config" / "inference_config.json",
     RUNTIME_ROOT / "config" / "inference_config.yaml",
-    RUNTIME_ROOT / "config" / "inference_config.yml",
+    RUNTIME_ROOT / "config" / "easy_dashboard.inference_config.yml",
 )
 
 

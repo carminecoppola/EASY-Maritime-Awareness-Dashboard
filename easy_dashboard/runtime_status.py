@@ -22,7 +22,7 @@ from __future__ import annotations
 import time
 from typing import Any, Mapping
 
-from runtime_support import normalize_status
+from easy_dashboard.runtime_support import normalize_status
 
 
 ERROR_STATES = {"ERROR", "FAILED", "OFFLINE"}
